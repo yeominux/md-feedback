@@ -11,7 +11,7 @@
 
 Please report security issues privately using GitHub private vulnerability reporting:
 
-- https://github.com/yeominux/md-feedback-clean/security/advisories/new
+- https://github.com/yeominux/md-feedback/security/advisories/new
 
 If private reporting is unavailable, contact maintainers via repository security contact channels.
 

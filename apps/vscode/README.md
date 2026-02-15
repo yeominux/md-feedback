@@ -2,9 +2,9 @@
 
 > Review your plan. Guide your AI agent. Ship with confidence.
 
-[English](README.md) | [한국어](README.ko.md)
+[English](README.md) | [한국어](https://github.com/yeominux/md-feedback/blob/main/README.ko.md)
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/yeominux.md-feedback-vscode?label=VS%20Code&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) [![npm](https://img.shields.io/npm/v/md-feedback?logo=npm)](https://www.npmjs.com/package/md-feedback) [![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](./LICENSE) [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/ymnseon8)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/yeominux.md-feedback-vscode?label=VS%20Code&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) [![npm](https://img.shields.io/npm/v/md-feedback?logo=npm)](https://www.npmjs.com/package/md-feedback) [![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](https://github.com/yeominux/md-feedback/blob/main/LICENSE) [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/ymnseon8)
 
 **MD Feedback** is a VS Code plan-review tool for AI coding: annotate markdown with Fix/Question/Highlight, then let agents read and execute that feedback through MCP. Annotations are saved as portable HTML comments in your markdown file (no proprietary format, no cloud lock-in).
 
@@ -36,7 +36,7 @@ You do steps 1–2. The agent does the rest.
 
 This is the MCP-first path. If you use export-based workflow, run export after step 2.
 
-## Quick Start
+## Quick Start (under 2 minutes)
 
 1. **Install** from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
 2. **Connect MCP** — add to your AI tool config (Claude Code, Cursor, etc.):
@@ -60,27 +60,27 @@ MD Feedback includes an MCP server that lets AI agents read your annotations wit
 npx md-feedback
 ```
 
-For full details, see [apps/vscode/README.md#mcp-server--agent-memory](./apps/vscode/README.md#mcp-server--agent-memory).
+For full details, see [MCP Server documentation](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme).
 
 ## Packages
 
 | Package | Description | Published |
 | --- | --- | --- |
-| [apps/vscode](./apps/vscode) | VS Code Extension | [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) |
-| [apps/mcp-server](./apps/mcp-server) | MCP Server | [npm](https://www.npmjs.com/package/md-feedback) |
-| [packages/shared](./packages/shared) | Shared types & utils | Private |
+| [apps/vscode](https://github.com/yeominux/md-feedback/tree/main/apps/vscode) | VS Code Extension | [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) |
+| [apps/mcp-server](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server) | MCP Server | [npm](https://www.npmjs.com/package/md-feedback) |
+| [packages/shared](https://github.com/yeominux/md-feedback/tree/main/packages/shared) | Shared types & utils | Private |
 
 ## Links
 
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
 - [npm (MCP Server)](https://www.npmjs.com/package/md-feedback)
 - [Report Issues](https://github.com/yeominux/md-feedback/issues)
-- [Contributing](./CONTRIBUTING.md)
+- [Contributing](https://github.com/yeominux/md-feedback/blob/main/CONTRIBUTING.md)
 - [Sponsor](https://buymeacoffee.com/ymnseon8)
 
 ## License
 
-[SUL-1.0](./LICENSE) — Free for personal and non-commercial use.
+[SUL-1.0](https://github.com/yeominux/md-feedback/blob/main/LICENSE) — Free for personal and non-commercial use.
 
 ---
 
@@ -96,10 +96,10 @@ Markdown Preview Enhanced is a read-only renderer. MD Feedback is an interactive
 Yes. MD Feedback exports to Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules/`), GitHub Copilot (`.github/copilot-instructions.md`), and 8 more tools. With MCP, agents read annotations directly — no export step needed.
 
 **What is MCP and why does it matter?**
-MCP (Model Context Protocol) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to your annotations, so they can read feedback, mark tasks done, evaluate gates, and generate handoffs automatically.
+MCP (Model Context Protocol) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to your annotations, so they can read feedback, mark tasks done, evaluate gates, and generate handoffs automatically. For example, when you mark a section as "Fix: use retry logic here," the agent reads that annotation via MCP, implements the fix, and marks it done — all without you switching tabs.
 
 **Is it free?**
-Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0](./LICENSE) license.
+Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0](https://github.com/yeominux/md-feedback/blob/main/LICENSE) license.
 
 **Who is this for?**
 Developers using AI coding assistants (Claude Code, Cursor, Copilot, etc.) who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.

@@ -36,7 +36,7 @@ You do steps 1–2. The agent does the rest.
 
 This is the MCP-first path. If you use export-based workflow, run export after step 2.
 
-## Quick Start
+## Quick Start (under 2 minutes)
 
 1. **Install** from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
 2. **Connect MCP** — add to your AI tool config (Claude Code, Cursor, etc.):
@@ -60,7 +60,7 @@ MD Feedback includes an MCP server that lets AI agents read your annotations wit
 npx md-feedback
 ```
 
-For full details, see [apps/vscode/README.md#mcp-server--agent-memory](./apps/vscode/README.md#mcp-server--agent-memory).
+For full details, see [MCP Server documentation](./apps/mcp-server/README.md).
 
 ## Packages
 
@@ -96,7 +96,7 @@ Markdown Preview Enhanced is a read-only renderer. MD Feedback is an interactive
 Yes. MD Feedback exports to Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules/`), GitHub Copilot (`.github/copilot-instructions.md`), and 8 more tools. With MCP, agents read annotations directly — no export step needed.
 
 **What is MCP and why does it matter?**
-MCP (Model Context Protocol) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to your annotations, so they can read feedback, mark tasks done, evaluate gates, and generate handoffs automatically.
+MCP (Model Context Protocol) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to your annotations, so they can read feedback, mark tasks done, evaluate gates, and generate handoffs automatically. For example, when you mark a section as "Fix: use retry logic here," the agent reads that annotation via MCP, implements the fix, and marks it done — all without you switching tabs.
 
 **Is it free?**
 Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0](./LICENSE) license.
