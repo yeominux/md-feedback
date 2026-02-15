@@ -3,7 +3,7 @@
 > MCP server for markdown annotation review — AI agents read your annotations directly.
 
 [![npm](https://img.shields.io/npm/v/md-feedback)](https://www.npmjs.com/package/md-feedback)
-[![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](https://github.com/yeominux/md-feedback-clean/blob/dev/LICENSE)
+[![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](https://github.com/yeominux/md-feedback/blob/main/LICENSE)
 
 ## What is this?
 
@@ -61,12 +61,16 @@ md-feedback --version   # Print version
 md-feedback             # Start MCP server (stdio)
 ```
 
+## Who Is This For?
+
+Developers and team leads who use AI coding agents (Claude Code, Cursor, Copilot) and want to review AI-generated plans before implementation — not after.
+
 ## Links
 
 - [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
-- [GitHub](https://github.com/yeominux/md-feedback-clean)
-- [Documentation](https://github.com/yeominux/md-feedback-clean#readme)
+- [GitHub](https://github.com/yeominux/md-feedback)
+- [Documentation](https://github.com/yeominux/md-feedback#readme)
 
 ## License
 
-[SUL-1.0](https://github.com/yeominux/md-feedback-clean/blob/dev/LICENSE) — Free for personal and non-commercial use.
+[SUL-1.0](https://github.com/yeominux/md-feedback/blob/main/LICENSE) — Free for personal and non-commercial use.

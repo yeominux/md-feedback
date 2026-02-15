@@ -2,6 +2,13 @@
 
 All notable changes to MD Feedback will be documented in this file.
 
+## [0.9.3] — 2026-02-15
+
+### Changed
+- All public links updated to canonical repository (yeominux/md-feedback)
+- MCP server README and npm metadata aligned with public product naming
+- Marketplace README links converted to absolute URLs for correct rendering
+
 ## [0.9.2] — 2026-02-15
 
 ### Fixed
