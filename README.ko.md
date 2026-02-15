@@ -75,7 +75,7 @@ npx md-feedback
 
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
 - [npm (MCP 서버)](https://www.npmjs.com/package/md-feedback)
-- [이슈 리포트](https://github.com/yeominux/md-feedback-clean/issues)
+- [이슈 리포트](https://github.com/yeominux/md-feedback/issues)
 - [기여하기](./CONTRIBUTING.md)
 - [후원하기](https://buymeacoffee.com/ymnseon8)
 
