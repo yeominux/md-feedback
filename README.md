@@ -74,7 +74,7 @@ For full details, see [apps/vscode/README.md#mcp-server--agent-memory](./apps/vs
 
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
 - [npm (MCP Server)](https://www.npmjs.com/package/md-feedback)
-- [Report Issues](https://github.com/yeominux/md-feedback-clean/issues)
+- [Report Issues](https://github.com/yeominux/md-feedback/issues)
 - [Contributing](./CONTRIBUTING.md)
 - [Sponsor](https://buymeacoffee.com/ymnseon8)
 
