@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.vsix
+
+# Local workspace artifacts
+.vscode/
+.idea/
+.DS_Store
+*.tmp
+test-review.md
+generic-review-*.md
+
+# Internal docs — not for public repo
+STRATEGY.md
+ROADMAP.md
+HANDOFF*.md
+CHANGELOG.md
+RELEASING.md
+
+*.bak
