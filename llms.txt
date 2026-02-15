@@ -1,0 +1,23 @@
+# MD Feedback
+> VS Code extension for reviewing and annotating markdown plans before AI agents implement them.
+
+## What It Does
+- Annotate markdown with highlights, fixes, and questions
+- Export structured feedback to 11+ AI coding tools (Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff)
+- Track review progress with gates, plan cursor, and checkpoints
+- Generate session handoff documents for AI agent continuity
+- Rich markdown rendering: Mermaid diagrams, callout/admonition blocks, syntax-highlighted code
+
+## MCP Server (12 tools)
+- get_document_structure, list_annotations, get_review_status
+- update_memo_status, update_cursor, evaluate_gates
+- export_review, create_checkpoint, get_checkpoints
+- generate_handoff, pickup_handoff
+- create_annotation
+
+## Install
+VS Code Marketplace: yeominux.md-feedback-vscode
+
+## Links
+- Repo: https://github.com/yeominux/md-feedback-clean
+- Marketplace: https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode

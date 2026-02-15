@@ -1,0 +1,36 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm guard:public-surface
+      - run: |
+          if [[ "${GITHUB_REF_NAME}" == v* ]]; then
+            RELEASE_TAG=${GITHUB_REF_NAME} pnpm verify-release
+          fi
+      - run: pnpm -r build
+      - run: pnpm test
+      - run: pnpm --filter md-feedback-vscode package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: apps/vscode/*.vsix
