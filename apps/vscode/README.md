@@ -6,7 +6,7 @@
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/yeominux.md-feedback-vscode?label=VS%20Code&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) [![npm](https://img.shields.io/npm/v/md-feedback?logo=npm)](https://www.npmjs.com/package/md-feedback) [![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](https://github.com/yeominux/md-feedback/blob/main/LICENSE) [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/ymnseon8)
 
-**MD Feedback** is a VS Code plan-review tool for AI coding: annotate markdown with Fix/Question/Highlight, then let agents read and execute that feedback through MCP. Annotations are saved as portable HTML comments in your markdown file (no proprietary format, no cloud lock-in).
+**MD Feedback** is a VS Code extension that turns markdown plans into structured review annotations (Fix / Question / Highlight). AI agents read your feedback directly through MCP — no copy-paste, no export step, no context lost between sessions.
 
 Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open a `.md` plan, press `1/2/3`, and your agent can act on that review immediately.
 
@@ -36,6 +36,14 @@ You do steps 1–2. The agent does the rest.
 
 This is the MCP-first path. If you use export-based workflow, run export after step 2.
 
+## Capabilities
+
+- 3 annotation types: Highlight, Fix, Question
+- 12 MCP tools for agent integration
+- Export to 11+ AI tools (Claude Code, Cursor, Copilot, Cline, Windsurf, Roo Code, Gemini, Codex, Antigravity, Generic)
+- Session handoff with checkpoint restore
+- Quality gates with auto-evaluation
+
 ## Quick Start (under 2 minutes)
 
 1. **Install** from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
@@ -49,6 +57,8 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 4. **Done** — your agent reads annotations directly via MCP. No export needed.
 
 > **No MCP?** Use Command Palette → `MD Feedback: Export` → pick your AI tool.
+
+> **Try it now:** Install from [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open any `.md` file, and press `2` to add your first Fix annotation.
 
 ## MCP Server
 
