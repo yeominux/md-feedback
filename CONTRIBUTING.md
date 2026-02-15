@@ -5,7 +5,7 @@ Thanks for your interest in MD Feedback.
 ## Reporting issues
 
 Please open bugs and feature requests at:
-https://github.com/yeominux/md-feedback-clean/issues
+https://github.com/yeominux/md-feedback/issues
 
 ## Pull requests
 
