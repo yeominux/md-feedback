@@ -2,7 +2,7 @@
   "name": "md-feedback-vscode",
   "displayName": "MD Feedback",
   "description": "Annotate markdown plans with Fix/Question/Highlight in VS Code, then let AI agents read and execute your feedback via MCP.",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "publisher": "yeominux",
   "license": "SUL-1.0",
   "icon": "icon.png",
@@ -12,11 +12,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yeominux/md-feedback-clean"
+    "url": "https://github.com/yeominux/md-feedback"
   },
-  "homepage": "https://github.com/yeominux/md-feedback-clean#readme",
+  "homepage": "https://github.com/yeominux/md-feedback#readme",
   "bugs": {
-    "url": "https://github.com/yeominux/md-feedback-clean/issues"
+    "url": "https://github.com/yeominux/md-feedback/issues"
   },
   "qna": "marketplace",
   "markdown": "github",

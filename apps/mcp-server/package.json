@@ -1,6 +1,6 @@
 {
   "name": "md-feedback",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "MCP server for MD Feedback: AI agents read markdown review annotations, update memo status, evaluate gates, and generate handoffs.",
   "license": "SUL-1.0",
   "author": "Yeomin Seon",
@@ -29,9 +29,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yeominux/md-feedback-clean"
+    "url": "https://github.com/yeominux/md-feedback"
   },
-  "homepage": "https://github.com/yeominux/md-feedback-clean#mcp-server--agent-memory",
+  "homepage": "https://github.com/yeominux/md-feedback#mcp-server--agent-memory",
   "keywords": [
     "mcp",
     "mcp-server",
