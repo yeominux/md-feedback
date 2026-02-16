@@ -8,9 +8,9 @@
 - Generate session handoff documents for AI agent continuity
 - Rich markdown rendering: Mermaid diagrams, callout/admonition blocks, syntax-highlighted code
 
-## MCP Server (12 tools)
+## MCP Server (13 tools)
 - get_document_structure, list_annotations, get_review_status
-- update_memo_status, update_cursor, evaluate_gates
+- update_memo_status, respond_to_memo, update_cursor, evaluate_gates
 - export_review, create_checkpoint, get_checkpoints
 - generate_handoff, pickup_handoff
 - create_annotation
