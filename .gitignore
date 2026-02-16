@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.vsix
+package-lock.json
 
 # Local workspace artifacts
 .vscode/
@@ -14,7 +15,6 @@ generic-review-*.md
 STRATEGY.md
 ROADMAP.md
 HANDOFF*.md
-CHANGELOG.md
 RELEASING.md
 
 *.bak

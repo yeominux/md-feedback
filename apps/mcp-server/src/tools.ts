@@ -302,21 +302,30 @@ export function registerTools(server: McpServer): void {
       anchorText: z.string().describe('The exact text in the document to annotate (must exist in the file)'),
       type: z.enum(['fix', 'question', 'highlight']).describe('fix = needs change, question = needs clarification, highlight = mark for reference'),
       text: z.string().describe('The review feedback or note to attach'),
+      occurrence: z.number().int().min(1).optional().describe('Which occurrence of anchorText to annotate (1-indexed, default 1). Use when the same text appears multiple times.'),
     },
-    async ({ file, anchorText, type, text }) => {
+    async ({ file, anchorText, type, text, occurrence }) => {
       try {
         const markdown = readMarkdownFile(file)
         const parts = splitDocument(markdown)
 
-        // Find anchor in body
+        // B-7: Find the Nth occurrence of anchor in body
+        const targetOccurrence = occurrence ?? 1
         const bodyLines = parts.body.split('\n')
         let anchorLine = -1
+        let matchCount = 0
         for (let i = 0; i < bodyLines.length; i++) {
-          if (bodyLines[i].includes(anchorText)) { anchorLine = i; break }
+          if (bodyLines[i].includes(anchorText)) {
+            matchCount++
+            if (matchCount === targetOccurrence) { anchorLine = i; break }
+          }
         }
         if (anchorLine === -1) {
+          const errMsg = matchCount === 0
+            ? `Anchor text not found: "${anchorText}"`
+            : `Anchor text "${anchorText}" has ${matchCount} occurrence(s), but occurrence=${targetOccurrence} requested`
           return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ error: `Anchor text not found: "${anchorText}"` }) }],
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: errMsg }) }],
             isError: true,
           }
         }
@@ -479,6 +488,19 @@ export function registerTools(server: McpServer): void {
       try {
         const markdown = readMarkdownFile(file)
         const parts = splitDocument(markdown)
+
+        // Validate taskId exists in memos
+        if (parts.memos.length > 0 && !parts.memos.some(m => m.id === taskId)) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                error: `Task ID not found: "${taskId}". Valid IDs: ${parts.memos.map(m => m.id).join(', ')}`,
+              }),
+            }],
+            isError: true,
+          }
+        }
 
         parts.cursor = {
           taskId,

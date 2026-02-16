@@ -19,10 +19,8 @@ export class SyncController implements vscode.Disposable {
   private switchToken = 0
   private debounceTimer: ReturnType<typeof setTimeout> | undefined
   private checkpointTimer: ReturnType<typeof setInterval> | undefined
-  private webviewPollTimer: ReturnType<typeof setInterval> | undefined
   private sectionTrackTimer: ReturnType<typeof setTimeout> | undefined
   private lastTrackedSection: string | undefined
-  private webviewMessageDisposable: vscode.Disposable | undefined
   private currentDocumentUri: vscode.Uri | undefined
   private readonly disposables: vscode.Disposable[] = []
   private readonly docStates = new Map<string, DocumentState>()
@@ -64,10 +62,11 @@ export class SyncController implements vscode.Disposable {
       void this.handleTimerCheckpoint()
     }, 600_000)
 
-    this.webviewPollTimer = setInterval(() => {
-      this.attachWebviewListener()
-    }, 500)
-    this.attachWebviewListener()
+    // Listen for first annotation AFTER the edit has been applied (no race condition)
+    const firstAnnotationHandler = this.panelProvider.onFirstAnnotationApplied(() => {
+      void this.handleFirstAnnotationCheckpoint()
+    })
+    this.disposables.push(firstAnnotationHandler)
   }
 
   get currentUri(): vscode.Uri | undefined {
@@ -161,9 +160,7 @@ export class SyncController implements vscode.Disposable {
   dispose(): void {
     if (this.debounceTimer) clearTimeout(this.debounceTimer)
     if (this.checkpointTimer) clearInterval(this.checkpointTimer)
-    if (this.webviewPollTimer) clearInterval(this.webviewPollTimer)
     if (this.sectionTrackTimer) clearTimeout(this.sectionTrackTimer)
-    if (this.webviewMessageDisposable) this.webviewMessageDisposable.dispose()
     while (this.disposables.length) {
       const item = this.disposables.pop()
       if (item) item.dispose()
@@ -200,26 +197,9 @@ export class SyncController implements vscode.Disposable {
     }, 150)
   }
 
-  private attachWebviewListener(): void {
-    if (this.webviewMessageDisposable) return
-    const view = this.panelProvider.view
-    if (!view) return
-
-    this.webviewMessageDisposable = view.webview.onDidReceiveMessage((msg) => {
-      if (!msg || typeof msg !== 'object') return
-      const type = (msg as { type?: string }).type
-      if (type !== 'annotation.first') return
-      void this.handleFirstAnnotationCheckpoint()
-    })
-    this.disposables.push(this.webviewMessageDisposable)
-
-    if (this.webviewPollTimer) {
-      clearInterval(this.webviewPollTimer)
-      this.webviewPollTimer = undefined
-    }
-  }
-
   private async handleFirstAnnotationCheckpoint(): Promise<void> {
+    // Called from panelProvider.onFirstAnnotationApplied — the edit has already
+    // been applied and saved, so document.getText() returns up-to-date content.
     const document = this.currentDocument() ?? this.getActiveMarkdownDocument()
     if (!document) return
     await this.createAutoCheckpoint(document, 'first-annotation')
