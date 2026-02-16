@@ -1,5 +1,13 @@
 /**
- * Gate Evaluator — auto-compute gate status based on memo states
+ * Gate Evaluator — auto-compute gate status based on memo states.
+ *
+ * Status logic:
+ *   1. If gate.blockedBy contains ANY open memos → "blocked"
+ *   2. If ALL memos in document are resolved   → "done"
+ *   3. Otherwise                               → "proceed"
+ *
+ * NOTE: Gate.canProceedIf and Gate.doneDefinition are display-only metadata
+ * for human/agent consumption. They do NOT influence these computations.
  */
 
 import type { Gate, MemoV2 } from './types'
