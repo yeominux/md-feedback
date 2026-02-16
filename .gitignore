@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.vsix
+package-lock.json
 
 # Local workspace artifacts
 .vscode/
