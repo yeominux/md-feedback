@@ -21,7 +21,26 @@ export function appendMissedMemos(
 
 /** Convert tiptap-markdown output to annotated markdown with memo comments */
 export function serializeWithMemos(markdown: string): string {
-  return markdown.replace(
+  // Restore REVIEW_RESPONSE markers from container divs
+  let result = markdown
+    .replace(/<div\s[^>]*data-review-response[^>]*>/g, (match) => {
+      const to = match.match(/data-response-to="([^"]*)"/)
+      return to ? `<!-- REVIEW_RESPONSE to="${decodeHtmlEntities(to[1])}" -->` : match
+    })
+    .replace(/<\/div>\s*(?=\n|$)/g, (match, offset, str) => {
+      // Only replace closing </div> that corresponds to a REVIEW_RESPONSE opening
+      // Check if there's an unclosed REVIEW_RESPONSE marker before this </div>
+      const before = str.slice(0, offset)
+      const openCount = (before.match(/<!-- REVIEW_RESPONSE /g) || []).length
+      const closeCount = (before.match(/<!-- \/REVIEW_RESPONSE -->/g) || []).length
+      if (openCount > closeCount) {
+        return '<!-- /REVIEW_RESPONSE -->'
+      }
+      return match
+    })
+
+  // Restore memo comments from memo block divs
+  result = result.replace(
     /<div\s[^>]*data-memo-block[^>]*>[\s\S]*?<\/div>/g,
     (match) => {
       const id = match.match(/data-memo-id="([^"]*)"/)
@@ -37,6 +56,8 @@ export function serializeWithMemos(markdown: string): string {
       return match
     },
   )
+
+  return result
 }
 
 export function decodeHtmlEntities(s: string): string {

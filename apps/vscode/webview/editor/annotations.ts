@@ -75,12 +75,27 @@ export function applyAnnotation(
   // Fix / Question: also insert a memo card
   if (color !== 'yellow') {
     const resolved = editor.state.doc.resolve(to)
-    const endOfBlock = resolved.end(resolved.depth)
     const selectedText = editor.state.doc.textBetween(from, to, ' ')
+
+    // B-1: If inside a table, insert memo AFTER the table.
+    // Memos inside table cells can't survive the markdown serialization roundtrip
+    // because convertMemosToHtml() only parses standalone memo lines.
+    let insertPos: number
+    let isInTable = false
+    for (let d = resolved.depth; d >= 0; d--) {
+      if (resolved.node(d).type.name === 'table') {
+        insertPos = resolved.after(d)
+        isInTable = true
+        break
+      }
+    }
+    if (!isInTable) {
+      insertPos = resolved.end(resolved.depth) + 1
+    }
 
     editor
       .chain()
-      .insertContentAt(endOfBlock + 1, {
+      .insertContentAt(insertPos!, {
         type: 'memoBlock',
         attrs: {
           memoId: nanoid(8),
