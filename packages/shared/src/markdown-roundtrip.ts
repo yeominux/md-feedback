@@ -18,7 +18,37 @@ function normalizeMemoColor(color: string | undefined): string {
  * This preserves memo data through the save/reload cycle.
  */
 export function convertMemosToHtml(markdown: string): string {
-  const lines = markdown.split('\n')
+  // B-1: Pre-process — extract USER_MEMO comments embedded inside table rows.
+  // Memos inside table cells (e.g. `| text <!-- USER_MEMO ... --> | other |`)
+  // can't be parsed by the line-by-line processor below. Move them to standalone
+  // lines right after the table ends.
+  const preLines = markdown.split('\n')
+  const preResult: string[] = []
+  const pendingTableMemos: string[] = []
+  for (const pl of preLines) {
+    const isTableRow = /^\s*\|.*\|\s*$/.test(pl)
+    if (isTableRow && pl.includes('<!-- USER_MEMO')) {
+      let clean = pl
+      const inlineRe = /\s*<!-- USER_MEMO\s+id="[^"]+"\s+[^]*?-->/g
+      let m: RegExpExecArray | null
+      while ((m = inlineRe.exec(pl)) !== null) {
+        pendingTableMemos.push(m[0].trim())
+        clean = clean.replace(m[0], '')
+      }
+      preResult.push(clean)
+    } else if (!isTableRow && pendingTableMemos.length > 0) {
+      for (const pm of pendingTableMemos) preResult.push(pm)
+      pendingTableMemos.length = 0
+      preResult.push(pl)
+    } else {
+      preResult.push(pl)
+    }
+  }
+  if (pendingTableMemos.length > 0) {
+    for (const pm of pendingTableMemos) preResult.push(pm)
+  }
+
+  const lines = preResult
   const result: string[] = []
   let i = 0
 
@@ -146,6 +176,19 @@ export function convertMemosToHtml(markdown: string): string {
       continue
     }
 
+    // REVIEW_RESPONSE markers → container divs
+    const respOpenMatch = trimmed.match(/^<!-- REVIEW_RESPONSE\s+to="([^"]+)"\s*-->$/)
+    if (respOpenMatch) {
+      result.push(`<div data-review-response data-response-to="${escAttr(respOpenMatch[1])}">`)
+      i++
+      continue
+    }
+    if (/^<!-- \/REVIEW_RESPONSE\s*-->$/.test(trimmed)) {
+      result.push('</div>')
+      i++
+      continue
+    }
+
     // Legacy memo blocks: <!-- @memo ... --> ... <!-- @/memo -->
     const legacyMatch = trimmed.match(/^<!-- @memo\s+id="([^"]+)"(?:\s+color="([^"]+)")?\s*-->$/)
     if (legacyMatch) {
@@ -214,6 +257,40 @@ export function extractMemos(annotatedMarkdown: string): { markdown: string; mem
         anchorPos: null,
         anchorText: anchor,
         createdAt: new Date().toISOString().split('T')[0],
+      })
+      continue
+    }
+
+    // v0.4 multi-line memo: <!-- USER_MEMO\n  key="val"\n-->
+    if (/^<!-- USER_MEMO\s*$/.test(line.trim())) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !/^-->$/.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      // i now points at --> line, loop increment will skip it
+
+      const attrs: Record<string, string> = {}
+      for (const al of attrLines) {
+        const am = al.trim().match(/^(\w+)="([^"]*)"$/)
+        if (am) attrs[am[1]] = am[2]
+      }
+
+      let anchor: string | null = attrs.anchorText || null
+      if (!anchor) {
+        for (let j = cleanLines.length - 1; j >= 0; j--) {
+          if (cleanLines[j].trim()) { anchor = cleanLines[j].trim(); break }
+        }
+      }
+
+      memos.push({
+        id: attrs.id || '',
+        text: (attrs.text || '').replace(/--\u200B>/g, '-->'),
+        color: (attrs.color as Memo['color']) || 'red',
+        anchorPos: null,
+        anchorText: anchor,
+        createdAt: attrs.createdAt ? attrs.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
       })
       continue
     }
