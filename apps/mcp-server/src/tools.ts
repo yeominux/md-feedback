@@ -335,7 +335,7 @@ export function registerTools(server: McpServer): void {
         const color: MemoColor = type === 'fix' ? 'red' : type === 'question' ? 'blue' : 'yellow'
 
         const memo: MemoV2 = {
-          id: `memo-${Date.now().toString(36)}`,
+          id: `memo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           type: type as MemoType,
           status: 'open',
           owner: 'agent',
@@ -479,6 +479,15 @@ export function registerTools(server: McpServer): void {
           const responseLines = response.split('\n')
           const insertIdx = insertAfter + 1
           bodyLines.splice(insertIdx, 0, ...responseLines)
+
+          // Shift existing response indices that come after insertIdx
+          for (const r of parts.responses) {
+            if (r.bodyStartIdx >= insertIdx) {
+              r.bodyStartIdx += responseLines.length
+              r.bodyEndIdx += responseLines.length
+            }
+          }
+
           parts.body = bodyLines.join('\n')
 
           // Add response marker
