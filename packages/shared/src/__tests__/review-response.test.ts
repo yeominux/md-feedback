@@ -183,3 +183,88 @@ More answer.
     expect(html).toContain('More answer.')
   })
 })
+
+describe('Auto-status: REVIEW_RESPONSE → answered', () => {
+  it('auto-answers open memo with REVIEW_RESPONSE', () => {
+    const input = `# Plan
+
+Some text.
+<!-- USER_MEMO id="q1" color="blue" status="open" : What does this mean? -->
+<!-- REVIEW_RESPONSE to="q1" -->
+This is the AI answer.
+<!-- /REVIEW_RESPONSE -->`
+
+    const parts = splitDocument(input)
+
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].status).toBe('answered')
+  })
+
+  it('migrates deprecated "done" status to "answered"', () => {
+    const input = `Some text.
+<!-- USER_MEMO
+  id="q1"
+  type="fix"
+  status="done"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Some text."
+  anchor=""
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- REVIEW_RESPONSE to="q1" -->
+Fixed it.
+<!-- /REVIEW_RESPONSE -->`
+
+    const parts = splitDocument(input)
+
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].status).toBe('answered')
+  })
+
+  it('preserves wontfix status even with REVIEW_RESPONSE', () => {
+    const input = `Some text.
+<!-- USER_MEMO
+  id="q1"
+  type="question"
+  status="wontfix"
+  owner="human"
+  source="generic"
+  color="blue"
+  text="Why?"
+  anchorText="Some text."
+  anchor=""
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- REVIEW_RESPONSE to="q1" -->
+Not applicable.
+<!-- /REVIEW_RESPONSE -->`
+
+    const parts = splitDocument(input)
+
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].status).toBe('wontfix')
+  })
+
+  it('keeps open status for memos without REVIEW_RESPONSE', () => {
+    const input = `Some text.
+<!-- USER_MEMO id="q1" color="blue" status="open" : Unanswered question -->
+Other text.
+<!-- USER_MEMO id="q2" color="red" status="open" : Fix needed -->
+<!-- REVIEW_RESPONSE to="q2" -->
+Here is the fix.
+<!-- /REVIEW_RESPONSE -->`
+
+    const parts = splitDocument(input)
+
+    expect(parts.memos).toHaveLength(2)
+    const q1 = parts.memos.find(m => m.id === 'q1')!
+    const q2 = parts.memos.find(m => m.id === 'q2')!
+    expect(q1.status).toBe('open')
+    expect(q2.status).toBe('answered')
+  })
+})
