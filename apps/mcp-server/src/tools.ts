@@ -394,6 +394,139 @@ export function registerTools(server: McpServer): void {
     },
   )
 
+  // ─── respond_to_memo (v0.4.0 NEW) ───
+  server.tool(
+    'respond_to_memo',
+    'Add an AI response to a memo annotation. Inserts a REVIEW_RESPONSE block into the markdown file directly below the memo\'s anchor text. Automatically sets the memo status to "answered".',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('The memo ID to respond to'),
+      response: z.string().describe('The response text (markdown supported)'),
+    },
+    async ({ file, memoId, response }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({ error: `Memo not found: ${memoId}` }),
+            }],
+            isError: true,
+          }
+        }
+
+        // Check if a response already exists for this memo
+        const existingResponse = parts.responses.find(r => r.to === memoId)
+        if (existingResponse) {
+          // Replace existing response content in the body
+          const bodyLines = parts.body.split('\n')
+          const newResponseLines = response.split('\n')
+          const start = existingResponse.bodyStartIdx
+          const end = existingResponse.bodyEndIdx
+          const count = end >= start ? end - start + 1 : 0
+          bodyLines.splice(start, count, ...newResponseLines)
+
+          // Update bodyEndIdx
+          existingResponse.bodyEndIdx = start + newResponseLines.length - 1
+          parts.body = bodyLines.join('\n')
+        } else {
+          // Insert new response after the memo's anchor line
+          const bodyLines = parts.body.split('\n')
+          let insertAfter = -1
+
+          // Find the memo's anchor line
+          if (memo.anchor) {
+            const anchorMatch = memo.anchor.match(/^L(\d+)(?::L\d+)?\|(.+)$/)
+            if (anchorMatch) {
+              const lineNum = parseInt(anchorMatch[1], 10) - 1
+              const expectedHash = computeLineHash(bodyLines[lineNum] || '')
+              if (lineNum >= 0 && lineNum < bodyLines.length && expectedHash === anchorMatch[2]) {
+                insertAfter = lineNum
+              } else {
+                // Search nearby
+                for (let delta = 1; delta <= 10; delta++) {
+                  for (const d of [lineNum - delta, lineNum + delta]) {
+                    if (d >= 0 && d < bodyLines.length && computeLineHash(bodyLines[d]) === anchorMatch[2]) {
+                      insertAfter = d
+                      break
+                    }
+                  }
+                  if (insertAfter >= 0) break
+                }
+              }
+            }
+          }
+          // Fallback: search by anchorText
+          if (insertAfter === -1 && memo.anchorText) {
+            for (let i = 0; i < bodyLines.length; i++) {
+              if (bodyLines[i].includes(memo.anchorText)) {
+                insertAfter = i
+                break
+              }
+            }
+          }
+          // Last resort: append to end
+          if (insertAfter === -1) {
+            insertAfter = bodyLines.length - 1
+          }
+
+          // Skip past any existing memos on this anchor line (they'll be reinserted by mergeDocument)
+          // Just insert the response content into the body
+          const responseLines = response.split('\n')
+          const insertIdx = insertAfter + 1
+          bodyLines.splice(insertIdx, 0, ...responseLines)
+          parts.body = bodyLines.join('\n')
+
+          // Add response marker
+          parts.responses.push({
+            id: `resp_${memoId}`,
+            to: memoId,
+            bodyStartIdx: insertIdx,
+            bodyEndIdx: insertIdx + responseLines.length - 1,
+          })
+        }
+
+        // Auto-answer the memo
+        if (memo.status === 'open') {
+          memo.status = 'answered'
+          memo.updatedAt = new Date().toISOString()
+        }
+
+        // Re-evaluate gates
+        if (parts.gates.length > 0) {
+          parts.gates = evaluateAllGates(parts.gates, parts.memos)
+        }
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              memoId,
+              status: memo.status,
+              responseInserted: true,
+              totalResponses: parts.responses.length,
+            }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
   // ─── update_memo_status (v0.4.0 NEW) ───
   server.tool(
     'update_memo_status',
