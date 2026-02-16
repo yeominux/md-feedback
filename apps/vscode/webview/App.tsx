@@ -151,19 +151,22 @@ export default function App() {
     if (isLoadingRef.current) return
     clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(() => {
-      vscode.postMessage({
-        type: 'document.edit',
-        content: annotatedMarkdown,
-      })
-
-      // First annotation auto-dismiss logic
+      // Merge annotation.first flag into document.edit to avoid race condition:
+      // both are async, and annotation.first must not fire until the edit is applied.
+      let firstAnnotation = false
       if (!firstAnnotationSentRef.current) {
         const hasAnnotations = annotatedMarkdown.includes('<!-- USER_MEMO')
         if (hasAnnotations) {
-          vscode.postMessage({ type: 'annotation.first' })
+          firstAnnotation = true
           firstAnnotationSentRef.current = true
         }
       }
+
+      vscode.postMessage({
+        type: 'document.edit',
+        content: annotatedMarkdown,
+        firstAnnotation,
+      })
     }, 800)
   }, [])
 
