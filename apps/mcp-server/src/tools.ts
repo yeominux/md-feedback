@@ -335,7 +335,7 @@ export function registerTools(server: McpServer): void {
         const color: MemoColor = type === 'fix' ? 'red' : type === 'question' ? 'blue' : 'yellow'
 
         const memo: MemoV2 = {
-          id: `memo-${Date.now().toString(36)}`,
+          id: `memo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           type: type as MemoType,
           status: 'open',
           owner: 'agent',

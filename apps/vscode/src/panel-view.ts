@@ -45,7 +45,6 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
     localResourceRoots: [distUri],
   }
 
-  ;(webviewView as vscode.WebviewView & { retainContextWhenHidden?: boolean }).retainContextWhenHidden = true
   webviewView.webview.html = getHtml(webviewView.webview, ctx.extensionUri)
 
   const disposables: vscode.Disposable[] = []
