@@ -7,7 +7,7 @@
  * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor, unknown comments
  */
 
-import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor } from './types'
+import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse } from './types'
 import { colorToType } from './types'
 
 // ─── Hash utility (simple djb2, no crypto needed) ───
@@ -54,6 +54,10 @@ const BANNER_CONTENT_RE = /MD Feedback/
 // Feedback notes wrapper
 const FEEDBACK_NOTES_RE = /^<!-- \/?(USER_FEEDBACK_NOTES|@\/?feedback-notes)\b.*-->$/
 
+// REVIEW_RESPONSE markers (open/close tags)
+const RESPONSE_OPEN_RE = /^<!-- REVIEW_RESPONSE\s+to="([^"]+)"\s*-->$/
+const RESPONSE_CLOSE_RE = /^<!-- \/REVIEW_RESPONSE\s*-->$/
+
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
   const attrs: Record<string, string> = {}
@@ -80,15 +84,39 @@ export function splitDocument(markdown: string): DocumentParts {
   const lines = body.split('\n')
   const bodyLines: string[] = []
   const memos: MemoV2[] = []
+  const responses: ReviewResponse[] = []
   const checkpoints: Checkpoint[] = []
   const gates: Gate[] = []
   const unknownComments: string[] = []
   let cursor: PlanCursor | null = null
+  let openResponse: ReviewResponse | null = null
 
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
     const trimmed = line.trim()
+
+    // ── REVIEW_RESPONSE markers ──
+    const respOpenMatch = trimmed.match(RESPONSE_OPEN_RE)
+    if (respOpenMatch) {
+      openResponse = {
+        id: `resp_${respOpenMatch[1]}`,
+        to: respOpenMatch[1],
+        bodyStartIdx: bodyLines.length,
+        bodyEndIdx: -1,
+      }
+      i++
+      continue
+    }
+    if (RESPONSE_CLOSE_RE.test(trimmed)) {
+      if (openResponse) {
+        openResponse.bodyEndIdx = bodyLines.length - 1
+        responses.push(openResponse)
+        openResponse = null
+      }
+      i++
+      continue
+    }
 
     // ── v0.3 single-line memo ──
     const v3Match = trimmed.match(MEMO_V3_RE)
@@ -251,10 +279,17 @@ export function splitDocument(markdown: string): DocumentParts {
     bodyLines.pop()
   }
 
+  // Handle unclosed response
+  if (openResponse) {
+    openResponse.bodyEndIdx = bodyLines.length - 1
+    responses.push(openResponse)
+  }
+
   return {
     frontmatter,
     body: bodyLines.join('\n'),
     memos,
+    responses,
     checkpoints,
     gates,
     cursor,
@@ -272,8 +307,8 @@ export function mergeDocument(parts: DocumentParts): string {
     sections.push(parts.frontmatter.trimEnd())
   }
 
-  // Body with memos re-inserted at anchor positions
-  const bodyWithMemos = reinsertMemos(parts.body, parts.memos)
+  // Body with memos and response markers re-inserted at anchor positions
+  const bodyWithMemos = reinsertMemosAndResponses(parts.body, parts.memos, parts.responses || [])
   sections.push(bodyWithMemos)
 
   // Gates
@@ -348,36 +383,54 @@ export function serializeCheckpoint(cp: Checkpoint): string {
 
 // ─── Anchor-based memo reinsertion ───
 
-function reinsertMemos(body: string, memos: MemoV2[]): string {
-  if (memos.length === 0) return body
+function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: ReviewResponse[]): string {
+  if (memos.length === 0 && responses.length === 0) return body
 
   const lines = body.split('\n')
 
-  // Build insertion map: lineIndex -> memos to insert after that line
-  const insertionMap = new Map<number, MemoV2[]>()
+  // Build memo insertion map: lineIndex -> memos to insert after that line
+  const memoMap = new Map<number, MemoV2[]>()
   const unanchored: MemoV2[] = []
 
   for (const memo of memos) {
     const lineIdx = findMemoAnchorLine(lines, memo)
     if (lineIdx >= 0) {
-      const existing = insertionMap.get(lineIdx) || []
+      const existing = memoMap.get(lineIdx) || []
       existing.push(memo)
-      insertionMap.set(lineIdx, existing)
+      memoMap.set(lineIdx, existing)
     } else {
       unanchored.push(memo)
     }
   }
 
-  // Build output with memos inserted after their anchor lines
+  // Build response marker maps
+  const responseOpenAt = new Map<number, string>()
+  const responseCloseAfter = new Map<number, string>()
+  for (const resp of responses) {
+    responseOpenAt.set(resp.bodyStartIdx, `<!-- REVIEW_RESPONSE to="${resp.to}" -->`)
+    if (resp.bodyEndIdx >= 0) {
+      responseCloseAfter.set(resp.bodyEndIdx, '<!-- /REVIEW_RESPONSE -->')
+    }
+  }
+
+  // Single pass: interleave body lines, memos, and response markers
   const result: string[] = []
   for (let i = 0; i < lines.length; i++) {
+    // Response opening marker before this line
+    if (responseOpenAt.has(i)) result.push(responseOpenAt.get(i)!)
+
     result.push(lines[i])
-    const memosHere = insertionMap.get(i)
+
+    // Memos anchored to this line
+    const memosHere = memoMap.get(i)
     if (memosHere) {
       for (const m of memosHere) {
         result.push(serializeMemoV2(m))
       }
     }
+
+    // Response closing marker after this line (and its memos)
+    if (responseCloseAfter.has(i)) result.push(responseCloseAfter.get(i)!)
   }
 
   // Append unanchored memos at the end

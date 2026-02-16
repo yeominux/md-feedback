@@ -18,6 +18,10 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   private preservedCheckpoints: Checkpoint[] = []
   private preservedCursor: PlanCursor | null = null
 
+  /** Fired after the first annotation edit has been applied to the document */
+  private readonly _onFirstAnnotationApplied = new vscode.EventEmitter<void>()
+  readonly onFirstAnnotationApplied = this._onFirstAnnotationApplied.event
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   get view(): vscode.WebviewView | undefined {
@@ -77,6 +81,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setOnboardingDone: (value) => this.context.globalState.update('md-feedback.onboardingDone', value),
       getMcpSetupDone: () => this.context.globalState.get('md-feedback.mcpSetupDone', false),
       setMcpSetupDone: (value) => this.context.globalState.update('md-feedback.mcpSetupDone', value),
+      fireFirstAnnotationApplied: () => this._onFirstAnnotationApplied.fire(),
     })
   }
 
