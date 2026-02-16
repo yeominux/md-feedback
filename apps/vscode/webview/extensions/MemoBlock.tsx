@@ -7,7 +7,6 @@ import { Pencil, X, ChevronDown } from 'lucide-react'
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
   open:     { label: 'Open',     color: 'text-mf-status-open',     bg: 'bg-mf-status-open' },
   answered: { label: 'Answered', color: 'text-mf-status-answered', bg: 'bg-mf-status-answered' },
-  done:     { label: 'Done',     color: 'text-mf-status-done',     bg: 'bg-mf-status-done' },
   wontfix:  { label: "Won't fix", color: 'text-mf-muted',  bg: 'bg-mf-border-subtle' },
 }
 

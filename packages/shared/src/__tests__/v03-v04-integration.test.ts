@@ -272,7 +272,7 @@ describe('v0.3 → v0.4 transition integration', () => {
 
       // Resolve m1
       const resolvedMemos = parts2.memos.map(m =>
-        m.id === 'm1' ? { ...m, status: 'done' as const } : m,
+        m.id === 'm1' ? { ...m, status: 'answered' as const } : m,
       )
       expect(evaluateGate(gate, resolvedMemos)).toBe('proceed')
     })

@@ -10,6 +10,24 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [0.9.6] - 2026-02-16
+
+AI auto-manages memo statuses. Simplified from 4 states to 3.
+
+### Added
+- Memos with AI responses are automatically marked as "Answered"
+- AI Response blocks now collapse/expand for long responses
+
+### Fixed
+- Backslash characters appearing when annotating AI response content
+
+### Improved
+- AI Response blocks now match the memo card design (card style, hover effects, themed colors)
+- Simplified memo status: Open, Answered, Won't Fix (removed redundant "Done")
+
+### Changed
+- Memo status model reduced from 4 to 3 states (existing "Done" memos auto-migrate to "Answered")
+
 ## [0.9.5] - 2026-02-16
 
 Bug fixes and quality improvements toward the first stable release.

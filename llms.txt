@@ -19,5 +19,5 @@
 VS Code Marketplace: yeominux.md-feedback-vscode
 
 ## Links
-- Repo: https://github.com/yeominux/md-feedback-clean
+- Repo: https://github.com/yeominux/md-feedback
 - Marketplace: https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode
