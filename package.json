@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.9.6",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "package": "pnpm --filter md-feedback-vscode package",
