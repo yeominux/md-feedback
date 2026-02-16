@@ -63,12 +63,27 @@ export interface MemoV2 {
   updatedAt: string
 }
 
+/**
+ * Quality gate — auto-evaluated based on memo states.
+ *
+ * Status logic (see gate-evaluator.ts):
+ *   1. If blockedBy contains ANY open memos → "blocked"
+ *   2. If ALL memos in document are resolved → "done"
+ *   3. Otherwise → "proceed"
+ *
+ * NOTE: `canProceedIf` and `doneDefinition` are human-readable metadata only.
+ * They do NOT influence automatic status computation. To enforce conditions,
+ * link specific memos via `blockedBy` — the gate stays blocked until those
+ * memos are resolved.
+ */
 export interface Gate {
   id: string
   type: 'merge' | 'release' | 'implement' | 'custom'
   status: 'blocked' | 'proceed' | 'done'
-  blockedBy: string[]           // memo IDs
+  blockedBy: string[]           // memo IDs — drives automatic status
+  /** Human-readable hint shown to agents. Does NOT affect evaluation. */
   canProceedIf: string
+  /** Human-readable completion criteria. Does NOT affect evaluation. */
   doneDefinition: string
 }
 
@@ -80,10 +95,18 @@ export interface PlanCursor {
   updatedAt: string
 }
 
+export interface ReviewResponse {
+  id: string                    // auto-generated
+  to: string                    // target USER_MEMO id
+  bodyStartIdx: number          // line index in bodyLines where response starts
+  bodyEndIdx: number            // line index in bodyLines where response ends
+}
+
 export interface DocumentParts {
   frontmatter: string           // YAML frontmatter (pass-through, empty if none)
   body: string                  // body markdown (memos/gates/cursor stripped)
   memos: MemoV2[]
+  responses: ReviewResponse[]   // AI responses (markers only; text lives in body)
   checkpoints: Checkpoint[]
   gates: Gate[]
   cursor: PlanCursor | null

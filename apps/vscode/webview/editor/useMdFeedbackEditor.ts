@@ -13,6 +13,7 @@ import Image from '@tiptap/extension-image'
 import { Markdown } from 'tiptap-markdown'
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react'
 import { MemoBlock } from '../extensions/MemoBlock'
+import { ReviewResponseBlock } from '../extensions/ReviewResponseBlock'
 import CodeBlockHighlight from '../extensions/CodeBlockHighlight'
 import CalloutExtension from '../extensions/CalloutBlock'
 import MermaidBlock from '../extensions/MermaidBlock'
@@ -67,6 +68,7 @@ export function useMdFeedbackEditor({
       TaskItem.configure({ nested: true }),
       Image.configure({ inline: true }),
       MemoBlock,
+      ReviewResponseBlock,
       CodeBlockHighlight,
       CalloutExtension,
       MermaidBlock,
