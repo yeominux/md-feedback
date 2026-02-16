@@ -398,6 +398,18 @@
 }
 .memo-card:hover { box-shadow: var(--mf-shadow-md); }
 
+/* ── AI Response card ── */
+.ai-response-card {
+  background: var(--mf-surface);
+  border: 1px solid var(--mf-border-subtle);
+  border-left: 3px solid var(--mf-ai-response-accent);
+  border-radius: 0 4px 4px 0;
+  box-shadow: var(--mf-shadow-sm);
+  transition: box-shadow 0.15s ease;
+  animation: memo-enter 0.2s ease-out;
+}
+.ai-response-card:hover { box-shadow: var(--mf-shadow-md); }
+
 @keyframes memo-enter {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -591,8 +603,6 @@
 .bg-mf-status-open { background: var(--mf-status-open-bg); }
 .text-mf-status-answered { color: var(--mf-status-answered-text); }
 .bg-mf-status-answered { background: var(--mf-status-answered-bg); }
-.text-mf-status-done { color: var(--mf-status-done-text); }
-.bg-mf-status-done { background: var(--mf-status-done-bg); }
 /* Memo label theme-aware utilities */
 .text-mf-memo-highlight { color: var(--mf-memo-highlight-label); }
 .text-mf-memo-fix { color: var(--mf-memo-fix-label); }
