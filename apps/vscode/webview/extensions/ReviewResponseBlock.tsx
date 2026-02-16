@@ -41,11 +41,11 @@ export const ReviewResponseBlock = Node.create({
         serialize(state: any, node: any) {
           state.write(`<!-- REVIEW_RESPONSE to="${node.attrs.responseTo}" -->\n`)
           state.renderContent(node)
-          state.write(`<!-- /REVIEW_RESPONSE -->\n`)
+          state.ensureNewLine()
+          state.write(`<!-- /REVIEW_RESPONSE -->`)
+          state.closeBlock(node)
         },
-        parse: {
-          // handled by parseHTML
-        },
+        parse: {},
       },
     }
   },
