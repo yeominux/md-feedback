@@ -61,10 +61,12 @@ function collectAnnotatedItems(
       continue
     }
 
-    // Match USER_MEMO annotations
-    const memoMatch = line.match(/<!-- USER_MEMO\s+id="[^"]+"(?:\s+color="([^"]+)")?\s*:\s*(.*?)\s*-->/)
+    // Match v0.3 single-line USER_MEMO annotations (handles extra attrs like status)
+    const memoMatch = line.match(/<!-- USER_MEMO\s+id="[^"]+"\s+(.*?)\s*:\s*(.*?)\s*-->/)
     if (memoMatch) {
-      const color = memoMatch[1] || 'red'
+      const attrStr = memoMatch[1]
+      const colorAttr = attrStr.match(/color="([^"]+)"/)
+      const color = colorAttr ? colorAttr[1] : 'red'
       const feedback = memoMatch[2].replace(/--\u200B>/g, '-->')
 
       // Find the annotated text (previous non-empty line)
@@ -83,6 +85,45 @@ function collectAnnotatedItems(
       if (color === 'red') decisions.push(item)
       else if (color === 'blue') openQuestions.push(item)
       else keyPoints.push(item)
+      continue
+    }
+
+    // Match v0.4 multi-line USER_MEMO annotations
+    if (/^<!-- USER_MEMO\s*$/.test(line.trim())) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !/^-->$/.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+
+      const attrs: Record<string, string> = {}
+      for (const al of attrLines) {
+        const am = al.trim().match(/^(\w+)="([^"]*)"$/)
+        if (am) attrs[am[1]] = am[2]
+      }
+
+      const color = attrs.color || 'red'
+      const feedback = (attrs.text || '').replace(/--\u200B>/g, '-->')
+
+      let text = ''
+      if (attrs.anchorText) {
+        text = attrs.anchorText.replace(/<\/?mark[^>]*>/g, '')
+      } else {
+        for (let j = i - 1; j >= 0; j--) {
+          if (lines[j].trim() && !lines[j].includes('<!-- ')) {
+            text = lines[j].trim().replace(/<\/?mark[^>]*>/g, '')
+            break
+          }
+        }
+      }
+
+      const item: HandoffItem = { section: currentSection, text, feedback }
+
+      if (color === 'red') decisions.push(item)
+      else if (color === 'blue') openQuestions.push(item)
+      else keyPoints.push(item)
+      continue
     }
 
     // Match standalone <mark> highlights (no memo following) — 3 formats
@@ -289,6 +330,22 @@ export function parseHandoffFile(markdown: string): HandoffDocument | null {
       if (currentSection.startsWith('Decisions')) decisions.push(item)
       else if (currentSection.startsWith('Open Questions')) openQuestions.push(item)
       else if (currentSection.startsWith('Key Points')) keyPoints.push(item)
+    }
+
+    // Parse checkpoint table rows
+    if (currentSection.startsWith('Progress Checkpoints')) {
+      const rowMatch = line.match(/^\|\s*(\d+)\s*\|\s*([^|]+)\|\s*([^|]*)\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|/)
+      if (rowMatch) {
+        checkpoints.push({
+          id: `ckpt_restored_${rowMatch[1]}`,
+          timestamp: rowMatch[2].trim(),
+          note: rowMatch[3].trim(),
+          fixes: parseInt(rowMatch[4], 10),
+          questions: parseInt(rowMatch[5], 10),
+          highlights: parseInt(rowMatch[6], 10),
+          sectionsReviewed: [],
+        })
+      }
     }
 
     // Parse next steps

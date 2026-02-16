@@ -33,6 +33,7 @@ export interface PanelViewContext {
   setOnboardingDone: (value: boolean) => Thenable<void>
   getMcpSetupDone: () => boolean
   setMcpSetupDone: (value: boolean) => Thenable<void>
+  fireFirstAnnotationApplied: () => void
 }
 
 export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelViewContext): void {
@@ -148,6 +149,17 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           } else {
             // #15: Auto-save to keep disk in sync with VS Code buffer (MCP reads from disk)
             try { await document.save() } catch { /* best-effort */ }
+
+            // Fire first-annotation event AFTER the edit is applied and saved,
+            // so sync-controller reads the up-to-date document content for the checkpoint.
+            if (msg.firstAnnotation) {
+              // Dismiss onboarding
+              if (!ctx.getOnboardingDone()) {
+                await ctx.setOnboardingDone(true)
+                ctx.postMessage({ type: 'onboarding.state', done: true })
+              }
+              ctx.fireFirstAnnotationApplied()
+            }
           }
         } catch (error) {
           vscode.window.showErrorMessage('Failed to apply edits from MD Feedback.')
@@ -481,6 +493,8 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
         break
       }
 
+      // annotation.first is now handled as a flag on document.edit (see above).
+      // Keep this handler for backwards compatibility with older webview versions.
       case 'annotation.first': {
         const done = ctx.getOnboardingDone()
         if (!done) {
