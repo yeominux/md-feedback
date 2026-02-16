@@ -46,7 +46,7 @@ export const HEX_TO_COLOR_NAME: Record<string, string> = {
 // ─── v0.4.0 State Model ───
 
 export type MemoType = 'fix' | 'question' | 'highlight'
-export type MemoStatus = 'open' | 'answered' | 'done' | 'wontfix'
+export type MemoStatus = 'open' | 'answered' | 'wontfix'
 export type MemoOwner = 'human' | 'agent' | 'tool'
 
 export interface MemoV2 {

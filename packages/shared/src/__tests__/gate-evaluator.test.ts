@@ -60,7 +60,7 @@ describe('gate-evaluator — evaluateGate and evaluateAllGates', () => {
       {
         id: 'm1',
         type: 'fix',
-        status: 'done',
+        status: 'answered',
         owner: 'human',
         source: 'cursor',
         color: 'red',
