@@ -61,4 +61,19 @@ Paragraph.
     expect(html).toContain('data-memo-id="m-unknown"')
     expect(html).toContain('data-memo-color="red"')
   })
+
+  it('B-1: extracts memo embedded inside a markdown table row', () => {
+    const markdown = `| Header 1 | Header 2 |
+|----------|----------|
+| cell text <!-- USER_MEMO id="tm1" color="red" status="open" : table fix --> | other |
+| normal | row |`
+
+    const html = convertMemosToHtml(markdown)
+
+    // Memo should be extracted from the table row and converted to memo-block HTML
+    expect(html).toContain('data-memo-id="tm1"')
+    expect(html).toContain('data-memo-color="red"')
+    // The table row should no longer contain the memo comment
+    expect(html).not.toContain('| cell text <!-- USER_MEMO')
+  })
 })

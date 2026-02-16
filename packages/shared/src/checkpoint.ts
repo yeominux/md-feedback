@@ -1,6 +1,7 @@
 import type { Checkpoint } from './types'
 import { HEX_TO_COLOR_NAME } from './types'
 import { extractCheckpoints, serializeCheckpoint } from './markdown-roundtrip'
+import { splitDocument } from './document-writer'
 
 // ─── ID generation (no external deps) ───
 
@@ -27,15 +28,16 @@ export function getAnnotationCounts(markdown: string): AnnotationCounts {
   let questions = 0
   let highlights = 0
 
-  // Count USER_MEMO comments by color
-  const memoRe = /<!-- USER_MEMO\s+id="[^"]+"(?:\s+color="([^"]+)")?(?:\s+status="[^"]+")?\s*:/g
-  let m: RegExpExecArray | null
-  while ((m = memoRe.exec(markdown)) !== null) {
-    const color = m[1] || 'red'
+  // Count USER_MEMO comments by color (v0.3 + v0.4 via splitDocument)
+  const parts = splitDocument(markdown)
+  for (const memo of parts.memos) {
+    const color = memo.color || 'red'
     if (color === 'red') fixes++
     else if (color === 'blue') questions++
     else highlights++
   }
+
+  let m: RegExpExecArray | null
 
   // Count <mark> highlights with style (inline annotations without memos)
   const markRe = /<mark[^>]*style="background-color:\s*([^"]+)"[^>]*>/g
