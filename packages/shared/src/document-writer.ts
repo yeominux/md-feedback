@@ -60,10 +60,11 @@ const RESPONSE_CLOSE_RE = /^<!-- \/REVIEW_RESPONSE\s*-->$/
 
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
+  const unesc = (s: string) => s.replace(/&#10;/g, '\n').replace(/&quot;/g, '"')
   const attrs: Record<string, string> = {}
   for (const line of lines) {
     const m = line.trim().match(/^(\w+)="([^"]*)"$/)
-    if (m) attrs[m[1]] = m[2]
+    if (m) attrs[m[1]] = unesc(m[2])
   }
   return attrs
 }
@@ -347,7 +348,7 @@ export function mergeDocument(parts: DocumentParts): string {
 // ─── Serializers ───
 
 export function serializeMemoV2(memo: MemoV2): string {
-  const esc = (s: string) => s.replace(/"/g, '&quot;')
+  const esc = (s: string) => s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
   return [
     '<!-- USER_MEMO',
     `  id="${esc(memo.id)}"`,

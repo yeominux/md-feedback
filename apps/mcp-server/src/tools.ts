@@ -479,6 +479,15 @@ export function registerTools(server: McpServer): void {
           const responseLines = response.split('\n')
           const insertIdx = insertAfter + 1
           bodyLines.splice(insertIdx, 0, ...responseLines)
+
+          // Shift existing response indices that come after insertIdx
+          for (const r of parts.responses) {
+            if (r.bodyStartIdx >= insertIdx) {
+              r.bodyStartIdx += responseLines.length
+              r.bodyEndIdx += responseLines.length
+            }
+          }
+
           parts.body = bodyLines.join('\n')
 
           // Add response marker
