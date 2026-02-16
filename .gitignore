@@ -8,7 +8,7 @@ package-lock.json
 .idea/
 .DS_Store
 *.tmp
-test-review.md
+test-*.md
 generic-review-*.md
 
 # Internal docs — not for public repo
@@ -18,6 +18,10 @@ HANDOFF*.md
 RELEASING.md
 
 *.bak
+*.log
+.env*
+Thumbs.db
+.vsce/
 
 # Prevent token leaks
 apps/**/.npmrc
