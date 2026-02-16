@@ -248,7 +248,7 @@ export function registerTools(server: McpServer): void {
         const gates = evaluateAllGates(parts.gates, parts.memos)
 
         const open = parts.memos.filter(m => m.status === 'open').length
-        const done = parts.memos.filter(m => m.status === 'done' || m.status === 'answered' || m.status === 'wontfix').length
+        const done = parts.memos.filter(m => m.status !== 'open').length
         const blocked = gates.filter(g => g.status === 'blocked').length
 
         const structure: ReviewDocument = {
@@ -401,7 +401,7 @@ export function registerTools(server: McpServer): void {
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update'),
-      status: z.enum(['open', 'answered', 'done', 'wontfix']).describe('New status'),
+      status: z.enum(['open', 'answered', 'wontfix']).describe('New status'),
       owner: z.enum(['human', 'agent', 'tool']).optional().describe('Optionally change the owner'),
     },
     async ({ file, memoId, status, owner }) => {
