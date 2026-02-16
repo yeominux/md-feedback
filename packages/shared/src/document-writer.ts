@@ -285,6 +285,21 @@ export function splitDocument(markdown: string): DocumentParts {
     responses.push(openResponse)
   }
 
+  // Backward compat: migrate deprecated "done" status → "answered"
+  for (const memo of memos) {
+    if ((memo.status as string) === 'done') {
+      memo.status = 'answered'
+    }
+  }
+
+  // Auto-answer: memos with a REVIEW_RESPONSE and status "open" → "answered"
+  const respondedMemoIds = new Set(responses.map(r => r.to))
+  for (const memo of memos) {
+    if (memo.status === 'open' && respondedMemoIds.has(memo.id)) {
+      memo.status = 'answered'
+    }
+  }
+
   return {
     frontmatter,
     body: bodyLines.join('\n'),
