@@ -241,7 +241,7 @@ export default function App() {
       {showMcpSetup && !mcpSetupDone && docLoaded && (
         <div className="mcp-setup-overlay">
           <div className="mcp-setup-card">
-            <div className="mcp-setup-step">Step 1 of 2</div>
+            <div className="mcp-setup-step">MCP Setup</div>
             <h2 className="mcp-setup-title">Connect your AI agent</h2>
             <p className="mcp-setup-desc">
               Your AI agent reads annotations directly via MCP — no export step needed.
