@@ -53,6 +53,21 @@ export const MemoBlock = Node.create({
     }), `memo: ${HTMLAttributes.text || ''}`]
   },
 
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const { memoId, text, color, status } = node.attrs
+          const escaped = (text || '').replace(/-->/g, '--\u200B>')
+          const statusAttr = status && status !== 'open' ? ` status="${status}"` : ''
+          state.write(`<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr} : ${escaped} -->`)
+          state.closeBlock(node)
+        },
+        parse: {},
+      },
+    }
+  },
+
   addNodeView() {
     return ReactNodeViewRenderer(MemoBlockView)
   },
