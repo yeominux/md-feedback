@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 
-// pnpm strict mode breaks transitive dep resolution for packages with
-// undeclared dependencies (e.g. mermaid -> langium -> @chevrotain/*).
-// This plugin manually resolves bare specifiers from the workspace's
-// node_modules, handling ESM exports maps that require.resolve misses.
+// Windows + pnpm strict mode breaks transitive dep resolution because
+// Node.js cannot follow .pnpm symlinks without admin privileges.
+// This plugin manually resolves bare specifiers on Windows only.
+// On Linux/macOS (CI), pnpm symlinks work natively — skip entirely.
 function pnpmResolve(): import('vite').Plugin {
+  const isWindows = process.platform === 'win32'
   const searchPaths = [
     path.resolve(__dirname, 'node_modules'),
     path.resolve(__dirname, '../../node_modules/.pnpm/node_modules'),
@@ -17,6 +18,7 @@ function pnpmResolve(): import('vite').Plugin {
     name: 'pnpm-resolve',
     enforce: 'pre',
     resolveId(source, importer) {
+      if (!isWindows) return null
       if (!importer || !importer.includes('node_modules') || source.startsWith('.') || source.startsWith('/') || source.startsWith('\0')) {
         return null
       }
@@ -28,7 +30,6 @@ function pnpmResolve(): import('vite').Plugin {
       try {
         if (!fs.existsSync(path.join(pkgDir, 'package.json'))) continue
         const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'))
-        // Check exports map for the subpath
         if (pkgJson.exports) {
           const exp = pkgJson.exports[subpath]
           if (typeof exp === 'string') return path.resolve(pkgDir, exp)
