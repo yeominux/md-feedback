@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-commit hook: run tests before every commit.
+# Skip with: git commit --no-verify (only when you know what you're doing)
+
+echo "🧪 Running tests before commit..."
+pnpm test
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "✗ Tests failed. Commit aborted."
+  echo "  Fix the failing tests or use --no-verify to skip."
+  exit 1
+fi
+
+echo "✓ Tests passed."
