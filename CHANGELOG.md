@@ -10,6 +10,21 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [0.9.8] - 2026-02-16
+
+Pre-launch stability pass — fixes data corruption bugs and improves reliability.
+
+### Fixed
+- AI responses could corrupt existing annotations when multiple responses exist in a document
+- Memo text with line breaks was lost after save/reload
+- Rapid annotation creation by AI agents could produce duplicate memo IDs
+- Checkpoint detection could silently fail on repeated calls
+- MCP Setup screen showed misleading "Step 1 of 2" label
+- `Show Onboarding` command was not visible in the command palette
+
+### Improved
+- Internal docs removed from published package (smaller install size)
+
 ## [0.9.7] - 2026-02-16
 
 Stabilization release with bug fixes and a new MCP tool for AI agents.

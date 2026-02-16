@@ -2,7 +2,7 @@
   "name": "md-feedback-vscode",
   "displayName": "MD Feedback",
   "description": "Annotate markdown plans with Fix/Question/Highlight in VS Code, then let AI agents read and execute your feedback via MCP.",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "publisher": "yeominux",
   "license": "SUL-1.0",
   "icon": "icon.png",
