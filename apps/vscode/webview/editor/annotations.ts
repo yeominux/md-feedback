@@ -80,22 +80,17 @@ export function applyAnnotation(
     // B-1: If inside a table, insert memo AFTER the table.
     // Memos inside table cells can't survive the markdown serialization roundtrip
     // because convertMemosToHtml() only parses standalone memo lines.
-    let insertPos: number
-    let isInTable = false
+    let insertPos: number = resolved.end(resolved.depth) + 1
     for (let d = resolved.depth; d >= 0; d--) {
       if (resolved.node(d).type.name === 'table') {
         insertPos = resolved.after(d)
-        isInTable = true
         break
       }
-    }
-    if (!isInTable) {
-      insertPos = resolved.end(resolved.depth) + 1
     }
 
     editor
       .chain()
-      .insertContentAt(insertPos!, {
+      .insertContentAt(insertPos, {
         type: 'memoBlock',
         attrs: {
           memoId: nanoid(8),
@@ -145,7 +140,8 @@ export function deleteAnnotationMark(editor: any, range: DeleteAnnotationRange):
     })
 
     if (memoPos >= 0) {
-      tr = tr.delete(memoPos, memoPos + memoSize)
+      const mappedPos = tr.mapping.map(memoPos)
+      tr = tr.delete(mappedPos, mappedPos + memoSize)
     }
   }
 
