@@ -220,7 +220,7 @@ export function convertMemosToHtml(markdown: string): string {
 }
 
 function escAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function escHtml(s: string): string {
@@ -532,12 +532,13 @@ function truncate(s: string, len: number): string {
 
 // ─── Checkpoint roundtrip ───
 
-const CHECKPOINT_RE = /<!-- CHECKPOINT id="([^"]+)" time="([^"]+)" note="([^"]*)" fixes=(\d+) questions=(\d+) highlights=(\d+) sections="([^"]*)" -->/g
+const CHECKPOINT_PATTERN = /<!-- CHECKPOINT id="([^"]+)" time="([^"]+)" note="([^"]*)" fixes=(\d+) questions=(\d+) highlights=(\d+) sections="([^"]*)" -->/g
 
 export function extractCheckpoints(markdown: string): Checkpoint[] {
   const checkpoints: Checkpoint[] = []
+  const re = new RegExp(CHECKPOINT_PATTERN.source, CHECKPOINT_PATTERN.flags)
   let match: RegExpExecArray | null
-  while ((match = CHECKPOINT_RE.exec(markdown)) !== null) {
+  while ((match = re.exec(markdown)) !== null) {
     checkpoints.push({
       id: match[1],
       timestamp: match[2],
@@ -548,7 +549,6 @@ export function extractCheckpoints(markdown: string): Checkpoint[] {
       sectionsReviewed: match[7] ? match[7].split(',') : [],
     })
   }
-  CHECKPOINT_RE.lastIndex = 0
   return checkpoints
 }
 
