@@ -1,6 +1,6 @@
 {
   "name": "md-feedback",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "description": "MCP server for AI plan review — agents read your markdown annotations, mark tasks done, evaluate gates, and generate handoffs.",
   "license": "SUL-1.0",
   "author": "Yeomin Seon",

@@ -1,7 +1,7 @@
 {
   "name": "md-feedback-monorepo",
   "private": true,
-  "version": "0.9.7",
+  "version": "0.9.8",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "pnpm -r build",
