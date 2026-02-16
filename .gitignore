@@ -16,6 +16,14 @@ STRATEGY.md
 ROADMAP.md
 HANDOFF*.md
 RELEASING.md
+*_홍보계획.md
+*_안정화_계획.md
+*_로드맵_상세.md
+*계획_통합.md
+*_초안.md
+README_MCP_SETUP.md
+mcp-config.example.json
+run_mcp.bat
 
 *.bak
 *.log

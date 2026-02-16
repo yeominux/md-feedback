@@ -139,6 +139,11 @@
         "command": "md-feedback.exportHandoff",
         "title": "Export: Handoff Document",
         "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.showOnboarding",
+        "title": "Show Onboarding",
+        "category": "MD Feedback"
       }
     ],
     "configuration": {
