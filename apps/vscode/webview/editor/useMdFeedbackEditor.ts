@@ -1,6 +1,6 @@
 import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Highlight from '@tiptap/extension-highlight'
+import BaseHighlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import { Table } from '@tiptap/extension-table'
@@ -19,6 +19,22 @@ import CalloutExtension from '../extensions/CalloutBlock'
 import MermaidBlock from '../extensions/MermaidBlock'
 import type { HighlightColor } from '@md-feedback/shared'
 import { appendMissedMemos, serializeWithMemos } from './serialization'
+
+// Extend Highlight with a markdown serializer to prevent HTML fallback.
+// Without this, tiptap-markdown wraps highlights in <mark>...</mark> HTML tags.
+// prosemirror-markdown's esc() then escapes special chars inside the tags,
+// but markdown-it doesn't parse markdown inside HTML — causing backslash
+// accumulation on every save roundtrip.
+const Highlight = BaseHighlight.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize: { open: '', close: '' },
+        parse: {},
+      },
+    }
+  },
+})
 
 export interface DeletePopover {
   x: number
