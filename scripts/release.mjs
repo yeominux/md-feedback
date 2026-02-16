@@ -150,16 +150,44 @@ console.log(`  ✓ Pushed to remote`)
 
 // Done — print publish instructions
 console.log(`
-╔══════════════════════════════════════════════╗
-║  ✓ Release v${nextVersion} complete!${' '.repeat(Math.max(0, 25 - nextVersion.length))}║
-╠══════════════════════════════════════════════╣
-║  Now publish manually:                       ║
-║                                              ║
-║  1. pnpm publish:npm                         ║
-║  2. pnpm publish:vsce                        ║
-║  3. pnpm publish:ovsx                        ║
-║                                              ║
-║  Then verify:                                ║
-║    npx -y md-feedback --version              ║
-╚══════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════╗
+║  ✓ Release v${nextVersion} — git push 완료!${' '.repeat(Math.max(0, 33 - nextVersion.length))}║
+║                                                          ║
+║  GitHub Actions가 자동으로 CI + VSIX 패키징 진행 중...     ║
+║  https://github.com/yeominux/md-feedback/actions          ║
+╠══════════════════════════════════════════════════════════╣
+║                                                          ║
+║  아래 3개만 직접 실행하세요:                               ║
+║                                                          ║
+║  ① npm (MCP 서버):                                       ║
+║     cd apps/mcp-server && npm publish                    ║
+║                                                          ║
+║  ② VS Code Marketplace:                                  ║
+║     cd apps/vscode                                       ║
+║     npx @vscode/vsce publish --packagePath \\             ║
+║       md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 27 - nextVersion.length))}║
+║                                                          ║
+║  ③ Open VSX:                                             ║
+║     cd apps/vscode                                       ║
+║     npx ovsx publish md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 11 - nextVersion.length))}║
+║                                                          ║
+╠══════════════════════════════════════════════════════════╣
+║  검증:                                                   ║
+║     npx -y md-feedback --version  → ${nextVersion}${' '.repeat(Math.max(0, 21 - nextVersion.length))}║
+║                                                          ║
+║  토큰 만료 시:                                            ║
+║  • vsce: https://dev.azure.com → PAT 재발급              ║
+║         npx @vscode/vsce login yeominux                  ║
+║  • ovsx: https://open-vsx.org → Access Tokens            ║
+║         npx ovsx create-namespace yeominux               ║
+╚══════════════════════════════════════════════════════════╝
 `)
+
+// Also build the VSIX so it's ready for manual publish
+console.log('── Building VSIX for publish... ──')
+try {
+  run('pnpm --filter md-feedback-vscode package')
+  console.log(`  ✓ VSIX ready: apps/vscode/md-feedback-vscode-${nextVersion}.vsix\n`)
+} catch {
+  console.log('  ⚠ VSIX build failed — run "pnpm --filter md-feedback-vscode package" manually\n')
+}
