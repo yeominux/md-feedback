@@ -10,6 +10,17 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [0.9.7] - 2026-02-16
+
+Stabilization release with bug fixes and a new MCP tool for AI agents.
+
+### Added
+- New `respond_to_memo` MCP tool — AI agents can now write responses directly into your review
+
+### Fixed
+- Annotation deletion could target the wrong element when removing a highlight with its memo
+- Memo placement edge case when annotating inside tables
+
 ## [0.9.6] - 2026-02-16
 
 AI auto-manages memo statuses. Simplified from 4 states to 3.
