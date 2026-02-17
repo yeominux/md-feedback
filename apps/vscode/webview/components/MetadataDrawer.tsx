@@ -1,59 +1,14 @@
-import { useState } from 'react'
-import type { Gate, PlanCursor, ReviewMemo, Checkpoint } from '@md-feedback/shared'
-import { vscode } from '../lib/vscode-api'
-import { MEMO_ACCENT } from '@md-feedback/shared'
+import type { Gate, PlanCursor, Checkpoint } from '@md-feedback/shared'
 
 interface MetadataDrawerProps {
   open: boolean
   onClose: () => void
-  memos: ReviewMemo[]
   gates: Gate[]
   cursor: PlanCursor | null
   checkpoints?: Checkpoint[]
 }
 
-export function MetadataDrawer({ open, onClose, memos, gates, cursor, checkpoints = [] }: MetadataDrawerProps) {
-  // Gate creation form state
-  const [gateType, setGateType] = useState<Gate['type']>('merge')
-  const [blockedBy, setBlockedBy] = useState<string[]>([])
-  const [doneDefinition, setDoneDefinition] = useState('')
-  
-  // Cursor form state
-  const [taskId, setTaskId] = useState('')
-  const [step, setStep] = useState('')
-  const [nextAction, setNextAction] = useState('')
-  
-  const handleCreateGate = () => {
-    const gate: Partial<Gate> = {
-      type: gateType,
-      blockedBy,
-      doneDefinition,
-    }
-    vscode.postMessage({ type: 'gate.create', gate })
-    // Reset form
-    setBlockedBy([])
-    setDoneDefinition('')
-  }
-  
-  const handleSetCursor = () => {
-    vscode.postMessage({ 
-      type: 'cursor.set', 
-      cursor: { taskId, step, nextAction } 
-    })
-    // Reset form
-    setTaskId('')
-    setStep('')
-    setNextAction('')
-  }
-
-  const toggleBlockedBy = (memoId: string) => {
-    setBlockedBy(prev => 
-      prev.includes(memoId) 
-        ? prev.filter(id => id !== memoId)
-        : [...prev, memoId]
-    )
-  }
-
+export function MetadataDrawer({ open, onClose, gates, cursor, checkpoints = [] }: MetadataDrawerProps) {
   if (!open) return null
 
   return (
@@ -72,53 +27,26 @@ export function MetadataDrawer({ open, onClose, memos, gates, cursor, checkpoint
         {/* ── Plan Cursor ── */}
         <div className="drawer-section">
           <h3 className="drawer-section-title">Plan Cursor</h3>
-          
-          {cursor && (
-            <div className="mb-4 p-3 bg-mf-bg rounded border border-mf-border">
+
+          {cursor ? (
+            <div className="p-3 bg-mf-bg rounded border border-mf-border">
               <div className="flex justify-between mb-1">
                 <span className="text-xs font-medium text-mf-text">Task {cursor.taskId}</span>
                 <span className="text-xs text-mf-faint">{cursor.step}</span>
               </div>
               <div className="text-xs text-mf-muted">{cursor.nextAction}</div>
             </div>
+          ) : (
+            <div className="text-xs text-mf-faint">No cursor set</div>
           )}
-
-          <div className="space-y-2">
-            <input
-              className="drawer-input"
-              placeholder="Task ID (e.g. task-5)"
-              value={taskId}
-              onChange={e => setTaskId(e.target.value)}
-            />
-            <input
-              className="drawer-input"
-              placeholder="Step (e.g. 3/7)"
-              value={step}
-              onChange={e => setStep(e.target.value)}
-            />
-            <input
-              className="drawer-input"
-              placeholder="Next Action"
-              value={nextAction}
-              onChange={e => setNextAction(e.target.value)}
-            />
-            <button 
-              className="drawer-btn w-full"
-              onClick={handleSetCursor}
-              disabled={!taskId || !nextAction}
-            >
-              Set Cursor
-            </button>
-          </div>
         </div>
 
         {/* ── Gates ── */}
         <div className="drawer-section">
           <h3 className="drawer-section-title">Gates</h3>
 
-          {/* Existing Gates */}
-          {gates.length > 0 && (
-            <div className="mb-4 space-y-2">
+          {gates.length > 0 ? (
+            <div className="space-y-2">
               {gates.map(gate => (
                 <div key={gate.id} className="p-2 bg-mf-bg rounded border border-mf-border text-xs">
                   <div className="flex justify-between items-center mb-1">
@@ -142,66 +70,9 @@ export function MetadataDrawer({ open, onClose, memos, gates, cursor, checkpoint
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="text-xs text-mf-faint">No gates</div>
           )}
-
-          {/* Create Gate Form */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-mf-muted block mb-1">Type</label>
-              <select 
-                className="drawer-select"
-                value={gateType}
-                onChange={e => setGateType(e.target.value as Gate['type'])}
-              >
-                <option value="merge">Merge</option>
-                <option value="release">Release</option>
-                <option value="implement">Implement</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-mf-muted block mb-1">Done Definition</label>
-              <input
-                className="drawer-input"
-                placeholder="e.g. All tests pass"
-                value={doneDefinition}
-                onChange={e => setDoneDefinition(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-mf-muted block mb-1">Blocked By</label>
-              <div className="drawer-checkbox-list">
-                {memos.length === 0 ? (
-                  <div className="text-xs text-mf-faint p-2">No memos available</div>
-                ) : (
-                  memos.map(memo => (
-                    <label key={memo.id} className="flex items-start gap-2 p-1.5 hover:bg-mf-bg-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={blockedBy.includes(memo.id)}
-                        onChange={() => toggleBlockedBy(memo.id)}
-                        className="mt-0.5"
-                      />
-                      <div className="text-xs overflow-hidden">
-                        <span className="mr-1">{MEMO_ACCENT[memo.color as keyof typeof MEMO_ACCENT]?.emoji || '📝'}</span>
-                        <span className="text-mf-text truncate">{memo.text}</span>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <button
-              className="drawer-btn w-full"
-              onClick={handleCreateGate}
-              disabled={!doneDefinition && blockedBy.length === 0}
-            >
-              Create Gate
-            </button>
-          </div>
         </div>
 
         {/* ── Checkpoints ── */}
