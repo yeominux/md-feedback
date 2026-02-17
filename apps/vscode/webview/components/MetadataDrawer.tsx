@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Gate, PlanCursor, ReviewMemo } from '@md-feedback/shared'
+import type { Gate, PlanCursor, ReviewMemo, Checkpoint } from '@md-feedback/shared'
 import { vscode } from '../lib/vscode-api'
 import { MEMO_ACCENT } from '@md-feedback/shared'
 
@@ -9,9 +9,10 @@ interface MetadataDrawerProps {
   memos: ReviewMemo[]
   gates: Gate[]
   cursor: PlanCursor | null
+  checkpoints?: Checkpoint[]
 }
 
-export function MetadataDrawer({ open, onClose, memos, gates, cursor }: MetadataDrawerProps) {
+export function MetadataDrawer({ open, onClose, memos, gates, cursor, checkpoints = [] }: MetadataDrawerProps) {
   // Gate creation form state
   const [gateType, setGateType] = useState<Gate['type']>('merge')
   const [blockedBy, setBlockedBy] = useState<string[]>([])
@@ -193,7 +194,7 @@ export function MetadataDrawer({ open, onClose, memos, gates, cursor }: Metadata
               </div>
             </div>
 
-            <button 
+            <button
               className="drawer-btn w-full"
               onClick={handleCreateGate}
               disabled={!doneDefinition && blockedBy.length === 0}
@@ -202,6 +203,28 @@ export function MetadataDrawer({ open, onClose, memos, gates, cursor }: Metadata
             </button>
           </div>
         </div>
+
+        {/* ── Checkpoints ── */}
+        {checkpoints.length > 0 && (
+          <div className="drawer-section">
+            <h3 className="drawer-section-title">Checkpoints ({checkpoints.length})</h3>
+            <div className="space-y-2">
+              {checkpoints.map(cp => (
+                <div key={cp.id} className="p-2 bg-mf-bg rounded border border-mf-border text-xs">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-medium text-mf-text">{cp.note || cp.id}</span>
+                    <span className="text-[10px] text-mf-faint">
+                      {new Date(cp.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="text-mf-muted">
+                    {cp.fixes} fix · {cp.questions} Q · {cp.highlights} HL
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

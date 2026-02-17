@@ -72,7 +72,7 @@ export function sendDocumentToWebview(
   }
 }
 
-/** Extract and send cursor + status summary to webview */
+/** Extract and send cursor + status summary + metadata to webview */
 export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, unknown>) => void): void {
   try {
     const parts = splitDocument(raw)
@@ -81,9 +81,11 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     // Send cursor
     postMessage({ type: 'cursor.update', cursor: parts.cursor })
 
-    // Send status summary
+    // Send status summary (extended with totals for status bar)
     const openFixes = parts.memos.filter(m => m.type === 'fix' && m.status === 'open').length
     const openQuestions = parts.memos.filter(m => m.type === 'question' && m.status === 'open').length
+    const totalMemos = parts.memos.length
+    const resolvedMemos = parts.memos.filter(m => m.status !== 'open').length
     const blockedGate = gates.find(g => g.status === 'blocked')
     const allGatesDone = gates.length > 0 && gates.every(g => g.status === 'done')
 
@@ -95,9 +97,17 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     if (parts.memos.length > 0 || gates.length > 0) {
       postMessage({
         type: 'status.summary',
-        summary: { openFixes, openQuestions, gateStatus },
+        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos },
       })
     }
+
+    // Send metadata for drawer (gates, cursor, checkpoints)
+    postMessage({
+      type: 'metadata.update',
+      gates,
+      cursor: parts.cursor,
+      checkpoints: parts.checkpoints,
+    })
   } catch {
     // best-effort — don't break document loading
   }

@@ -411,6 +411,8 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
   for (const memo of memos) {
     const lineIdx = findMemoAnchorLine(lines, memo)
     if (lineIdx >= 0) {
+      // Update anchor to actual position — prevents drift on repeated save cycles
+      memo.anchor = `L${lineIdx + 1}|${hashLine(lines[lineIdx])}`
       const existing = memoMap.get(lineIdx) || []
       existing.push(memo)
       memoMap.set(lineIdx, existing)
