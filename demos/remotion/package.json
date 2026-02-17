@@ -1,0 +1,26 @@
+{
+  "name": "md-feedback-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion demo GIF for MD Feedback",
+  "scripts": {
+    "preview": "remotion preview src/index.ts",
+    "render:gif": "remotion render src/index.ts DemoComposition --codec=gif --width=800 --height=500 --output=out/demo.gif",
+    "render:mp4": "remotion render src/index.ts DemoComposition --codec=h264 --width=800 --height=500 --output=out/demo.mp4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/cli": "^4.0.423",
+    "@remotion/media-utils": "^4.0.423",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.423"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3"
+  }
+}

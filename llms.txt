@@ -54,6 +54,12 @@ The tool consists of two components:
 - export_review: export for a specific AI tool format
 - create_checkpoint: save review progress snapshot
 - get_checkpoints: list all checkpoints
+- apply_memo: report AI-applied fix with inline diff (text_replace, file_patch, file_create)
+- link_artifacts: link source code files to a memo
+- update_memo_progress: update memo status with progress message
+- rollback_memo: revert the latest implementation for a memo
+- batch_apply: apply multiple operations in a single transaction
+- get_memo_changes: query implementation history and diffs for a memo
 - generate_handoff: create structured handoff document
 - pickup_handoff: parse existing handoff for session resumption
 
