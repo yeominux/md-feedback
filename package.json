@@ -8,6 +8,7 @@
     "test": "pnpm -r test",
     "package": "pnpm --filter md-feedback-vscode package",
     "clean": "pnpm -r exec rm -rf dist",
+    "check-sync": "node scripts/check-sync.mjs",
     "guard:public-surface": "node scripts/guard-public-surface.mjs",
     "sync-version": "node scripts/sync-version.mjs",
     "verify-release": "node scripts/verify-release.mjs",
