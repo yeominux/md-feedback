@@ -679,66 +679,6 @@
   margin-bottom: 10px;
 }
 
-.drawer-input {
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 13px;
-  border: 1px solid var(--mf-border);
-  border-radius: 4px;
-  background: var(--mf-bg);
-  color: var(--mf-text);
-  outline: none;
-}
-.drawer-input:focus-visible {
-  border-color: var(--mf-link);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-}
-.drawer-input::placeholder {
-  color: var(--mf-text-faint);
-}
-
-.drawer-select {
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 13px;
-  border: 1px solid var(--mf-border);
-  border-radius: 4px;
-  background: var(--mf-bg);
-  color: var(--mf-text);
-  outline: none;
-  cursor: pointer;
-}
-.drawer-select:focus {
-  border-color: var(--mf-link);
-}
-
-.drawer-btn {
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  border-radius: 6px;
-  background: var(--mf-text-muted);
-  color: var(--mf-surface);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.drawer-btn:hover {
-  background: var(--mf-text);
-}
-.drawer-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.drawer-checkbox-list {
-  max-height: 160px;
-  overflow-y: auto;
-  border: 1px solid var(--mf-border);
-  border-radius: 4px;
-  background: var(--mf-bg);
-}
-
 /* ── Status Indicator (floating bar) ── */
 .status-indicator {
   display: inline-flex;
