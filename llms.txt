@@ -1,23 +1,102 @@
 # MD Feedback
-> VS Code extension for reviewing and annotating markdown plans before AI agents implement them.
 
-## What It Does
-- Annotate markdown with highlights, fixes, and questions
-- Export structured feedback to 11+ AI coding tools (Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff)
-- Track review progress with gates, plan cursor, and checkpoints
-- Generate session handoff documents for AI agent continuity
-- Rich markdown rendering: Mermaid diagrams, callout/admonition blocks, syntax-highlighted code
+> VS Code extension and MCP server for reviewing markdown plans before AI agents implement them. Annotate with Fix, Question, and Highlight. AI agents read annotations directly through Model Context Protocol (MCP).
 
-## MCP Server (13 tools)
-- get_document_structure, list_annotations, get_review_status
-- update_memo_status, respond_to_memo, update_cursor, evaluate_gates
-- export_review, create_checkpoint, get_checkpoints
-- generate_handoff, pickup_handoff
-- create_annotation
+## Overview
 
-## Install
-VS Code Marketplace: yeominux.md-feedback-vscode
+MD Feedback bridges the gap between plan creation and AI implementation. Instead of reviewing code after it is written, MD Feedback enables plan review — catching architecture mistakes and missing requirements at the design stage, before any code is produced.
+
+The tool consists of two components:
+1. VS Code Extension (yeominux.md-feedback-vscode) — interactive annotation editor
+2. MCP Server (npm: md-feedback) — lets AI agents read annotations programmatically
+
+## Key Facts
+
+- 3 annotation types: Highlight (reading mark), Fix (needs change), Question (needs clarification)
+- 13 MCP tools for agent integration
+- Export to 11 AI tools: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
+- Annotations stored as portable HTML comments in the markdown file — no proprietary format, no cloud dependency
+- Quality gates with automatic evaluation (blocked/proceed/done)
+- Session handoffs preserve context across AI agent sessions
+- Checkpoints track review progress over time
+- Plan cursor tracks current position in a document
+- Keyboard shortcuts: press 1 (highlight), 2 (fix), 3 (question)
+- Rich rendering: Mermaid diagrams, callout blocks, syntax-highlighted code
+- Free for personal and non-commercial use (SUL-1.0 license)
+
+## How It Works
+
+1. Write a plan in markdown
+2. Open in MD Feedback sidebar in VS Code — annotate with highlights, fixes, questions
+3. AI agent reads annotations via MCP — no export step needed
+4. Agent implements fixes, answers questions, marks memos done
+5. Gates auto-evaluate — agent knows when all items are resolved
+6. Agent generates handoff — next session picks up where you left off
+
+## Design Philosophy
+
+- Humans only state what is wrong. AI decides how to fix it.
+- Three annotation types are sufficient — AI infers intent from context.
+- Markdown is the source of truth. All state lives in the file itself.
+- Annotations are HTML comments — portable, git-friendly, editor-agnostic.
+- Zero cognitive load: passive status display, no extra decisions required.
+
+## MCP Server Tools
+
+- get_document_structure: full review state (memos, gates, cursor, sections, summary)
+- list_annotations: all annotations with type, status, owner, color
+- get_review_status: annotation counts and session status
+- create_annotation: create annotation programmatically with anchor search
+- respond_to_memo: add AI response to an annotation
+- update_memo_status: mark memo as open, answered, or wontfix
+- update_cursor: set plan cursor position
+- evaluate_gates: check if quality conditions are met
+- export_review: export for a specific AI tool format
+- create_checkpoint: save review progress snapshot
+- get_checkpoints: list all checkpoints
+- generate_handoff: create structured handoff document
+- pickup_handoff: parse existing handoff for session resumption
+
+## Use Cases
+
+- Reviewing AI-generated implementation plans before coding begins
+- Structured feedback for AI coding agents (replaces unstructured chat messages)
+- Session continuity across multiple AI agent sessions via handoffs
+- Quality gate enforcement for AI-driven workflows
+- Team plan review with portable annotations (HTML comments survive git)
+- Vibe coding workflow: plan first, review, then let AI build
+
+## Installation
+
+VS Code: Install "MD Feedback" from VS Code Marketplace (publisher: yeominux)
+MCP: npx md-feedback (no install needed)
+
+MCP config for any compatible client:
+{ "mcpServers": { "md-feedback": { "command": "npx", "args": ["-y", "md-feedback"] } } }
+
+## FAQ
+
+What is MD Feedback?
+A VS Code extension and MCP server for reviewing markdown plans before AI agents implement them. Annotate text, press 1/2/3, and AI agents read your structured feedback directly via MCP.
+
+What is plan review?
+Plan review means reviewing designs and plans before implementation. Unlike code review (after code is written), plan review catches mistakes at the design stage.
+
+What is MCP?
+Model Context Protocol (MCP) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to annotations without manual export.
+
+Which AI tools are supported?
+Claude Code (CLAUDE.md), Cursor (.cursor/rules/), GitHub Copilot (.github/copilot-instructions.md), Codex (AGENTS.md), Cline (.clinerules), Windsurf (.windsurfrules), Roo Code (.roo/rules/), Gemini (.gemini/styleguide.md), Antigravity (.agent/rules/), Generic markdown, and Handoff documents.
+
+Does it work offline?
+Yes. All annotations are stored locally in the markdown file. The MCP server runs locally via npx.
+
+Is it free?
+Free for personal and non-commercial use under the SUL-1.0 license.
 
 ## Links
-- Repo: https://github.com/yeominux/md-feedback
-- Marketplace: https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode
+
+- VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode
+- npm: https://www.npmjs.com/package/md-feedback
+- GitHub: https://github.com/yeominux/md-feedback
+- Issues: https://github.com/yeominux/md-feedback/issues

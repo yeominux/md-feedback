@@ -1,8 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Editor, { type EditorHandle } from './components/Editor'
+import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
-import { type Checkpoint } from '@md-feedback/shared'
-import { FileText, X, Unplug } from 'lucide-react'
+import type { Checkpoint, Gate, PlanCursor } from '@md-feedback/shared'
+import { FileText, X, Unplug, Settings2 } from 'lucide-react'
+
+interface StatusSummary {
+  openFixes: number
+  openQuestions: number
+  gateStatus: string | null
+  totalMemos: number
+  resolvedMemos: number
+}
 
 export default function App() {
   const editorRef = useRef<EditorHandle>(null)
@@ -13,11 +22,14 @@ export default function App() {
   const [lastCheckpointTime, setLastCheckpointTime] = useState<string | null>(null)
   const [docEmpty, setDocEmpty] = useState(false)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
-  const [statusSummary, setStatusSummary] = useState<{ openFixes: number; openQuestions: number; gateStatus: string | null } | null>(null)
+  const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(null)
   const [mcpSetupDone, setMcpSetupDone] = useState(true) // default true to avoid flash
   const [showMcpSetup, setShowMcpSetup] = useState(false)
   const [mcpTab, setMcpTab] = useState<'claude' | 'cursor' | 'other'>('claude')
   const [mcpCopied, setMcpCopied] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [gates, setGates] = useState<Gate[]>([])
+  const [cursor, setCursor] = useState<PlanCursor | null>(null)
 
   const isLoadingRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
@@ -126,7 +138,21 @@ export default function App() {
         }
 
         case 'status.summary':
-          setStatusSummary(msg.summary as { openFixes: number; openQuestions: number; gateStatus: string | null })
+          setStatusSummary(msg.summary as StatusSummary)
+          break
+
+        case 'metadata.update':
+          if (msg.gates) setGates(msg.gates as Gate[])
+          if (msg.cursor !== undefined) setCursor(msg.cursor as PlanCursor | null)
+          if (msg.checkpoints) setCheckpoints(msg.checkpoints as Checkpoint[])
+          break
+
+        case 'gates.update':
+          if (msg.gates) setGates(msg.gates as Gate[])
+          break
+
+        case 'cursor.update':
+          setCursor(msg.cursor as PlanCursor | null)
           break
 
         case 'theme.update':
@@ -330,37 +356,63 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Status Bar — review progress only */}
-      {docLoaded && statusSummary && (statusSummary.openFixes > 0 || statusSummary.openQuestions > 0 || statusSummary.gateStatus) && (
+      {/* Floating Status Bar — review progress */}
+      {docLoaded && statusSummary && (statusSummary.totalMemos > 0 || statusSummary.gateStatus) && (
         <div className="floating-bar">
           <div className="status-indicator" title="Review progress">
+            {/* Gate badge */}
             {statusSummary.gateStatus === 'done' ? (
               <span className="status-badge status-badge-approved">Approved</span>
             ) : statusSummary.gateStatus ? (
-              <>
-                <span className={`status-badge ${statusSummary.gateStatus === 'blocked' ? 'status-badge-blocked' : 'status-badge-proceed'}`}>
-                  {statusSummary.gateStatus === 'blocked' ? 'Blocked' : 'Proceed'}
-                </span>
-                {(statusSummary.openFixes > 0 || statusSummary.openQuestions > 0) && (
-                  <span className="status-detail">
-                    {[
-                      statusSummary.openFixes > 0 && `${statusSummary.openFixes} fix`,
-                      statusSummary.openQuestions > 0 && `${statusSummary.openQuestions} Q`,
-                    ].filter(Boolean).join(', ')} open
-                  </span>
-                )}
-              </>
-            ) : (
+              <span className={`status-badge ${statusSummary.gateStatus === 'blocked' ? 'status-badge-blocked' : 'status-badge-proceed'}`}>
+                {statusSummary.gateStatus === 'blocked' ? 'Blocked' : 'Proceed'}
+              </span>
+            ) : null}
+
+            {/* Resolved ratio */}
+            {statusSummary.totalMemos > 0 && (
               <span className="status-detail">
-                {[
-                  statusSummary.openFixes > 0 && `${statusSummary.openFixes} fix`,
-                  statusSummary.openQuestions > 0 && `${statusSummary.openQuestions} Q`,
-                ].filter(Boolean).join(', ')} open
+                {statusSummary.resolvedMemos}/{statusSummary.totalMemos} resolved
+              </span>
+            )}
+
+            {/* Cursor step */}
+            {cursor && cursor.step && (
+              <span className="status-detail" title={cursor.nextAction}>
+                Step {cursor.step}
+              </span>
+            )}
+
+            {/* Checkpoint count */}
+            {checkpoints.length > 0 && (
+              <span className="status-detail" title="Checkpoints saved">
+                {checkpoints.length} ckpt
               </span>
             )}
           </div>
+
+          {/* Metadata drawer toggle */}
+          {(gates.length > 0 || cursor || checkpoints.length > 0) && (
+            <button
+              className="status-drawer-btn"
+              onClick={() => setDrawerOpen(true)}
+              title="Gates & Cursor"
+            >
+              <Settings2 size={13} />
+            </button>
+          )}
         </div>
       )}
+
+      {/* Metadata Drawer */}
+      <MetadataDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        memos={editorRef.current?.getMemos() || []}
+        gates={gates}
+        cursor={cursor}
+        checkpoints={checkpoints}
+      />
 
       {/* MCP Reminder — for users who skipped setup */}
       {docLoaded && !mcpSetupDone && !showMcpSetup && (
