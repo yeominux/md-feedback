@@ -1,13 +1,16 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor } from '@md-feedback/shared'
+import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
 import { Pencil, X, ChevronDown } from 'lucide-react'
 
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
-  open:     { label: 'Open',     color: 'text-mf-status-open',     bg: 'bg-mf-status-open' },
-  answered: { label: 'Answered', color: 'text-mf-status-answered', bg: 'bg-mf-status-answered' },
-  wontfix:  { label: "Won't fix", color: 'text-mf-muted',  bg: 'bg-mf-border-subtle' },
+  open:        { label: 'Open',      color: 'text-mf-status-open',        bg: 'bg-mf-status-open' },
+  in_progress: { label: 'Working',   color: 'text-mf-status-in-progress', bg: 'bg-mf-status-in-progress' },
+  answered:    { label: 'Answered',  color: 'text-mf-status-answered',    bg: 'bg-mf-status-answered' },
+  done:        { label: 'Done',      color: 'text-mf-status-done',        bg: 'bg-mf-status-done' },
+  failed:      { label: 'Failed',    color: 'text-mf-status-failed',      bg: 'bg-mf-status-failed' },
+  wontfix:     { label: "Won't fix", color: 'text-mf-muted',             bg: 'bg-mf-border-subtle' },
 }
 
 export const MemoBlock = Node.create({
@@ -79,6 +82,67 @@ function normalizeMemoColor(raw: string): MemoColor {
   if (raw === '#fca5a5') return 'red'
   if (raw === '#93c5fd') return 'blue'
   return 'red'
+}
+
+function MemoDiffSection({ memoId }: { memoId: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const impls = (window as any).__mfImpls?.filter((i: MemoImpl) => i.memoId === memoId) as MemoImpl[] | undefined
+
+  if (!impls || impls.length === 0) return null
+
+  return (
+    <div className="px-3 pb-2.5">
+      {impls.map((impl) => {
+        const textReplaceOps = impl.operations.filter(op => op.type === 'text_replace')
+        const needsCollapse = textReplaceOps.some(op =>
+          op.type === 'text_replace' && (op.before.split('\n').length > 3 || op.after.split('\n').length > 3)
+        )
+        const isCollapsed = needsCollapse && !expanded
+
+        return (
+          <div key={impl.id} className="memo-diff">
+            <div className="memo-diff-summary">
+              {impl.summary} ({impl.status})
+            </div>
+            {impl.operations.map((op, idx) => {
+              if (op.type === 'text_replace') {
+                const lines = [...op.before.split('\n'), ...op.after.split('\n')]
+                if (isCollapsed && lines.length > 6) {
+                  return (
+                    <div key={idx}>
+                      <div><span className="memo-diff-before">{op.before.split('\n').slice(0, 2).join('\n')}</span></div>
+                      <div><span className="memo-diff-after">{op.after.split('\n').slice(0, 2).join('\n')}</span></div>
+                      <button className="memo-diff-toggle" onClick={() => setExpanded(true)}>
+                        Show full diff ({lines.length} lines)
+                      </button>
+                    </div>
+                  )
+                }
+                return (
+                  <div key={idx}>
+                    <div><span className="memo-diff-before">{op.before}</span></div>
+                    <div><span className="memo-diff-after">{op.after}</span></div>
+                  </div>
+                )
+              }
+              if (op.type === 'file_create') {
+                return <div key={idx} className="memo-diff-summary">Created {op.file}</div>
+              }
+              if (op.type === 'file_patch') {
+                return <div key={idx} className="memo-diff-summary">Patched {op.file}</div>
+              }
+              return null
+            })}
+            {expanded && needsCollapse && (
+              <button className="memo-diff-toggle" onClick={() => setExpanded(false)}>
+                Collapse
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }: any) {
@@ -349,6 +413,9 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             </p>
           )}
         </div>
+
+        {/* Inline diff section — shown when impls exist for this memo */}
+        <MemoDiffSection memoId={node.attrs.memoId} />
       </div>
     </NodeViewWrapper>
   )

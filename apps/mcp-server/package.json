@@ -1,7 +1,7 @@
 {
   "name": "md-feedback",
   "version": "1.0.1",
-  "description": "MCP server for markdown plan review — AI agents read annotations, mark tasks done, evaluate quality gates, and generate session handoffs. 13 tools for Claude Code, Cursor, Copilot, and 8 more AI tools.",
+  "description": "MCP server for markdown plan review — AI agents read annotations, mark tasks done, evaluate quality gates, and generate session handoffs. 19 tools for Claude Code, Cursor, Copilot, and 8 more AI tools.",
   "license": "SUL-1.0",
   "author": "Yeomin Seon",
   "type": "commonjs",

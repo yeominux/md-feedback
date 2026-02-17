@@ -22,6 +22,8 @@ export class SyncController implements vscode.Disposable {
   private sectionTrackTimer: ReturnType<typeof setTimeout> | undefined
   private lastTrackedSection: string | undefined
   private currentDocumentUri: vscode.Uri | undefined
+  private fileWatcher: vscode.FileSystemWatcher | undefined
+  private fileWatchDebounce: ReturnType<typeof setTimeout> | undefined
   private readonly disposables: vscode.Disposable[] = []
   private readonly docStates = new Map<string, DocumentState>()
 
@@ -161,6 +163,8 @@ export class SyncController implements vscode.Disposable {
     if (this.debounceTimer) clearTimeout(this.debounceTimer)
     if (this.checkpointTimer) clearInterval(this.checkpointTimer)
     if (this.sectionTrackTimer) clearTimeout(this.sectionTrackTimer)
+    if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
+    if (this.fileWatcher) { this.fileWatcher.dispose(); this.fileWatcher = undefined }
     while (this.disposables.length) {
       const item = this.disposables.pop()
       if (item) item.dispose()
@@ -193,6 +197,7 @@ export class SyncController implements vscode.Disposable {
 
       this.currentDocumentUri = editor.document.uri
       this.ensureState(editor.document.uri)
+      this.watchFile(editor.document.uri)
       this.panelProvider.handleDocumentUpdate(editor.document)
     }, 150)
   }
@@ -313,6 +318,36 @@ export class SyncController implements vscode.Disposable {
     }
 
     return true
+  }
+
+  /** Watch the current markdown file for external changes (e.g. AI agent writing via MCP) */
+  private watchFile(uri: vscode.Uri): void {
+    // Dispose previous watcher
+    if (this.fileWatcher) { this.fileWatcher.dispose(); this.fileWatcher = undefined }
+
+    // createFileSystemWatcher needs a glob — watch the specific file by name in its parent dir
+    const fileName = vscode.workspace.asRelativePath(uri, false).split(/[\\/]/).pop()!
+    this.fileWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.joinPath(uri, '..'), fileName),
+    )
+
+    this.fileWatcher.onDidChange(() => {
+      this.handleExternalFileChange()
+    })
+  }
+
+  private handleExternalFileChange(): void {
+    if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
+    this.fileWatchDebounce = setTimeout(() => {
+      // Skip if the change came from the webview
+      const edits = this.panelProvider as unknown as PanelEditVersionAccess
+      if (edits.lastWebviewEditVersion === edits.editVersion) return
+
+      const document = this.currentDocument()
+      if (!document) return
+
+      this.panelProvider.handleDocumentUpdate(document)
+    }, 500)
   }
 
   private ensureState(uri: vscode.Uri): DocumentState {

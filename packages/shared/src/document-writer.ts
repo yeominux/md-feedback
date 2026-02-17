@@ -7,8 +7,8 @@
  * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor, unknown comments
  */
 
-import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse } from './types'
-import { colorToType } from './types'
+import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
+import { colorToType, isResolved } from './types'
 
 // ─── Hash utility (simple djb2, no crypto needed) ───
 
@@ -58,6 +58,17 @@ const FEEDBACK_NOTES_RE = /^<!-- \/?(USER_FEEDBACK_NOTES|@\/?feedback-notes)\b.*
 const RESPONSE_OPEN_RE = /^<!-- REVIEW_RESPONSE\s+to="([^"]+)"\s*-->$/
 const RESPONSE_CLOSE_RE = /^<!-- \/REVIEW_RESPONSE\s*-->$/
 
+// MEMO_IMPL: <!-- MEMO_IMPL\n  id="..." memoId="..." ... \n-->
+const IMPL_START_RE = /^<!-- MEMO_IMPL\s*$/
+const IMPL_END_RE = /^-->$/
+
+// MEMO_ARTIFACT: <!-- MEMO_ARTIFACT\n  id="..." memoId="..." ... \n-->
+const ARTIFACT_START_RE = /^<!-- MEMO_ARTIFACT\s*$/
+const ARTIFACT_END_RE = /^-->$/
+
+// MEMO_DEPENDENCY: <!-- MEMO_DEPENDENCY id="..." from="..." to="..." type="..." -->
+const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
+
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
   const unesc = (s: string) => s.replace(/&#10;/g, '\n').replace(/&quot;/g, '"')
@@ -86,6 +97,9 @@ export function splitDocument(markdown: string): DocumentParts {
   const bodyLines: string[] = []
   const memos: MemoV2[] = []
   const responses: ReviewResponse[] = []
+  const impls: MemoImpl[] = []
+  const artifacts: MemoArtifact[] = []
+  const dependencies: MemoDependency[] = []
   const checkpoints: Checkpoint[] = []
   const gates: Gate[] = []
   const unknownComments: string[] = []
@@ -211,6 +225,61 @@ export function splitDocument(markdown: string): DocumentParts {
       continue
     }
 
+    // ── MEMO_IMPL ──
+    if (IMPL_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !IMPL_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      let operations: ImplOperation[] = []
+      try { operations = JSON.parse(a.operations || '[]') } catch { /* best effort */ }
+      impls.push({
+        id: a.id || `impl_${Date.now().toString(36)}`,
+        memoId: a.memoId || '',
+        status: (a.status as MemoImpl['status']) || 'applied',
+        operations,
+        summary: a.summary || '',
+        appliedAt: a.appliedAt || new Date().toISOString(),
+      })
+      continue
+    }
+
+    // ── MEMO_ARTIFACT ──
+    if (ARTIFACT_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !ARTIFACT_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      artifacts.push({
+        id: a.id || `art_${Date.now().toString(36)}`,
+        memoId: a.memoId || '',
+        files: a.files ? a.files.split(',').map(s => s.trim()).filter(Boolean) : [],
+        linkedAt: a.linkedAt || new Date().toISOString(),
+      })
+      continue
+    }
+
+    // ── MEMO_DEPENDENCY ──
+    const depMatch = trimmed.match(DEPENDENCY_RE)
+    if (depMatch) {
+      dependencies.push({
+        id: depMatch[1],
+        from: depMatch[2],
+        to: depMatch[3],
+        type: depMatch[4] as MemoDependency['type'],
+      })
+      i++
+      continue
+    }
+
     // ── Checkpoint ──
     const cpMatch = trimmed.match(CHECKPOINT_RE)
     if (cpMatch) {
@@ -286,14 +355,8 @@ export function splitDocument(markdown: string): DocumentParts {
     responses.push(openResponse)
   }
 
-  // Backward compat: migrate deprecated "done" status → "answered"
-  for (const memo of memos) {
-    if ((memo.status as string) === 'done') {
-      memo.status = 'answered'
-    }
-  }
-
   // Auto-answer: memos with a REVIEW_RESPONSE and status "open" → "answered"
+  // (Does not override in_progress, done, or failed)
   const respondedMemoIds = new Set(responses.map(r => r.to))
   for (const memo of memos) {
     if (memo.status === 'open' && respondedMemoIds.has(memo.id)) {
@@ -306,6 +369,9 @@ export function splitDocument(markdown: string): DocumentParts {
     body: bodyLines.join('\n'),
     memos,
     responses,
+    impls,
+    artifacts,
+    dependencies,
     checkpoints,
     gates,
     cursor,
@@ -326,6 +392,21 @@ export function mergeDocument(parts: DocumentParts): string {
   // Body with memos and response markers re-inserted at anchor positions
   const bodyWithMemos = reinsertMemosAndResponses(parts.body, parts.memos, parts.responses || [])
   sections.push(bodyWithMemos)
+
+  // Implementation records
+  for (const impl of (parts.impls || [])) {
+    sections.push(serializeMemoImpl(impl))
+  }
+
+  // Artifacts
+  for (const art of (parts.artifacts || [])) {
+    sections.push(serializeMemoArtifact(art))
+  }
+
+  // Dependencies
+  for (const dep of (parts.dependencies || [])) {
+    sections.push(serializeMemoDependency(dep))
+  }
 
   // Gates
   for (const gate of parts.gates) {
@@ -395,6 +476,37 @@ export function serializeCheckpoint(cp: Checkpoint): string {
   const note = cp.note.replace(/"/g, '&quot;')
   const sections = cp.sectionsReviewed.join(',')
   return `<!-- CHECKPOINT id="${cp.id}" time="${cp.timestamp}" note="${note}" fixes=${cp.fixes} questions=${cp.questions} highlights=${cp.highlights} sections="${sections}" -->`
+}
+
+export function serializeMemoImpl(impl: MemoImpl): string {
+  const esc = (s: string) => s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
+  const ops = JSON.stringify(impl.operations).replace(/"/g, '&quot;')
+  return [
+    '<!-- MEMO_IMPL',
+    `  id="${esc(impl.id)}"`,
+    `  memoId="${esc(impl.memoId)}"`,
+    `  status="${impl.status}"`,
+    `  operations="${ops}"`,
+    `  summary="${esc(impl.summary)}"`,
+    `  appliedAt="${impl.appliedAt}"`,
+    '-->',
+  ].join('\n')
+}
+
+export function serializeMemoArtifact(art: MemoArtifact): string {
+  const esc = (s: string) => s.replace(/"/g, '&quot;')
+  return [
+    '<!-- MEMO_ARTIFACT',
+    `  id="${esc(art.id)}"`,
+    `  memoId="${esc(art.memoId)}"`,
+    `  files="${art.files.join(',')}"`,
+    `  linkedAt="${art.linkedAt}"`,
+    '-->',
+  ].join('\n')
+}
+
+export function serializeMemoDependency(dep: MemoDependency): string {
+  return `<!-- MEMO_DEPENDENCY id="${dep.id}" from="${dep.from}" to="${dep.to}" type="${dep.type}" -->`
 }
 
 // ─── Anchor-based memo reinsertion ───

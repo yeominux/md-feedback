@@ -10,6 +10,26 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.1.0] - 2026-02-17
+
+AI agents can now apply fixes, track progress, and roll back changes — all through MCP.
+
+### Added
+- AI can apply fixes to your document and create files (apply_memo tool with dry-run preview)
+- Multiple fixes can be applied at once (batch_apply)
+- AI can roll back its last change if something went wrong (rollback_memo)
+- Progress tracking shows what the AI is working on (update_memo_progress)
+- See implementation history for each annotation (get_memo_changes)
+- Link source files to annotations (link_artifacts)
+- Inline before/after diffs shown directly on memo cards
+- 6 memo statuses with color-coded badges: Open, Working, Answered, Done, Failed, Won't Fix
+- File safety checks prevent writing to sensitive files (.env, credentials, node_modules)
+- Document auto-refreshes when AI writes changes via MCP
+
+### Improved
+- MCP server now has 19 tools (was 13)
+- Status bar shows detailed progress (done, working, open counts)
+
 ## [1.0.1] - 2026-02-17
 
 Info panel now follows the design philosophy: zero cognitive load.
