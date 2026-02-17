@@ -1,4 +1,4 @@
-import type { Memo, MemoV2, ReviewHighlight, ReviewMemo, Checkpoint } from './types'
+import type { Memo, MemoV2, ReviewHighlight, ReviewMemo, Checkpoint, HighlightMark } from './types'
 import { HEX_TO_COLOR_NAME } from './types'
 import { splitDocument } from './document-writer'
 
@@ -163,6 +163,12 @@ export function convertMemosToHtml(markdown: string): string {
       continue
     }
 
+    // Skip HIGHLIGHT_MARK comments (persisted highlights — handled separately)
+    if (/^<!-- HIGHLIGHT_MARK\s/.test(trimmed)) {
+      i++
+      continue
+    }
+
     // Skip banner comments
     if (/^<!--$/.test(trimmed) && i + 1 < lines.length && /MD Feedback/.test(lines[i + 1])) {
       while (i < lines.length && !lines[i].includes('-->')) i++
@@ -225,6 +231,32 @@ function escAttr(s: string): string {
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function decAttr(s: string): string {
+  return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+}
+
+const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
+
+/** Extract persisted highlight marks from markdown (HTML comment format) */
+export function extractHighlightMarks(markdown: string): HighlightMark[] {
+  const marks: HighlightMark[] = []
+  const re = new RegExp(HIGHLIGHT_MARK_RE.source, HIGHLIGHT_MARK_RE.flags)
+  let match: RegExpExecArray | null
+  while ((match = re.exec(markdown)) !== null) {
+    marks.push({
+      color: match[1],
+      text: decAttr(match[2]),
+      anchor: decAttr(match[3]),
+    })
+  }
+  return marks
+}
+
+/** Strip HIGHLIGHT_MARK comments from markdown */
+export function stripHighlightMarks(markdown: string): string {
+  return markdown.replace(/\n*<!-- HIGHLIGHT_MARK color="[^"]*" text="[^"]*" anchor="[^"]*" -->/g, '')
 }
 
 export function extractMemos(annotatedMarkdown: string): { markdown: string; memos: Memo[] } {

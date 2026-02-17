@@ -43,6 +43,13 @@ export const HEX_TO_COLOR_NAME: Record<string, string> = {
   '#93c5fd': 'blue',
 }
 
+/** Persisted highlight mark — stored as HTML comments in markdown */
+export interface HighlightMark {
+  color: string       // hex color (#fef08a, #fca5a5, #93c5fd)
+  text: string        // highlighted text fragment
+  anchor: string      // first N chars of containing block (for matching on reload)
+}
+
 // ─── v0.4.0 State Model ───
 
 export type MemoType = 'fix' | 'question' | 'highlight'

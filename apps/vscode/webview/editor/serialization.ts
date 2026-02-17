@@ -60,6 +60,62 @@ export function serializeWithMemos(markdown: string): string {
   return result
 }
 
+function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Collect all highlight marks from the ProseMirror doc and serialize them
+ * as <!-- HIGHLIGHT_MARK --> HTML comments appended to the markdown.
+ *
+ * This is the counterpart to the empty Highlight serializer ({ open: '', close: '' }).
+ * Without this, highlights vanish from markdown on every save cycle because
+ * tiptap-markdown doesn't output <mark> tags (intentionally — to prevent
+ * backslash accumulation from prosemirror-markdown escaping inside HTML).
+ *
+ * Format: <!-- HIGHLIGHT_MARK color="#hex" text="escaped" anchor="escaped" -->
+ */
+export function serializeHighlightMarks(
+  md: string,
+  ed: { state: { doc: { descendants: (cb: (node: any, pos: number) => any) => void } } },
+): string {
+  const marks: string[] = []
+
+  ed.state.doc.descendants((node: any) => {
+    if (!node.isTextblock) return
+
+    const blockText: string = node.textContent
+    if (!blockText) return
+
+    // Collect highlighted fragments, merging adjacent same-color spans
+    const fragments: { color: string; text: string }[] = []
+
+    node.forEach((child: any) => {
+      if (!child.isText || !child.text) return
+      const hlMark = child.marks.find((m: any) => m.type.name === 'highlight')
+      if (!hlMark) return
+
+      const last = fragments[fragments.length - 1]
+      if (last && last.color === hlMark.attrs.color) {
+        last.text += child.text
+      } else {
+        fragments.push({ color: hlMark.attrs.color, text: child.text })
+      }
+    })
+
+    for (const frag of fragments) {
+      marks.push(
+        `<!-- HIGHLIGHT_MARK color="${frag.color}" text="${escAttr(frag.text)}" anchor="${escAttr(blockText.slice(0, 80))}" -->`,
+      )
+    }
+  })
+
+  if (marks.length > 0) {
+    md = md.trimEnd() + '\n\n' + marks.join('\n') + '\n'
+  }
+  return md
+}
+
 export function decodeHtmlEntities(s: string): string {
   return s
     .replace(/&amp;/g, '&')
