@@ -33,15 +33,20 @@ const TEXT_EXTENSIONS = new Set([
   '.npmignore',
 ])
 
-const FORBIDDEN_PATTERNS = [
-  /kernel-fixer@dev\.local/i,
-  /kernel fixer/i,
-  /oh-my-opencode/i,
-  /ymkernelos/i,
-  /hephaestus-agent/i,
-  /sisyphus-dev-ai/i,
-  /justsisyphus/i,
+// Encoded to avoid leaking internal identifiers in the public repo.
+// Each entry is a base64-encoded plain string checked as a case-insensitive substring.
+const FORBIDDEN_ENCODED = [
+  'a2VybmVsLWZpeGVyQGRldi5sb2NhbA==',
+  'a2VybmVsIGZpeGVy',
+  'b2gtbXktb3BlbmNvZGU=',
+  'eW1rZXJuZWxvcw==',
+  'aGVwaGFlc3R1cy1hZ2VudA==',
+  'c2lzeXBodXMtZGV2LWFp',
+  'anVzdHNpc3lwaHVz',
 ]
+const FORBIDDEN_PATTERNS = FORBIDDEN_ENCODED.map(
+  e => new RegExp(Buffer.from(e, 'base64').toString(), 'i'),
+)
 
 function isTextFile(filePath) {
   const base = filePath.split('/').pop() ?? filePath

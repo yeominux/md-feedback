@@ -13,6 +13,8 @@ export {
   generateReviewSummary,
   extractCheckpoints,
   serializeCheckpoint,
+  extractHighlightMarks,
+  stripHighlightMarks,
 } from './markdown-roundtrip'
 
 export {
