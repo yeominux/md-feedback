@@ -10,6 +10,16 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.0.1] - 2026-02-17
+
+Info panel now follows the design philosophy: zero cognitive load.
+
+### Changed
+- Info panel is now fully read-only — gate and cursor forms removed (AI manages these via MCP)
+
+### Improved
+- Security policy updated for v1.0.x
+
 ## [1.0.0] - 2026-02-17
 
 First stable release. Plan review for AI-assisted coding.
