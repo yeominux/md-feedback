@@ -16,6 +16,12 @@ The tool consists of two components:
 - 19 MCP tools for agent integration
 - Export to 11 AI tools: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - Annotations stored as portable HTML comments in the markdown file — no proprietary format, no cloud dependency
+- AI applies fixes via MCP — agent reports implementations with inline diffs
+- 6 status badges: Open, Working, Answered, Done, Failed, Won't Fix
+- Rollback: agent can undo its last change if something went wrong
+- Batch operations: multiple fixes in one transaction
+- File safety: blocks writes to .env, credentials, node_modules
+- Auto-refresh: document updates in real-time when AI writes changes
 - Quality gates with automatic evaluation (blocked/proceed/done)
 - Session handoffs preserve context across AI agent sessions
 - Checkpoints track review progress over time
@@ -43,12 +49,12 @@ The tool consists of two components:
 
 ## MCP Server Tools
 
-- get_document_structure: full review state (memos, gates, cursor, sections, summary)
+- get_document_structure: full review state (memos, gates, cursor, sections, summary, metrics)
 - list_annotations: all annotations with type, status, owner, color
 - get_review_status: annotation counts and session status
 - create_annotation: create annotation programmatically with anchor search
 - respond_to_memo: add AI response to an annotation
-- update_memo_status: mark memo as open, answered, or wontfix
+- update_memo_status: mark memo as open, in_progress, answered, done, failed, or wontfix
 - update_cursor: set plan cursor position
 - evaluate_gates: check if quality conditions are met
 - export_review: export for a specific AI tool format
