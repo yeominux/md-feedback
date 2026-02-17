@@ -10,6 +10,25 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.0.0] - 2026-02-17
+
+First stable release. Plan review for AI-assisted coding.
+
+### Added
+- Gates, checkpoints, and plan cursor are now visible in the review panel
+- Metadata drawer: view gates, cursor position, and checkpoint history from the status bar
+- Enhanced status bar showing resolved count, gate status, and cursor step
+- Expanded FAQ and use-case documentation
+
+### Fixed
+- Annotations could be counted twice in status summaries
+- Memo positions could drift after repeated document saves
+
+### Improved
+- MCP server now has 13 documented tools (added respond_to_memo)
+- README rewritten with design philosophy and structured FAQ
+- llms.txt expanded for AI engine discoverability
+
 ## [0.9.9] - 2026-02-17
 
 Highlights no longer vanish after save/reload.

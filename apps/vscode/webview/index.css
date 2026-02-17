@@ -822,6 +822,23 @@
   color: var(--mf-text-faint);
 }
 
+.status-drawer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  margin-left: 4px;
+  border-radius: 4px;
+  color: var(--mf-text-faint);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.status-drawer-btn:hover {
+  color: var(--mf-text-muted);
+}
+
 /* ── Secondary floating button ── */
 .floating-btn-secondary {
   display: inline-flex;
