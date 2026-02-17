@@ -200,7 +200,7 @@ This is the AI answer.
     expect(parts.memos[0].status).toBe('answered')
   })
 
-  it('migrates deprecated "done" status to "answered"', () => {
+  it('preserves "done" status (v1.1+ valid status)', () => {
     const input = `Some text.
 <!-- USER_MEMO
   id="q1"
@@ -222,7 +222,7 @@ Fixed it.
     const parts = splitDocument(input)
 
     expect(parts.memos).toHaveLength(1)
-    expect(parts.memos[0].status).toBe('answered')
+    expect(parts.memos[0].status).toBe('done')
   })
 
   it('preserves wontfix status even with REVIEW_RESPONSE', () => {

@@ -13,7 +13,7 @@ The tool consists of two components:
 ## Key Facts
 
 - 3 annotation types: Highlight (reading mark), Fix (needs change), Question (needs clarification)
-- 13 MCP tools for agent integration
+- 19 MCP tools for agent integration
 - Export to 11 AI tools: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - Annotations stored as portable HTML comments in the markdown file — no proprietary format, no cloud dependency
 - Quality gates with automatic evaluation (blocked/proceed/done)
