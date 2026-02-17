@@ -1,0 +1,35 @@
+name: Render Demo GIF
+
+on:
+  pull_request:
+    paths:
+      - "demos/remotion/**"
+  push:
+    branches: [dev]
+    paths:
+      - "demos/remotion/**"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install deps
+        working-directory: demos/remotion
+        run: npm ci
+
+      - name: Render GIF
+        working-directory: demos/remotion
+        run: npx remotion render src/index.ts DemoComposition --codec=gif --width=800 --height=500 --output=out/demo.gif
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-gif
+          path: demos/remotion/out/*.gif
