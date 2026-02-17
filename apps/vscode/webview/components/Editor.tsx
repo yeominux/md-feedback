@@ -2,10 +2,11 @@ import { EditorContent, BubbleMenu } from '@tiptap/react'
 import { useCallback, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
 import {
   type HighlightColor,
+  type HighlightMark,
   type ReviewHighlight,
   type ReviewMemo,
 } from '@md-feedback/shared'
-import { appendMissedMemos, serializeWithMemos } from '../editor/serialization'
+import { appendMissedMemos, serializeWithMemos, serializeHighlightMarks } from '../editor/serialization'
 import { applyAnnotation, deleteAnnotationMark, findMarkRange } from '../editor/annotations'
 import { useMdFeedbackEditor, type DeletePopover } from '../editor/useMdFeedbackEditor'
 import { Highlighter, Strikethrough, CircleHelp, Trash2 } from 'lucide-react'
@@ -19,6 +20,7 @@ export interface EditorHandle {
   getDocumentTitle: () => string
   getSections: () => string[]
   applyAnnotation: (color: HighlightColor) => void
+  applyHighlightMarks: (marks: HighlightMark[]) => void
 }
 
 interface EditorProps {
@@ -98,6 +100,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
       let md = editor.storage.markdown.getMarkdown()
       md = serializeWithMemos(md)
       md = appendMissedMemos(md, editor)
+      md = serializeHighlightMarks(md, editor)
       return md
     },
     setMarkdown: (md: string) => {
@@ -202,6 +205,74 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
     },
     applyAnnotation: (color: HighlightColor) => {
       applyAnnotationRef.current(color)
+    },
+    applyHighlightMarks: (marks: HighlightMark[]) => {
+      if (!editor || marks.length === 0) return
+
+      const highlightType = editor.schema.marks.highlight
+      if (!highlightType) return
+
+      let tr = editor.state.tr
+      const applied = new Set<string>()
+
+      for (const mark of marks) {
+        const key = `${mark.color}|${mark.text}|${mark.anchor}`
+        if (applied.has(key)) continue
+
+        // Find textblocks matching the anchor
+        editor.state.doc.descendants((node: any, pos: number) => {
+          if (applied.has(key)) return false
+          if (!node.isTextblock) return
+
+          const blockText: string = node.textContent
+          if (!blockText) return
+
+          // Match by anchor prefix (first 40 chars)
+          const anchorPrefix = mark.anchor.slice(0, 40)
+          if (anchorPrefix && !blockText.includes(anchorPrefix)) return
+
+          // Find the highlighted text within this block
+          const textIdx = blockText.indexOf(mark.text)
+          if (textIdx < 0) return
+
+          // Map textContent offset to ProseMirror position by walking children
+          let charsSeen = 0
+          let from = -1
+          let to = -1
+
+          node.forEach((child: any, childOffset: number) => {
+            if (from >= 0 && to >= 0) return
+            const childStart = pos + 1 + childOffset
+
+            if (child.isText && child.text) {
+              const textLen = child.text.length
+              const childEnd = charsSeen + textLen
+
+              if (from < 0 && textIdx < childEnd) {
+                from = childStart + (textIdx - charsSeen)
+              }
+              if (from >= 0 && to < 0 && textIdx + mark.text.length <= childEnd) {
+                to = childStart + (textIdx + mark.text.length - charsSeen)
+              }
+
+              charsSeen += textLen
+            } else {
+              charsSeen += child.textContent?.length || 0
+            }
+          })
+
+          if (from >= 0 && to >= 0) {
+            tr = tr.addMark(from, to, highlightType.create({ color: mark.color }))
+            applied.add(key)
+          }
+        })
+      }
+
+      if (tr.steps.length > 0) {
+        // Don't add to undo history — this is a reconstruction, not a user edit
+        tr.setMeta('addToHistory', false)
+        editor.view.dispatch(tr)
+      }
     },
   }))
 
