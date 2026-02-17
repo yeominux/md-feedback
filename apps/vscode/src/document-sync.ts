@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { convertMemosToHtml, normalizeHighlights } from '@md-feedback/shared'
+import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHighlightMarks } from '@md-feedback/shared'
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
 import type { Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
@@ -44,12 +44,18 @@ export function sendDocumentToWebview(
     }
 
     const normalized = normalizeHighlights(processed)
-    const withMemoHtml = convertMemosToHtml(normalized)
+
+    // Extract persisted highlight marks before stripping them
+    const highlightMarks = extractHighlightMarks(normalized)
+    const withoutHighlights = stripHighlightMarks(normalized)
+
+    const withMemoHtml = convertMemosToHtml(withoutHighlights)
 
     postMessage({
       type: 'document.load',
       content: raw,
       cleanContent: withMemoHtml,
+      highlightMarks,
       filePath: vscode.workspace.asRelativePath(document.uri),
     })
 
