@@ -2,6 +2,15 @@
 # Pre-commit hook: run tests before every commit.
 # Skip with: git commit --no-verify (only when you know what you're doing)
 
+echo "🔍 Running sync check..."
+pnpm check-sync
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "✗ Sync check failed. Commit aborted."
+  echo "  Run 'pnpm check-sync' to see details."
+  exit 1
+fi
+
 echo "🧪 Running tests before commit..."
 pnpm test
 if [ $? -ne 0 ]; then
@@ -11,4 +20,4 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "✓ Tests passed."
+echo "✓ All checks passed."
