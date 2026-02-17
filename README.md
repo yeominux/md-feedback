@@ -113,3 +113,6 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 
 **Who is this for?**
 Developers using AI coding assistants (Claude Code, Cursor, Copilot, etc.) who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
+
+**What is Plan Review?**
+Plan review means reviewing AI-generated plans before implementation. Unlike code review (after code is written), plan review catches architecture mistakes and missing requirements at the design stage — before any code is produced.
