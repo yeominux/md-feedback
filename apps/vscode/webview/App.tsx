@@ -2,8 +2,15 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import Editor, { type EditorHandle } from './components/Editor'
 import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
-import type { Checkpoint, Gate, PlanCursor } from '@md-feedback/shared'
+import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
 import { FileText, X, Unplug, Settings2 } from 'lucide-react'
+
+// Global impls store for MemoBlock (TipTap nodes lack React context access)
+declare global {
+  interface Window {
+    __mfImpls?: MemoImpl[]
+  }
+}
 
 interface StatusSummary {
   openFixes: number
@@ -11,6 +18,9 @@ interface StatusSummary {
   gateStatus: string | null
   totalMemos: number
   resolvedMemos: number
+  inProgressMemos: number
+  doneMemos: number
+  failedMemos: number
 }
 
 export default function App() {
@@ -145,6 +155,7 @@ export default function App() {
           if (msg.gates) setGates(msg.gates as Gate[])
           if (msg.cursor !== undefined) setCursor(msg.cursor as PlanCursor | null)
           if (msg.checkpoints) setCheckpoints(msg.checkpoints as Checkpoint[])
+          if (msg.impls) window.__mfImpls = msg.impls as MemoImpl[]
           break
 
         case 'gates.update':
@@ -372,7 +383,9 @@ export default function App() {
             {/* Resolved ratio */}
             {statusSummary.totalMemos > 0 && (
               <span className="status-detail">
-                {statusSummary.resolvedMemos}/{statusSummary.totalMemos} resolved
+                {statusSummary.inProgressMemos > 0 || statusSummary.doneMemos > 0
+                  ? `${statusSummary.doneMemos} done | ${statusSummary.inProgressMemos} working | ${statusSummary.totalMemos - statusSummary.resolvedMemos - statusSummary.inProgressMemos} open`
+                  : `${statusSummary.resolvedMemos}/${statusSummary.totalMemos} resolved`}
               </span>
             )}
 

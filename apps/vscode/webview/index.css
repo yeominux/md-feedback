@@ -601,8 +601,14 @@
 /* Status badge theme-aware utilities */
 .text-mf-status-open { color: var(--mf-status-open-text); }
 .bg-mf-status-open { background: var(--mf-status-open-bg); }
+.text-mf-status-in-progress { color: var(--mf-status-in-progress-text); }
+.bg-mf-status-in-progress { background: var(--mf-status-in-progress-bg); }
 .text-mf-status-answered { color: var(--mf-status-answered-text); }
 .bg-mf-status-answered { background: var(--mf-status-answered-bg); }
+.text-mf-status-done { color: var(--mf-status-done-text); }
+.bg-mf-status-done { background: var(--mf-status-done-bg); }
+.text-mf-status-failed { color: var(--mf-status-failed-text); }
+.bg-mf-status-failed { background: var(--mf-status-failed-bg); }
 /* Memo label theme-aware utilities */
 .text-mf-memo-highlight { color: var(--mf-memo-highlight-label); }
 .text-mf-memo-fix { color: var(--mf-memo-fix-label); }
@@ -710,6 +716,18 @@
 .status-badge-question {
   background: #eff6ff;
   color: #2563eb;
+}
+.status-badge-in-progress {
+  background: var(--mf-status-in-progress-bg);
+  color: var(--mf-status-in-progress-text);
+}
+.status-badge-done {
+  background: var(--mf-status-done-bg);
+  color: var(--mf-status-done-text);
+}
+.status-badge-failed {
+  background: var(--mf-status-failed-bg);
+  color: var(--mf-status-failed-text);
 }
 .status-badge-blocked {
   background: #fef2f2;
@@ -953,3 +971,12 @@
   color: var(--mf-link);
   background: var(--mf-hover);
 }
+
+/* ── Memo Inline Diff ── */
+.memo-diff { margin-top: 8px; padding: 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+.memo-diff-before { background: #fef2f2; color: #dc2626; text-decoration: line-through; padding: 2px 4px; border-radius: 2px; }
+.memo-diff-after { background: #ecfdf5; color: #059669; padding: 2px 4px; border-radius: 2px; }
+[data-theme="dark"] .memo-diff-before { background: #331a1a; }
+[data-theme="dark"] .memo-diff-after { background: #1a332a; }
+.memo-diff-summary { font-size: 11px; color: var(--mf-text-muted); margin-bottom: 4px; }
+.memo-diff-toggle { font-size: 11px; color: var(--mf-link); cursor: pointer; border: none; background: none; padding: 0; }

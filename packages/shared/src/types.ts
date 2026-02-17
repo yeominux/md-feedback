@@ -53,7 +53,12 @@ export interface HighlightMark {
 // ─── v0.4.0 State Model ───
 
 export type MemoType = 'fix' | 'question' | 'highlight'
-export type MemoStatus = 'open' | 'answered' | 'wontfix'
+export type MemoStatus = 'open' | 'in_progress' | 'answered' | 'done' | 'failed' | 'wontfix'
+
+/** Check if a memo status is considered "resolved" (not blocking gates) */
+export function isResolved(status: MemoStatus): boolean {
+  return status === 'answered' || status === 'done' || status === 'failed' || status === 'wontfix'
+}
 export type MemoOwner = 'human' | 'agent' | 'tool'
 
 export interface MemoV2 {
@@ -109,11 +114,66 @@ export interface ReviewResponse {
   bodyEndIdx: number            // line index in bodyLines where response ends
 }
 
+// ─── v1.1.0 Implementation Tracking ───
+
+export type ImplStatus = 'applied' | 'reverted' | 'partial' | 'failed'
+
+export interface TextReplaceOp {
+  type: 'text_replace'
+  file: string        // relative file path (empty string = current document)
+  before: string
+  after: string
+}
+
+export interface FilePatchOp {
+  type: 'file_patch'
+  file: string
+  patch: string       // unified diff format
+}
+
+export interface FileCreateOp {
+  type: 'file_create'
+  file: string
+  content: string
+}
+
+export type ImplOperation = TextReplaceOp | FilePatchOp | FileCreateOp
+
+export interface MemoImpl {
+  id: string           // "impl_" + nanoid(6)
+  memoId: string       // links to MemoV2.id
+  status: ImplStatus
+  operations: ImplOperation[]
+  summary: string      // human-readable summary
+  appliedAt: string    // ISO 8601
+}
+
+// ─── v1.2.0 Code Execution Bridge ───
+
+export interface MemoArtifact {
+  id: string           // "art_" + nanoid(6)
+  memoId: string       // links to MemoV2.id
+  files: string[]      // relative file paths linked to this memo
+  linkedAt: string     // ISO 8601
+}
+
+// ─── v1.3.0 Dependencies ───
+
+export interface MemoDependency {
+  id: string           // "dep_" + nanoid(6)
+  from: string         // memo ID
+  to: string           // memo ID (from depends on to)
+  type: 'blocks' | 'related'
+}
+
 export interface DocumentParts {
   frontmatter: string           // YAML frontmatter (pass-through, empty if none)
   body: string                  // body markdown (memos/gates/cursor stripped)
   memos: MemoV2[]
   responses: ReviewResponse[]   // AI responses (markers only; text lives in body)
+  impls: MemoImpl[]             // implementation records (v1.1+)
+  artifacts: MemoArtifact[]     // linked file artifacts (v1.2+)
+  dependencies: MemoDependency[] // memo dependencies (v1.3+)
   checkpoints: Checkpoint[]
   gates: Gate[]
   cursor: PlanCursor | null
@@ -133,10 +193,17 @@ export interface ReviewDocument {
     reviewed: string[]
     uncovered: string[]
   }
+  impls: MemoImpl[]
+  artifacts: MemoArtifact[]
+  dependencies: MemoDependency[]
   summary: {
     total: number
     open: number
+    inProgress: number
+    answered: number
     done: number
+    failed: number
+    wontfix: number
     blocked: number
     fixes: number
     questions: number
