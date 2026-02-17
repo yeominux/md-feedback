@@ -10,6 +10,19 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.1.1] - 2026-02-17
+
+Demo GIF now shows in README — on GitHub, npm, and VS Code Marketplace.
+
+### Added
+- Animated demo GIF in README hero image
+- GitHub Actions workflow for auto-rendering demo GIF
+
+### Improved
+- README now lists all v1.1.0 features (inline diffs, 6 status badges, rollback, batch ops, file safety, auto-refresh)
+- llms.txt now documents all 19 MCP tools (was missing 6)
+- Security policy updated for v1.1.x
+
 ## [1.1.0] - 2026-02-17
 
 AI agents can now apply fixes, track progress, and roll back changes — all through MCP.
