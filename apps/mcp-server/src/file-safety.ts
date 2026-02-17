@@ -8,14 +8,23 @@ export interface FileSafetyConfig {
 
 const DEFAULT_BLOCKLIST = [
   '**/.env',
+  '.env',
   '**/.env.*',
+  '.env.*',
   '**/credentials*',
+  'credentials*',
   '**/secrets*',
+  'secrets*',
   '**/*.pem',
+  '*.pem',
   '**/*.key',
+  '*.key',
   '**/*.p12',
+  '*.p12',
   '**/node_modules/**',
+  'node_modules/**',
   '**/.git/**',
+  '.git/**',
 ]
 
 export function createFileSafety(workspaceRoot?: string): FileSafetyConfig {
