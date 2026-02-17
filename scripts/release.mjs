@@ -137,7 +137,8 @@ console.log('  ✓ Build successful')
 
 // Step 6: Git commit + tag
 console.log('\n── Step 6/7: Git commit + tag ──')
-run('git add -A')
+for (const f of pkgFiles) run(`git add ${f}`)
+run('git add CHANGELOG.md')
 run(`git commit -m "v${nextVersion}"`)
 run(`git tag v${nextVersion}`)
 console.log(`  ✓ Committed and tagged v${nextVersion}`)

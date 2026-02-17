@@ -18,7 +18,7 @@ import CodeBlockHighlight from '../extensions/CodeBlockHighlight'
 import CalloutExtension from '../extensions/CalloutBlock'
 import MermaidBlock from '../extensions/MermaidBlock'
 import type { HighlightColor } from '@md-feedback/shared'
-import { appendMissedMemos, serializeWithMemos } from './serialization'
+import { appendMissedMemos, serializeWithMemos, serializeHighlightMarks } from './serialization'
 
 // Extend Highlight with a markdown serializer to prevent HTML fallback.
 // Without this, tiptap-markdown wraps highlights in <mark>...</mark> HTML tags.
@@ -148,6 +148,7 @@ export function useMdFeedbackEditor({
         let md = ed.storage.markdown.getMarkdown()
         md = serializeWithMemos(md)
         md = appendMissedMemos(md, ed)
+        md = serializeHighlightMarks(md, ed)
         onUpdate(md)
       }
     },
