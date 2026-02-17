@@ -1,5 +1,4 @@
 import type { Checkpoint } from './types'
-import { HEX_TO_COLOR_NAME } from './types'
 import { extractCheckpoints, serializeCheckpoint } from './markdown-roundtrip'
 import { splitDocument } from './document-writer'
 
@@ -22,37 +21,20 @@ export interface AnnotationCounts {
   highlights: number
 }
 
-/** Count annotations by type from raw annotated markdown */
+/** Count annotations by type from raw annotated markdown.
+ *  Uses USER_MEMO as the single source of truth — <mark> tags and ==text==
+ *  are visual representations of the same annotations, not separate items. */
 export function getAnnotationCounts(markdown: string): AnnotationCounts {
   let fixes = 0
   let questions = 0
   let highlights = 0
 
-  // Count USER_MEMO comments by color (v0.3 + v0.4 via splitDocument)
   const parts = splitDocument(markdown)
   for (const memo of parts.memos) {
     const color = memo.color || 'red'
     if (color === 'red') fixes++
     else if (color === 'blue') questions++
     else highlights++
-  }
-
-  let m: RegExpExecArray | null
-
-  // Count <mark> highlights with style (inline annotations without memos)
-  const markRe = /<mark[^>]*style="background-color:\s*([^"]+)"[^>]*>/g
-  while ((m = markRe.exec(markdown)) !== null) {
-    const hex = m[1].trim()
-    const cn = HEX_TO_COLOR_NAME[hex]
-    if (cn === 'red') fixes++
-    else if (cn === 'blue') questions++
-    else highlights++
-  }
-
-  // Count == == highlights (normalized to <mark>)
-  const eqRe = /(?<!`)==(?!.*==.*`)(.+?)==(?!`)/g
-  while (eqRe.exec(markdown) !== null) {
-    highlights++
   }
 
   return { fixes, questions, highlights }
