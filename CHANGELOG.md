@@ -16,7 +16,7 @@ First stable release. Plan review for AI-assisted coding.
 
 ### Added
 - Gates, checkpoints, and plan cursor are now visible in the review panel
-- Metadata drawer: view gates, cursor position, and checkpoint history from the status bar
+- Info panel: view gates, cursor position, and checkpoint history (read-only, zero cognitive load)
 - Enhanced status bar showing resolved count, gate status, and cursor step
 - Expanded FAQ and use-case documentation
 
