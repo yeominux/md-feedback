@@ -28,22 +28,23 @@ Add to your MCP client config (Claude Code, Cursor, etc.):
 
 That's it. No install, no setup — `npx` handles everything.
 
-## 12 MCP Tools
+## 13 MCP Tools
 
 | Tool | Description |
 |------|-------------|
 | `get_document_structure` | Full review state: memos, gates, cursor, sections, summary |
 | `list_annotations` | All annotations with type/status/owner/color |
 | `get_review_status` | Annotation counts and session status |
-| `update_memo_status` | Mark a memo as open/answered/done/wontfix |
+| `create_annotation` | Create annotation programmatically with anchor search |
+| `respond_to_memo` | Add AI response to an annotation |
+| `update_memo_status` | Mark a memo as open/answered/wontfix |
 | `update_cursor` | Set plan cursor position (task ID, step, next action) |
 | `evaluate_gates` | Check if merge/release/implement conditions are met |
 | `export_review` | Export for a specific AI tool format |
-| `create_checkpoint` | Save review progress |
+| `create_checkpoint` | Save review progress snapshot |
 | `get_checkpoints` | List all checkpoints |
 | `generate_handoff` | Generate structured handoff document |
 | `pickup_handoff` | Parse existing handoff for session resumption |
-| `create_annotation` | Create annotation programmatically |
 
 ## How It Works
 
