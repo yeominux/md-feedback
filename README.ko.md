@@ -15,6 +15,8 @@
 
 **리뷰하세요. 에이전트가 구현합니다. 게이트가 완료를 추적합니다. 핸드오프가 컨텍스트를 보존합니다.**
 
+![MD Feedback 데모](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
+
 ## 작동 방식
 
 계획서에서 구현까지, 전체 AI 코딩 루프:
