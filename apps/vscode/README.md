@@ -12,6 +12,8 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 **You review. The agent builds. Gates track completion. Handoffs preserve context.**
 
+![MD Feedback Demo](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
+
 ## How It Works
 
 From plan to implementation, the complete AI coding loop:
