@@ -39,7 +39,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 ## Features
 
 - **3 annotation types**: Highlight (reading mark), Fix (needs change), Question (needs clarification)
-- **13 MCP tools** for direct agent integration
+- **19 MCP tools** for direct agent integration
 - **Export to 11 AI tools**: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - **Quality gates** with automatic pass/fail evaluation
 - **Session handoffs** preserve context across AI agent sessions
@@ -92,7 +92,7 @@ Set conditions that must be met before the agent proceeds. Gates auto-evaluate b
 
 ## MCP Server
 
-MD Feedback includes an MCP server with 13 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, check gate status, and generate handoffs — all through the Model Context Protocol.
+MD Feedback includes an MCP server with 19 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
 
 **Setup:**
 
