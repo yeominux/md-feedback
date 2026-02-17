@@ -35,11 +35,15 @@ export default function App() {
           isLoadingRef.current = true
           if (editorRef.current) {
             editorRef.current.setMarkdown(msg.cleanContent || msg.content)
+            // Reconstruct persisted highlight marks after content is set
+            if (msg.highlightMarks?.length) {
+              editorRef.current.applyHighlightMarks(msg.highlightMarks)
+            }
             setDocLoaded(true)
             setDocEmpty(false)
             setFilePath(msg.filePath || '')
           }
-          setTimeout(() => { isLoadingRef.current = false }, 100)
+          setTimeout(() => { isLoadingRef.current = false }, 150)
           // Request checkpoints after load
           vscode.postMessage({ type: 'checkpoint.list' })
           break
