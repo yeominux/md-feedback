@@ -85,7 +85,10 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     const openFixes = parts.memos.filter(m => m.type === 'fix' && m.status === 'open').length
     const openQuestions = parts.memos.filter(m => m.type === 'question' && m.status === 'open').length
     const totalMemos = parts.memos.length
-    const resolvedMemos = parts.memos.filter(m => m.status !== 'open').length
+    const resolvedMemos = parts.memos.filter(m => m.status !== 'open' && m.status !== 'in_progress').length
+    const inProgressMemos = parts.memos.filter(m => m.status === 'in_progress').length
+    const doneMemos = parts.memos.filter(m => m.status === 'done').length
+    const failedMemos = parts.memos.filter(m => m.status === 'failed').length
     const blockedGate = gates.find(g => g.status === 'blocked')
     const allGatesDone = gates.length > 0 && gates.every(g => g.status === 'done')
 
@@ -97,16 +100,19 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     if (parts.memos.length > 0 || gates.length > 0) {
       postMessage({
         type: 'status.summary',
-        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos },
+        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos, inProgressMemos, doneMemos, failedMemos },
       })
     }
 
-    // Send metadata for drawer (gates, cursor, checkpoints)
+    // Send metadata for drawer (gates, cursor, checkpoints, impls, artifacts, dependencies)
     postMessage({
       type: 'metadata.update',
       gates,
       cursor: parts.cursor,
       checkpoints: parts.checkpoints,
+      impls: parts.impls,
+      artifacts: parts.artifacts,
+      dependencies: parts.dependencies,
     })
   } catch {
     // best-effort — don't break document loading
