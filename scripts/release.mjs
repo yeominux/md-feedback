@@ -151,37 +151,37 @@ console.log(`  ✓ Pushed to remote`)
 
 // Done — print publish instructions
 console.log(`
-╔══════════════════════════════════════════════════════════╗
-║  ✓ Release v${nextVersion} — git push 완료!${' '.repeat(Math.max(0, 33 - nextVersion.length))}║
-║                                                          ║
-║  GitHub Actions가 자동으로 CI + VSIX 패키징 진행 중...     ║
+╔═══════════════════════════════════════════════════════════╗
+║  ✓ Release v${nextVersion} — pushed to remote${' '.repeat(Math.max(0, 33 - nextVersion.length))}║
+║                                                           ║
+║  GitHub Actions CI + VSIX packaging in progress...        ║
 ║  https://github.com/yeominux/md-feedback/actions          ║
-╠══════════════════════════════════════════════════════════╣
-║                                                          ║
-║  아래 3개만 직접 실행하세요:                               ║
-║                                                          ║
-║  ① npm (MCP 서버):                                       ║
-║     cd apps/mcp-server && npm publish                    ║
-║                                                          ║
-║  ② VS Code Marketplace:                                  ║
-║     cd apps/vscode                                       ║
-║     npx @vscode/vsce publish --packagePath \\             ║
-║       md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 27 - nextVersion.length))}║
-║                                                          ║
-║  ③ Open VSX:                                             ║
-║     cd apps/vscode                                       ║
-║     npx ovsx publish md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 11 - nextVersion.length))}║
-║                                                          ║
-╠══════════════════════════════════════════════════════════╣
-║  검증:                                                   ║
-║     npx -y md-feedback --version  → ${nextVersion}${' '.repeat(Math.max(0, 21 - nextVersion.length))}║
-║                                                          ║
-║  토큰 만료 시:                                            ║
-║  • vsce: https://dev.azure.com → PAT 재발급              ║
-║         npx @vscode/vsce login yeominux                  ║
-║  • ovsx: https://open-vsx.org → Access Tokens            ║
-║         npx ovsx create-namespace yeominux               ║
-╚══════════════════════════════════════════════════════════╝
+╠═══════════════════════════════════════════════════════════╣
+║                                                           ║
+║  Publish manually (3 commands):                           ║
+║                                                           ║
+║  ① npm (MCP server):                                      ║
+║     cd apps/mcp-server && npm publish                     ║
+║                                                           ║
+║  ② VS Code Marketplace:                                   ║
+║     cd apps/vscode                                        ║
+║     npx @vscode/vsce publish --packagePath \\              ║
+║       md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 28 - nextVersion.length))}║
+║                                                           ║
+║  ③ Open VSX:                                              ║
+║     cd apps/vscode                                        ║
+║     npx ovsx publish md-feedback-vscode-${nextVersion}.vsix${' '.repeat(Math.max(0, 12 - nextVersion.length))}║
+║                                                           ║
+╠═══════════════════════════════════════════════════════════╣
+║  Verify:                                                  ║
+║     npx -y md-feedback --version  → ${nextVersion}${' '.repeat(Math.max(0, 22 - nextVersion.length))}║
+║                                                           ║
+║  If tokens expired:                                       ║
+║  • vsce: https://dev.azure.com → Renew PAT               ║
+║         npx @vscode/vsce login yeominux                   ║
+║  • ovsx: https://open-vsx.org → Access Tokens             ║
+║         npx ovsx create-namespace yeominux                ║
+╚═══════════════════════════════════════════════════════════╝
 `)
 
 // Also build the VSIX so it's ready for manual publish
