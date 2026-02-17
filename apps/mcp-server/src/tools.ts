@@ -1,13 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { readMarkdownFile, writeMarkdownFile } from './file-ops.js'
+import { readMarkdownFile, writeMarkdownFile, writeSnapshot, readProgress, appendProgress, writeTransaction } from './file-ops.js'
 import { createCheckpoint, extractCheckpoints, getAnnotationCounts, getSectionsWithAnnotations, getAllSections } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown, parseHandoffFile } from '@md-feedback/shared'
 import { extractMemos } from '@md-feedback/shared'
 import { splitDocument, mergeDocument, serializeMemoV2, serializeCursor, generateBodyHash } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
 import { generateContext, type TargetFormat } from '@md-feedback/shared'
-import type { MemoStatus, MemoType, MemoColor, MemoV2, ReviewDocument, ReviewHighlight, ReviewMemo } from '@md-feedback/shared'
+import type { MemoStatus, MemoType, MemoColor, MemoV2, ReviewDocument, ReviewHighlight, ReviewMemo, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
+import { isResolved } from '@md-feedback/shared'
+import { createFileSafety, validateFilePath } from './file-safety.js'
+import { computeMetrics } from './metrics.js'
 
 /** djb2 hash — must match shared/document-writer.ts hashLine */
 function computeLineHash(line: string): string {
@@ -248,7 +251,11 @@ export function registerTools(server: McpServer): void {
         const gates = evaluateAllGates(parts.gates, parts.memos)
 
         const open = parts.memos.filter(m => m.status === 'open').length
-        const done = parts.memos.filter(m => m.status !== 'open').length
+        const inProgress = parts.memos.filter(m => m.status === 'in_progress').length
+        const answered = parts.memos.filter(m => m.status === 'answered').length
+        const done = parts.memos.filter(m => m.status === 'done').length
+        const failed = parts.memos.filter(m => m.status === 'failed').length
+        const wontfix = parts.memos.filter(m => m.status === 'wontfix').length
         const blocked = gates.filter(g => g.status === 'blocked').length
 
         const structure: ReviewDocument = {
@@ -264,10 +271,17 @@ export function registerTools(server: McpServer): void {
             reviewed: reviewedSections,
             uncovered: allSections.filter(s => !reviewedSections.includes(s)),
           },
+          impls: parts.impls,
+          artifacts: parts.artifacts,
+          dependencies: parts.dependencies,
           summary: {
             total: parts.memos.length,
             open,
+            inProgress,
+            answered,
             done,
+            failed,
+            wontfix,
             blocked,
             fixes: parts.memos.filter(m => m.type === 'fix').length,
             questions: parts.memos.filter(m => m.type === 'question').length,
@@ -275,10 +289,16 @@ export function registerTools(server: McpServer): void {
           },
         }
 
+        // Compute metrics
+        const metrics = computeMetrics(
+          parts.memos, parts.impls, gates,
+          parts.checkpoints, parts.artifacts, parts.dependencies,
+        )
+
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify(structure, null, 2),
+            text: JSON.stringify({ ...structure, metrics }, null, 2),
           }],
         }
       } catch (err) {
@@ -543,7 +563,7 @@ export function registerTools(server: McpServer): void {
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update'),
-      status: z.enum(['open', 'answered', 'wontfix']).describe('New status'),
+      status: z.enum(['open', 'in_progress', 'answered', 'done', 'failed', 'wontfix']).describe('New status'),
       owner: z.enum(['human', 'agent', 'tool']).optional().describe('Optionally change the owner'),
     },
     async ({ file, memoId, status, owner }) => {
@@ -753,6 +773,541 @@ export function registerTools(server: McpServer): void {
 
         const content = generateContext(docTitle, file, allSections, highlights, docMemos, target as TargetFormat)
         return { content: [{ type: 'text' as const, text: content }] }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── apply_memo (v1.1 — apply an implementation to a memo) ───
+  server.tool(
+    'apply_memo',
+    'Apply an implementation action to a memo. Supports text_replace (on current document), file_patch (apply patch to target file), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to done.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('The memo ID to apply implementation to'),
+      action: z.enum(['text_replace', 'file_patch', 'file_create']).describe('Type of implementation action'),
+      dryRun: z.boolean().optional().default(false).describe('If true, return preview without writing'),
+      oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
+      newText: z.string().optional().describe('For text_replace: the replacement text'),
+      targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
+      patch: z.string().optional().describe('For file_patch: the patch content'),
+      content: z.string().optional().describe('For file_create: the file content to write'),
+    },
+    async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `Memo not found: ${memoId}` }) }],
+            isError: true,
+          }
+        }
+
+        // Build operation record
+        let operation: ImplOperation
+        if (action === 'text_replace') {
+          if (!oldText || newText === undefined) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: 'text_replace requires oldText and newText' }) }],
+              isError: true,
+            }
+          }
+          operation = { type: 'text_replace', file: '', before: oldText, after: newText } as TextReplaceOp
+        } else if (action === 'file_patch') {
+          if (!targetFile || !patch) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: 'file_patch requires targetFile and patch' }) }],
+              isError: true,
+            }
+          }
+          operation = { type: 'file_patch', file: targetFile, patch } as FilePatchOp
+        } else {
+          if (!targetFile || fileContent === undefined) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: 'file_create requires targetFile and content' }) }],
+              isError: true,
+            }
+          }
+          operation = { type: 'file_create', file: targetFile, content: fileContent } as FileCreateOp
+        }
+
+        const impl: MemoImpl = {
+          id: `impl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+          memoId,
+          status: 'applied',
+          operations: [operation],
+          summary: `${action} for ${memoId}`,
+          appliedAt: new Date().toISOString(),
+        }
+
+        if (dryRun) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({ dryRun: true, impl, operation, memo: { id: memo.id, status: memo.status } }, null, 2),
+            }],
+          }
+        }
+
+        // File safety check for external file operations
+        if ((action === 'file_patch' || action === 'file_create') && targetFile) {
+          const safety = createFileSafety()
+          const check = validateFilePath(safety, targetFile)
+          if (!check.safe) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: `File safety: ${check.reason}` }) }],
+              isError: true,
+            }
+          }
+        }
+
+        // Create snapshot before modification
+        writeSnapshot(file, markdown)
+
+        // Execute the operation
+        if (action === 'text_replace') {
+          if (!parts.body.includes(oldText!)) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: `oldText not found in document body` }) }],
+              isError: true,
+            }
+          }
+          parts.body = parts.body.replace(oldText!, newText!)
+        } else if (action === 'file_patch') {
+          writeMarkdownFile(targetFile!, patch!)
+        } else if (action === 'file_create') {
+          writeMarkdownFile(targetFile!, fileContent!)
+        }
+
+        // Record impl and update memo
+        parts.impls.push(impl)
+        memo.status = 'done'
+        memo.updatedAt = new Date().toISOString()
+
+        // Re-evaluate gates
+        if (parts.gates.length > 0) {
+          parts.gates = evaluateAllGates(parts.gates, parts.memos)
+        }
+
+        // Auto-update cursor
+        const resolvedCount = parts.memos.filter(m => isResolved(m.status)).length
+        const openMemos = parts.memos.filter(m => !isResolved(m.status))
+        parts.cursor = {
+          taskId: memoId,
+          step: `${resolvedCount}/${parts.memos.length} resolved`,
+          nextAction: openMemos.length === 0
+            ? 'All annotations resolved — review complete'
+            : `Resolve: ${openMemos.map(m => m.id).slice(0, 3).join(', ')}${openMemos.length > 3 ? '...' : ''}`,
+          lastSeenHash: generateBodyHash(parts.body),
+          updatedAt: new Date().toISOString(),
+        }
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ impl, memo: { id: memo.id, status: memo.status }, gatesUpdated: parts.gates.length }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── link_artifacts (v1.2 — link file artifacts to a memo) ───
+  server.tool(
+    'link_artifacts',
+    'Link file artifacts (source files, configs, etc.) to a memo. Creates a MemoArtifact record in the document.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('The memo ID to link artifacts to'),
+      files: z.array(z.string()).describe('Array of relative file paths to link'),
+    },
+    async ({ file, memoId, files: artifactFiles }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `Memo not found: ${memoId}` }) }],
+            isError: true,
+          }
+        }
+
+        const artifact: MemoArtifact = {
+          id: `art_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+          memoId,
+          files: artifactFiles,
+          linkedAt: new Date().toISOString(),
+        }
+
+        parts.artifacts.push(artifact)
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ artifact }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── update_memo_progress (v1.1 — update memo progress with status and message) ───
+  server.tool(
+    'update_memo_progress',
+    'Update the progress of a memo with a status change and message. Writes progress to .md-feedback/progress.json and updates the memo status.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('The memo ID to update progress for'),
+      status: z.enum(['in_progress', 'done', 'failed']).describe('New progress status'),
+      message: z.string().describe('Progress message describing what was done or what failed'),
+    },
+    async ({ file, memoId, status, message }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `Memo not found: ${memoId}` }) }],
+            isError: true,
+          }
+        }
+
+        memo.status = status as MemoStatus
+        memo.updatedAt = new Date().toISOString()
+
+        const progressEntry = {
+          memoId,
+          status,
+          message,
+          timestamp: new Date().toISOString(),
+        }
+        appendProgress(file, progressEntry)
+
+        // Re-evaluate gates
+        if (parts.gates.length > 0) {
+          parts.gates = evaluateAllGates(parts.gates, parts.memos)
+        }
+
+        // Auto-update cursor
+        const resolvedCount = parts.memos.filter(m => isResolved(m.status)).length
+        const openMemos = parts.memos.filter(m => !isResolved(m.status))
+        parts.cursor = {
+          taskId: memoId,
+          step: `${resolvedCount}/${parts.memos.length} resolved`,
+          nextAction: openMemos.length === 0
+            ? 'All annotations resolved — review complete'
+            : `Resolve: ${openMemos.map(m => m.id).slice(0, 3).join(', ')}${openMemos.length > 3 ? '...' : ''}`,
+          lastSeenHash: generateBodyHash(parts.body),
+          updatedAt: new Date().toISOString(),
+        }
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ memo: { id: memo.id, status: memo.status }, progressEntry, gatesUpdated: parts.gates.length }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── rollback_memo (v1.1 — rollback the latest implementation for a memo) ───
+  server.tool(
+    'rollback_memo',
+    'Rollback the latest implementation for a memo. Reverses text_replace operations (swaps before/after), marks the impl as reverted, and sets the memo status back to open.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('The memo ID to rollback'),
+    },
+    async ({ file, memoId }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `Memo not found: ${memoId}` }) }],
+            isError: true,
+          }
+        }
+
+        // Find the latest impl for this memo
+        const memoImpls = parts.impls.filter(imp => imp.memoId === memoId && imp.status === 'applied')
+        if (memoImpls.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `No applied implementation found for memo: ${memoId}` }) }],
+            isError: true,
+          }
+        }
+
+        const latestImpl = memoImpls[memoImpls.length - 1]
+
+        // Reverse operations
+        for (const op of latestImpl.operations) {
+          if (op.type === 'text_replace') {
+            // Swap before/after to reverse
+            if (parts.body.includes(op.after)) {
+              parts.body = parts.body.replace(op.after, op.before)
+            }
+          }
+          // file_patch and file_create are not automatically reversible
+        }
+
+        // Mark impl as reverted
+        latestImpl.status = 'reverted'
+
+        // Set memo status back to open
+        memo.status = 'open'
+        memo.updatedAt = new Date().toISOString()
+
+        // Re-evaluate gates
+        if (parts.gates.length > 0) {
+          parts.gates = evaluateAllGates(parts.gates, parts.memos)
+        }
+
+        // Auto-update cursor
+        const resolvedCount = parts.memos.filter(m => isResolved(m.status)).length
+        const openMemos = parts.memos.filter(m => !isResolved(m.status))
+        parts.cursor = {
+          taskId: memoId,
+          step: `${resolvedCount}/${parts.memos.length} resolved`,
+          nextAction: openMemos.length === 0
+            ? 'All annotations resolved — review complete'
+            : `Resolve: ${openMemos.map(m => m.id).slice(0, 3).join(', ')}${openMemos.length > 3 ? '...' : ''}`,
+          lastSeenHash: generateBodyHash(parts.body),
+          updatedAt: new Date().toISOString(),
+        }
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              rolledBack: latestImpl.id,
+              memo: { id: memo.id, status: memo.status },
+              gatesUpdated: parts.gates.length,
+            }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── batch_apply (v1.1 — apply multiple operations in a single transaction) ───
+  server.tool(
+    'batch_apply',
+    'Apply multiple implementation operations in a single transaction. Parses the document once, applies all operations sequentially, then writes once. Each operation follows the same format as apply_memo.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      operations: z.array(z.object({
+        memoId: z.string().describe('The memo ID to apply implementation to'),
+        action: z.enum(['text_replace', 'file_patch', 'file_create']).describe('Type of implementation action'),
+        oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
+        newText: z.string().optional().describe('For text_replace: the replacement text'),
+        targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
+        patch: z.string().optional().describe('For file_patch: the patch content'),
+        content: z.string().optional().describe('For file_create: the file content to write'),
+      })).describe('Array of operations to apply'),
+    },
+    async ({ file, operations }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        // Snapshot before batch
+        writeSnapshot(file, markdown)
+
+        const results: Array<{ memoId: string; implId: string; status: string }> = []
+
+        const safety = createFileSafety()
+
+        for (const op of operations) {
+          const memo = parts.memos.find(m => m.id === op.memoId)
+          if (!memo) {
+            results.push({ memoId: op.memoId, implId: '', status: `error: memo not found` })
+            continue
+          }
+
+          // File safety check for external file operations
+          if ((op.action === 'file_patch' || op.action === 'file_create') && op.targetFile) {
+            const check = validateFilePath(safety, op.targetFile)
+            if (!check.safe) {
+              results.push({ memoId: op.memoId, implId: '', status: `error: file safety: ${check.reason}` })
+              continue
+            }
+          }
+
+          let operation: ImplOperation
+          if (op.action === 'text_replace') {
+            if (!op.oldText || op.newText === undefined) {
+              results.push({ memoId: op.memoId, implId: '', status: 'error: text_replace requires oldText and newText' })
+              continue
+            }
+            operation = { type: 'text_replace', file: '', before: op.oldText, after: op.newText } as TextReplaceOp
+            if (!parts.body.includes(op.oldText)) {
+              results.push({ memoId: op.memoId, implId: '', status: 'error: oldText not found in body' })
+              continue
+            }
+            parts.body = parts.body.replace(op.oldText, op.newText)
+          } else if (op.action === 'file_patch') {
+            if (!op.targetFile || !op.patch) {
+              results.push({ memoId: op.memoId, implId: '', status: 'error: file_patch requires targetFile and patch' })
+              continue
+            }
+            operation = { type: 'file_patch', file: op.targetFile, patch: op.patch } as FilePatchOp
+            writeMarkdownFile(op.targetFile, op.patch)
+          } else {
+            if (!op.targetFile || op.content === undefined) {
+              results.push({ memoId: op.memoId, implId: '', status: 'error: file_create requires targetFile and content' })
+              continue
+            }
+            operation = { type: 'file_create', file: op.targetFile, content: op.content } as FileCreateOp
+            writeMarkdownFile(op.targetFile, op.content)
+          }
+
+          const impl: MemoImpl = {
+            id: `impl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            memoId: op.memoId,
+            status: 'applied',
+            operations: [operation!],
+            summary: `${op.action} for ${op.memoId}`,
+            appliedAt: new Date().toISOString(),
+          }
+
+          parts.impls.push(impl)
+          memo.status = 'done'
+          memo.updatedAt = new Date().toISOString()
+          results.push({ memoId: op.memoId, implId: impl.id, status: 'applied' })
+        }
+
+        // Re-evaluate gates
+        if (parts.gates.length > 0) {
+          parts.gates = evaluateAllGates(parts.gates, parts.memos)
+        }
+
+        // Auto-update cursor
+        const resolvedCount = parts.memos.filter(m => isResolved(m.status)).length
+        const openMemos = parts.memos.filter(m => !isResolved(m.status))
+        parts.cursor = {
+          taskId: operations[0]?.memoId || '',
+          step: `${resolvedCount}/${parts.memos.length} resolved`,
+          nextAction: openMemos.length === 0
+            ? 'All annotations resolved — review complete'
+            : `Resolve: ${openMemos.map(m => m.id).slice(0, 3).join(', ')}${openMemos.length > 3 ? '...' : ''}`,
+          lastSeenHash: generateBodyHash(parts.body),
+          updatedAt: new Date().toISOString(),
+        }
+
+        // Write transaction record
+        writeTransaction(file, { type: 'batch_apply', results, timestamp: new Date().toISOString() })
+
+        const updated = mergeDocument(parts)
+        writeMarkdownFile(file, updated)
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ results, gatesUpdated: parts.gates.length, cursor: parts.cursor }, null, 2),
+          }],
+        }
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        }
+      }
+    },
+  )
+
+  // ─── get_memo_changes (v1.1 — get implementation history for a memo) ───
+  server.tool(
+    'get_memo_changes',
+    'Get the implementation history and progress for a memo. Returns all MemoImpl records and progress entries from .md-feedback/progress.json. If memoId is omitted, returns all changes.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().optional().describe('Optional memo ID to filter by — if omitted, returns all changes'),
+    },
+    async ({ file, memoId }) => {
+      try {
+        const markdown = readMarkdownFile(file)
+        const parts = splitDocument(markdown)
+
+        const impls = memoId
+          ? parts.impls.filter(imp => imp.memoId === memoId)
+          : parts.impls
+
+        const allProgress = readProgress(file)
+        const progress = memoId
+          ? allProgress.filter(p => p.memoId === memoId)
+          : allProgress
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ impls, progress }, null, 2),
+          }],
+        }
       } catch (err) {
         return {
           content: [{
