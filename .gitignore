@@ -6,6 +6,7 @@ package-lock.json
 # Local workspace artifacts
 .vscode/
 .idea/
+.claude/
 .DS_Store
 *.tmp
 test-*.md
