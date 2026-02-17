@@ -11,20 +11,21 @@
  */
 
 import type { Gate, MemoV2 } from './types'
+import { isResolved } from './types'
 
 export function evaluateGate(gate: Gate, memos: MemoV2[]): 'blocked' | 'proceed' | 'done' {
-  // Check if any blocking memos are still open
+  // Check if any blocking memos are still unresolved
   if (gate.blockedBy.length > 0) {
     const blocking = gate.blockedBy
       .map(id => memos.find(m => m.id === id))
-      .filter((m): m is MemoV2 => m != null && m.status === 'open')
+      .filter((m): m is MemoV2 => m != null && !isResolved(m.status))
 
     if (blocking.length > 0) return 'blocked'
   }
 
-  // Check if all memos are resolved (no open ones)
-  const hasOpenMemos = memos.some(m => m.status === 'open')
-  if (!hasOpenMemos) return 'done'
+  // Check if all memos are resolved
+  const hasUnresolvedMemos = memos.some(m => !isResolved(m.status))
+  if (!hasUnresolvedMemos) return 'done'
 
   return 'proceed'
 }
