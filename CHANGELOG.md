@@ -10,6 +10,15 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [0.9.9] - 2026-02-17
+
+Highlights no longer vanish after save/reload.
+
+### Fixed
+- Highlights disappeared after switching tabs, reopening files, or scrolling through the document
+- Only memo cards survived save/reload — the colored highlight on the text itself was lost
+- Backslashes and strange characters could appear in highlighted text after repeated saves
+
 ## [0.9.8] - 2026-02-16
 
 Pre-launch stability pass — fixes data corruption bugs and improves reliability.
