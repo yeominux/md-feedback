@@ -28,16 +28,16 @@ Add to your MCP client config (Claude Code, Cursor, etc.):
 
 That's it. No install, no setup — `npx` handles everything.
 
-## 13 MCP Tools
+## 19 MCP Tools
 
 | Tool | Description |
 |------|-------------|
-| `get_document_structure` | Full review state: memos, gates, cursor, sections, summary |
+| `get_document_structure` | Full review state: memos, gates, cursor, sections, summary, metrics |
 | `list_annotations` | All annotations with type/status/owner/color |
 | `get_review_status` | Annotation counts and session status |
 | `create_annotation` | Create annotation programmatically with anchor search |
 | `respond_to_memo` | Add AI response to an annotation |
-| `update_memo_status` | Mark a memo as open/answered/wontfix |
+| `update_memo_status` | Mark a memo as open/in_progress/answered/done/failed/wontfix |
 | `update_cursor` | Set plan cursor position (task ID, step, next action) |
 | `evaluate_gates` | Check if merge/release/implement conditions are met |
 | `export_review` | Export for a specific AI tool format |
@@ -45,6 +45,12 @@ That's it. No install, no setup — `npx` handles everything.
 | `get_checkpoints` | List all checkpoints |
 | `generate_handoff` | Generate structured handoff document |
 | `pickup_handoff` | Parse existing handoff for session resumption |
+| `apply_memo` | Apply implementation (text_replace, file_patch, file_create) with dry-run |
+| `link_artifacts` | Link source files to a memo |
+| `update_memo_progress` | Update progress with status and message |
+| `rollback_memo` | Rollback the latest implementation for a memo |
+| `batch_apply` | Apply multiple operations in a single transaction |
+| `get_memo_changes` | Get implementation history and progress for a memo |
 
 ## How It Works
 
