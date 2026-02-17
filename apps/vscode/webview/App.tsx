@@ -408,7 +408,6 @@ export default function App() {
       <MetadataDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        memos={editorRef.current?.getMemos() || []}
         gates={gates}
         cursor={cursor}
         checkpoints={checkpoints}

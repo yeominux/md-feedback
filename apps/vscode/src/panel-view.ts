@@ -2,8 +2,7 @@ import * as vscode from 'vscode'
 import { createCheckpoint } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown } from '@md-feedback/shared'
 import { generateContext, TARGET_LABELS, type TargetFormat } from '@md-feedback/shared'
-import { splitDocument, serializeGate, serializeCheckpoint, serializeCursor } from '@md-feedback/shared'
-import { evaluateAllGates } from '@md-feedback/shared'
+import { serializeGate, serializeCheckpoint, serializeCursor } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
 import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
@@ -418,72 +417,6 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
 
       case 'onboarding.dismiss': {
         await ctx.setOnboardingDone(true)
-        break
-      }
-
-      case 'gate.create': {
-        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
-        if (!document) break
-
-        const gateData = msg.gate as Partial<Gate>
-        const gate: Gate = {
-          id: `gate-${Date.now().toString(36)}`,
-          type: gateData.type || 'merge',
-          status: 'blocked',
-          blockedBy: gateData.blockedBy || [],
-          canProceedIf: '',
-          doneDefinition: gateData.doneDefinition || '',
-        }
-
-        const raw = document.getText()
-        const serialized = serializeGate(gate)
-        const edit = new vscode.WorkspaceEdit()
-        const endPos = document.positionAt(raw.length)
-        edit.insert(document.uri, endPos, '\n\n' + serialized)
-        await vscode.workspace.applyEdit(edit)
-
-        const updatedRaw = document.getText()
-        ctx.sendStatusInfo(updatedRaw)
-
-        const parts = splitDocument(updatedRaw)
-        const evaluatedGates = evaluateAllGates(parts.gates, parts.memos)
-        ctx.postMessage({ type: 'gates.update', gates: evaluatedGates })
-        break
-      }
-
-      case 'cursor.set': {
-        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
-        if (!document) break
-
-        const cursorData = msg.cursor as Partial<PlanCursor>
-        const raw = document.getText()
-        const bodyHash = raw.slice(0, 100)
-
-        const cursor: PlanCursor = {
-          taskId: cursorData.taskId || '',
-          step: cursorData.step || '',
-          nextAction: cursorData.nextAction || '',
-          lastSeenHash: bodyHash.slice(0, 8),
-          updatedAt: new Date().toISOString(),
-        }
-
-        const serialized = serializeCursor(cursor)
-
-        const cursorMatch = raw.match(/<!-- PLAN_CURSOR[\s\S]*?-->/)
-        const edit = new vscode.WorkspaceEdit()
-
-        if (cursorMatch && cursorMatch.index !== undefined) {
-          const startPos = document.positionAt(cursorMatch.index)
-          const endPos = document.positionAt(cursorMatch.index + cursorMatch[0].length)
-          edit.replace(document.uri, new vscode.Range(startPos, endPos), serialized)
-        } else {
-          const endPos = document.positionAt(raw.length)
-          edit.insert(document.uri, endPos, '\n\n' + serialized)
-        }
-
-        await vscode.workspace.applyEdit(edit)
-
-        ctx.postMessage({ type: 'cursor.update', cursor })
         break
       }
 
