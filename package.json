@@ -11,6 +11,7 @@
     "check-sync": "node scripts/check-sync.mjs",
     "check:changelog": "node scripts/check-changelog-customer.mjs",
     "check:docs": "node scripts/check-public-docs.mjs",
+    "check:release-state": "node scripts/check-release-state.mjs",
     "check:customer": "pnpm check-sync && pnpm check:docs && pnpm check:changelog",
     "guard:public-surface": "node scripts/guard-public-surface.mjs",
     "sync-version": "node scripts/sync-version.mjs",
