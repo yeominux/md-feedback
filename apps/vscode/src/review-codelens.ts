@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import { splitDocument, mergeDocument } from '@md-feedback/shared'
 
-const MEMO_PATTERN = /<!-- USER_MEMO\b[^>]*?status="needs_review"[^>]*?id="([^"]+)"[^>]*?-->/g
+const MEMO_PATTERN = /<!-- USER_MEMO\b[^>]*?id="([^"]+)"[^>]*?status="needs_review"[^>]*?-->/gs
 
 /**
  * CodeLens provider for approve/reject actions on needs_review annotations.

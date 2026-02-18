@@ -20,6 +20,7 @@ await esbuild.build({
   alias: {
     '@md-feedback/shared': sharedEntry,
   },
-  sourcemap: true,
+  sourcemap: false,
+  minify: true,
   define: { '__VERSION__': JSON.stringify(pkg.version) },
 })

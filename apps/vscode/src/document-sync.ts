@@ -67,10 +67,11 @@ export function sendDocumentToWebview(
       cleanContent: withMemoHtml,
       highlightMarks,
       filePath: vscode.workspace.asRelativePath(document.uri),
+      impls: parts.impls,
     })
 
     // Send v0.4.0 status info (cursor + summary)
-    sendStatusInfo(raw, postMessage, handlers.getPreviousGateStatuses, handlers.setPreviousGateStatuses)
+    sendStatusInfo(raw, postMessage, handlers.getPreviousGateStatuses, handlers.setPreviousGateStatuses, handlers.onNeedsReviewCount)
   } catch (error) {
     // Fallback: send raw content without processing
     postMessage({
