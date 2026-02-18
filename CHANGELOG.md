@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.2] - 2026-02-18
+
+Review flow is clearer in the editor, and release reliability has been improved.
+
+### Fixed
+- Demo now visibly shows approval happening in the editor CodeLens flow, not as a sidebar action
+- Release commits now include all intended tracked changes, preventing release-file omissions
+- Release flow now handles repository push configuration more reliably
+
+### Added
+- Automatic GitHub Release creation from the latest changelog section on tag push
+- Automatic post-release synchronization through pull-request safeguards
+
+### Improved
+- README and Marketplace copy now explicitly reflect the latest review flow behavior
+
 ## [1.3.1] - 2026-02-18
 
 Human review loop is now stable in the actual VS Code UI.
