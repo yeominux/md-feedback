@@ -184,8 +184,8 @@ More answer.
   })
 })
 
-describe('Auto-status: REVIEW_RESPONSE → answered', () => {
-  it('auto-answers open memo with REVIEW_RESPONSE', () => {
+describe('Auto-status: REVIEW_RESPONSE → needs_review', () => {
+  it('auto-escalates open memo with REVIEW_RESPONSE to needs_review', () => {
     const input = `# Plan
 
 Some text.
@@ -197,7 +197,7 @@ This is the AI answer.
     const parts = splitDocument(input)
 
     expect(parts.memos).toHaveLength(1)
-    expect(parts.memos[0].status).toBe('answered')
+    expect(parts.memos[0].status).toBe('needs_review')
   })
 
   it('preserves "done" status (v1.1+ valid status)', () => {
@@ -265,6 +265,6 @@ Here is the fix.
     const q1 = parts.memos.find(m => m.id === 'q1')!
     const q2 = parts.memos.find(m => m.id === 'q2')!
     expect(q1.status).toBe('open')
-    expect(q2.status).toBe('answered')
+    expect(q2.status).toBe('needs_review')
   })
 })
