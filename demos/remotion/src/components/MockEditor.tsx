@@ -9,6 +9,7 @@ import { colors, editorPanel } from "../styles";
  *   frame 55:  content fades in
  *   frame 75:  fix annotation highlight appears
  *   frame 130: inline diff slides in
+ *   frame 190: CodeLens Approve/Reject appears
  */
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
@@ -29,6 +30,17 @@ export const MockEditor: React.FC = () => {
     ? spring({ frame: frame - 130, fps, config: { damping: 16, stiffness: 70 } })
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [12, 0]);
+
+  /* ─── CodeLens actions (frame 190) ─── */
+  const lensIn = frame >= 190
+    ? spring({ frame: frame - 190, fps, config: { damping: 14, stiffness: 90 } })
+    : 0;
+  const lensOut = frame >= 250
+    ? spring({ frame: frame - 250, fps, config: { damping: 20, stiffness: 140 } })
+    : 0;
+  const lensOpacity = Math.max(0, lensIn - lensOut);
+  const lensY = interpolate(lensIn, [0, 1], [8, 0]);
+  const approveHover = frame >= 232 && frame < 248;
 
   // Line numbers for realism
   const lineNum = (n: number, opacity = 1) => (
@@ -156,6 +168,34 @@ export const MockEditor: React.FC = () => {
             </span>
           )}
         </div>
+
+        {/* CodeLens review actions (editor-first approve flow) */}
+        {lensOpacity > 0.01 && (
+          <div
+            style={{
+              margin: "2px 0 8px 44px",
+              opacity: lensOpacity,
+              transform: `translateY(${lensY}px)`,
+              fontSize: 10,
+              color: colors.textMuted,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ color: "rgba(212,212,212,0.55)" }}>CodeLens:</span>
+            <span
+              style={{
+                color: approveHover ? colors.approveGreen : "rgba(134,239,172,0.95)",
+                fontWeight: 600,
+              }}
+            >
+              $(check) Approve
+            </span>
+            <span style={{ color: "rgba(212,212,212,0.45)" }}>|</span>
+            <span style={{ color: "rgba(252,165,165,0.95)" }}>$(x) Reject</span>
+          </div>
+        )}
 
         {/* Inline diff — appears at frame 130 */}
         {diffIn > 0.01 && (
