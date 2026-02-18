@@ -130,7 +130,7 @@ const blockedPaths = ['.githooks/pre-commit']
 const blockedChanges = changedPaths.filter((path) => blockedPaths.includes(path))
 
 if (blockedChanges.length > 0) {
-  console.error('  ✗ Local-only files are changed and blocked from release automation:')
+  console.error('  ✗ Local-only files are changed and blocked from release flow:')
   for (const path of blockedChanges) {
     console.error(`    - ${path}`)
   }
@@ -201,7 +201,7 @@ console.log('\n── Step 7/7: Git push ──')
 if (hasUpstream()) {
   run('git push')
 } else {
-  run(`git push --set-upstream origin ${getCurrentBranch()}`)
+  run(`git push -u origin ${getCurrentBranch()}`)
 }
 run('git push --tags')
 console.log(`  ✓ Pushed to remote`)

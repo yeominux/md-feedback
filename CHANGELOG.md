@@ -2,16 +2,16 @@
 
 ## [1.3.2] - 2026-02-18
 
-Release operations are now safer for solo shipping, and the demo clearly shows editor-first approval.
+Review flow is clearer in the editor, and release reliability has been improved.
 
 ### Fixed
 - Demo now visibly shows approval happening in the editor CodeLens flow, not as a sidebar action
 - Release commits now include all intended tracked changes, preventing release-file omissions
-- Branch push in release automation now handles repos without an upstream branch configured
+- Release flow now handles repository push configuration more reliably
 
 ### Added
 - Automatic GitHub Release creation from the latest changelog section on tag push
-- Automatic `dev -> main` merge flow through PR-based main protection rules
+- Automatic post-release synchronization through pull-request safeguards
 
 ### Improved
 - README and Marketplace copy now explicitly reflect the latest review flow behavior
