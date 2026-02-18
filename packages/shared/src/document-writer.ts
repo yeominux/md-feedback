@@ -4,7 +4,7 @@
  * splitDocument(): parse annotated markdown into structured DocumentParts
  * mergeDocument(): reassemble DocumentParts back into markdown
  *
- * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor, unknown comments
+ * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor
  */
 
 import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
@@ -110,7 +110,6 @@ export function splitDocument(markdown: string): DocumentParts {
   const dependencies: MemoDependency[] = []
   const checkpoints: Checkpoint[] = []
   const gates: Gate[] = []
-  const unknownComments: string[] = []
   let cursor: PlanCursor | null = null
   let openResponse: ReviewResponse | null = null
 
@@ -202,6 +201,7 @@ export function splitDocument(markdown: string): DocumentParts {
       }
       i++ // skip -->
       const a = parseAttrs(attrLines)
+      const override = a.override as Gate['override'] | undefined
       gates.push({
         id: a.id || `gate_${Date.now()}`,
         type: (a.type as Gate['type']) || 'custom',
@@ -209,6 +209,7 @@ export function splitDocument(markdown: string): DocumentParts {
         blockedBy: a.blockedBy ? a.blockedBy.split(',').map(s => s.trim()).filter(Boolean) : [],
         canProceedIf: a.canProceedIf || '',
         doneDefinition: a.doneDefinition || '',
+        ...(override ? { override } : {}),
       })
       continue
     }
@@ -383,7 +384,6 @@ export function splitDocument(markdown: string): DocumentParts {
     checkpoints,
     gates,
     cursor,
-    unknownComments,
   }
 }
 
@@ -455,7 +455,7 @@ export function serializeMemoV2(memo: MemoV2): string {
 }
 
 export function serializeGate(gate: Gate): string {
-  return [
+  const lines = [
     '<!-- GATE',
     `  id="${gate.id}"`,
     `  type="${gate.type}"`,
@@ -463,8 +463,12 @@ export function serializeGate(gate: Gate): string {
     `  blockedBy="${gate.blockedBy.join(',')}"`,
     `  canProceedIf="${escAttrValue(gate.canProceedIf)}"`,
     `  doneDefinition="${escAttrValue(gate.doneDefinition)}"`,
-    '-->',
-  ].join('\n')
+  ]
+  if (gate.override) {
+    lines.push(`  override="${gate.override}"`)
+  }
+  lines.push('-->')
+  return lines.join('\n')
 }
 
 export function serializeCursor(cursor: PlanCursor): string {

@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { createCheckpoint } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown } from '@md-feedback/shared'
 import { generateContext, TARGET_LABELS, type TargetFormat } from '@md-feedback/shared'
-import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency } from '@md-feedback/shared'
+import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency, splitDocument, mergeDocument, evaluateAllGates } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
 import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
@@ -424,6 +424,34 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           const c = generateContext(pickTitle, pickFilePath, pickSections, pickHighlights, pickMemos, t)
           await ctx.autoSaveExport(document4, t, c)
         }
+        break
+      }
+
+      case 'gate.override': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) break
+
+        const raw = document.getText()
+        const parts = splitDocument(raw)
+        const gate = parts.gates.find(g => g.id === msg.gateId)
+        if (!gate) break
+
+        gate.override = msg.override || null
+        // Re-evaluate gates (override will take precedence in evaluateAllGates)
+        parts.gates = evaluateAllGates(parts.gates, parts.memos)
+
+        const updated = mergeDocument(parts)
+        const myVersion = ctx.incrementEditVersion()
+        ctx.setLastWebviewEditVersion(myVersion)
+
+        const edit = new vscode.WorkspaceEdit()
+        edit.replace(
+          document.uri,
+          new vscode.Range(0, 0, document.lineCount, 0),
+          updated,
+        )
+        await vscode.workspace.applyEdit(edit)
+        try { await document.save() } catch { /* best-effort */ }
         break
       }
 

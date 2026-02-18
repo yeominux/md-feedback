@@ -20,6 +20,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   private preservedImpls: MemoImpl[] = []
   private preservedArtifacts: MemoArtifact[] = []
   private preservedDependencies: MemoDependency[] = []
+  private previousGateStatuses = new Map<string, string>()
 
   /** Fired after the first annotation edit has been applied to the document */
   private readonly _onFirstAnnotationApplied = new vscode.EventEmitter<void>()
@@ -49,6 +50,8 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedImpls: (value) => { this.preservedImpls = value },
       setPreservedArtifacts: (value) => { this.preservedArtifacts = value },
       setPreservedDependencies: (value) => { this.preservedDependencies = value },
+      getPreviousGateStatuses: () => this.previousGateStatuses,
+      setPreviousGateStatuses: (value) => { this.previousGateStatuses = value },
     })
   }
 
@@ -104,12 +107,19 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedImpls: (value) => { this.preservedImpls = value },
       setPreservedArtifacts: (value) => { this.preservedArtifacts = value },
       setPreservedDependencies: (value) => { this.preservedDependencies = value },
+      getPreviousGateStatuses: () => this.previousGateStatuses,
+      setPreviousGateStatuses: (value) => { this.previousGateStatuses = value },
     })
   }
 
   /** Extract and send cursor + status summary to webview */
   private sendStatusInfo(raw: string): void {
-    sendStatusInfo(raw, this.postMessage.bind(this))
+    sendStatusInfo(
+      raw,
+      this.postMessage.bind(this),
+      () => this.previousGateStatuses,
+      (value) => { this.previousGateStatuses = value },
+    )
   }
 
   private getActiveMarkdownDocument(): vscode.TextDocument | undefined {
