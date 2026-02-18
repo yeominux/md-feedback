@@ -21,5 +21,7 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - run: pnpm guard:public-surface
+        env:
+          GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
       - run: pnpm -r build
       - run: pnpm test
