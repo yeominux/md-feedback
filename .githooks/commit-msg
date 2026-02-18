@@ -1,0 +1,21 @@
+#!/bin/sh
+# Commit message quality gate.
+# Called by git with one argument: path to temporary commit message file.
+
+MSG_FILE="$1"
+
+if [ -z "$MSG_FILE" ]; then
+  echo "✗ commit-msg hook: message file argument is missing."
+  exit 1
+fi
+
+echo "📝 Checking commit message..."
+node scripts/check-commit-messages.mjs --message-file "$MSG_FILE"
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "✗ Commit message check failed. Commit aborted."
+  echo "  Use user-facing wording and avoid internal operational terms."
+  exit 1
+fi
+
+echo "✓ Commit message check passed."
