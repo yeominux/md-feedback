@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild'
 
 const watch = process.argv.includes('--watch')
+const isProduction = !watch
 
 const ctx = await esbuild.context({
   entryPoints: ['src/extension.ts'],
@@ -10,7 +11,8 @@ const ctx = await esbuild.context({
   format: 'cjs',
   platform: 'node',
   target: 'node18',
-  sourcemap: true,
+  sourcemap: !isProduction,
+  minify: isProduction,
 })
 
 if (watch) {

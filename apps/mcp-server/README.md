@@ -28,6 +28,21 @@ Add to your MCP client config (Claude Code, Cursor, etc.):
 
 That's it. No install, no setup — `npx` handles everything.
 
+**Workspace override** — if your MCP client doesn't set `cwd` to the project folder:
+
+```json
+{
+  "mcpServers": {
+    "md-feedback": {
+      "command": "npx",
+      "args": ["-y", "md-feedback", "--workspace=/path/to/project"]
+    }
+  }
+}
+```
+
+Resolution order: `--workspace=` CLI arg > `MD_FEEDBACK_WORKSPACE` env > `cwd`
+
 ## 19 MCP Tools
 
 | Tool | Description |
@@ -68,9 +83,10 @@ That's it. No install, no setup — `npx` handles everything.
 ## CLI
 
 ```bash
-md-feedback --help      # Show help
-md-feedback --version   # Print version
-md-feedback             # Start MCP server (stdio)
+md-feedback                          # Start MCP server (stdio)
+md-feedback --workspace=/path/to/dir # Set workspace root explicitly
+md-feedback --version                # Print version
+md-feedback --help                   # Show help
 ```
 
 ## Who Is This For?

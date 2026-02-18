@@ -337,7 +337,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
                 {(Object.keys(STATUS_LABELS) as MemoStatus[]).map((s) => (
                   <button
                     key={s}
-                    onClick={() => { updateAttributes({ status: s }); setShowStatusMenu(false) }}
+                    onClick={() => { updateAttributes({ status: s }); setShowStatusMenu(false); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                     className={`block w-full text-left px-3 py-1 text-[11px] hover-bg-mf-bg ${s === status ? 'font-bold' : ''} ${STATUS_LABELS[s].color}`}
                   >
                     {STATUS_LABELS[s].label}
@@ -395,21 +395,21 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
           {status === 'needs_review' && (
             <div className="flex items-center gap-1 mr-1">
               <button
-                onClick={() => updateAttributes({ status: 'done' })}
+                onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors"
                 title="Approve"
               >
                 <Check size={12} /> Approve
               </button>
               <button
-                onClick={() => updateAttributes({ status: 'open' })}
+                onClick={() => { updateAttributes({ status: 'open' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
                 title="Request Changes"
               >
                 <RotateCcw size={12} />
               </button>
               <button
-                onClick={() => updateAttributes({ status: 'wontfix' })}
+                onClick={() => { updateAttributes({ status: 'wontfix' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="p-1 rounded text-mf-faint hover:text-rose-400 hover:bg-mf-bg transition-colors"
                 title="Reject"
               >
@@ -421,7 +421,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             {/* open: human can dismiss their own annotation */}
             {status === 'open' && (
               <button
-                onClick={() => updateAttributes({ status: 'wontfix' })}
+                onClick={() => { updateAttributes({ status: 'wontfix' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
                 title="Dismiss"
               >
@@ -431,7 +431,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             {/* answered: human confirms the AI answer is satisfactory */}
             {status === 'answered' && (
               <button
-                onClick={() => updateAttributes({ status: 'done' })}
+                onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="p-1 rounded text-mf-faint hover:text-emerald-400 hover:bg-mf-bg transition-colors"
                 title="Acknowledge"
               >

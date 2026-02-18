@@ -30,7 +30,7 @@ const DEFAULT_BLOCKLIST = [
 
 export function createFileSafety(workspaceRoot?: string): FileSafetyConfig {
   return {
-    workspaceRoot: workspaceRoot || process.cwd(),
+    workspaceRoot: workspaceRoot || process.env.MD_FEEDBACK_WORKSPACE || process.cwd(),
     blocklist: [...DEFAULT_BLOCKLIST],
     allowlist: [],
   }
