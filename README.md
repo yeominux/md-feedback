@@ -28,13 +28,15 @@ Step 3  AGENT      Reads annotations via MCP — no export step needed
           │
 Step 4  AGENT      Implements fixes, answers questions
           │
-Step 5  AGENT      Marks memos done → gates auto-evaluate
+Step 5  YOU        Review AI work → Approve, Request Changes, or Reject
+          │
+Step 6  AGENT      Gates auto-evaluate
           │         "3 fixes remaining" → "All done, ready to merge"
           │
-Step 6  AGENT      Generates handoff → next session picks up where you left off
+Step 7  AGENT      Generates handoff → next session picks up where you left off
 ```
 
-You do steps 1–2. The agent does the rest.
+You do steps 1–2 and 5. The agent does the rest.
 
 This is the MCP-first path. If you use export-based workflow, run export after step 2.
 
@@ -49,10 +51,15 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **Plan cursor** tracks current position in a document
 - **Keyboard shortcuts**: press 1, 2, 3 for instant annotation
 - **AI applies fixes** via MCP — agent reports implementations, you see inline before/after diffs
-- **6 status badges**: Open, Working, Answered, Done, Failed, Won't Fix
+- **7 status badges**: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
 - **File safety**: blocks writes to .env, credentials, node_modules
+- **Approve / Reject buttons** — accept or dismiss annotations inline
+- **Gate override** — manually control gate status when auto-evaluation isn't enough
+- **External file diffs inline** — see exactly what AI will change before applying
+- **Gate transition notifications** — know when gates unblock or complete
+- **File mutex** — prevents data corruption from concurrent MCP tool calls
 - **Auto-refresh**: document updates in real-time when AI writes changes
 - **Portable format**: annotations stored as HTML comments — works in any markdown renderer, survives git
 - **Rich rendering**: Mermaid diagrams, callout blocks, syntax-highlighted code

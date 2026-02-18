@@ -16,6 +16,8 @@ export interface DocumentSyncStateSetters {
 
 export interface DocumentSyncHandlers extends DocumentSyncStateSetters {
   postMessage: (msg: Record<string, unknown>) => void
+  getPreviousGateStatuses?: () => Map<string, string>
+  setPreviousGateStatuses?: (value: Map<string, string>) => void
 }
 
 export function getActiveMarkdownDocument(): vscode.TextDocument | undefined {
@@ -27,8 +29,9 @@ export function getActiveMarkdownDocument(): vscode.TextDocument | undefined {
 
 export function sendDocumentToWebview(
   document: vscode.TextDocument,
-  { postMessage, setPreservedFrontmatter, setPreservedGates, setPreservedCheckpoints, setPreservedCursor, setPreservedImpls, setPreservedArtifacts, setPreservedDependencies }: DocumentSyncHandlers,
+  handlers: DocumentSyncHandlers,
 ): void {
+  const { postMessage, setPreservedFrontmatter, setPreservedGates, setPreservedCheckpoints, setPreservedCursor, setPreservedImpls, setPreservedArtifacts, setPreservedDependencies } = handlers
   const raw = document.getText()
 
   try {
@@ -66,7 +69,7 @@ export function sendDocumentToWebview(
     })
 
     // Send v0.4.0 status info (cursor + summary)
-    sendStatusInfo(raw, postMessage)
+    sendStatusInfo(raw, postMessage, handlers.getPreviousGateStatuses, handlers.setPreviousGateStatuses)
   } catch (error) {
     // Fallback: send raw content without processing
     postMessage({
@@ -79,10 +82,34 @@ export function sendDocumentToWebview(
 }
 
 /** Extract and send cursor + status summary + metadata to webview */
-export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, unknown>) => void): void {
+export function sendStatusInfo(
+  raw: string,
+  postMessage: (msg: Record<string, unknown>) => void,
+  getPreviousGateStatuses?: () => Map<string, string>,
+  setPreviousGateStatuses?: (value: Map<string, string>) => void,
+): void {
   try {
     const parts = splitDocument(raw)
     const gates = evaluateAllGates(parts.gates, parts.memos)
+
+    // Detect gate transitions and show toast notifications
+    if (getPreviousGateStatuses && setPreviousGateStatuses && gates.length > 0) {
+      const prev = getPreviousGateStatuses()
+      for (const gate of gates) {
+        const prevStatus = prev.get(gate.id)
+        if (prevStatus && prevStatus !== gate.status) {
+          if ((prevStatus === 'blocked' && gate.status === 'proceed') || gate.status === 'done') {
+            vscode.window.showInformationMessage(
+              `Gate "${gate.id}" is now ${gate.status}`,
+              'Open Document',
+            )
+          }
+        }
+      }
+      const newStatuses = new Map<string, string>()
+      for (const gate of gates) newStatuses.set(gate.id, gate.status)
+      setPreviousGateStatuses(newStatuses)
+    }
 
     // Send cursor
     postMessage({ type: 'cursor.update', cursor: parts.cursor })
@@ -91,7 +118,8 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     const openFixes = parts.memos.filter(m => m.type === 'fix' && m.status === 'open').length
     const openQuestions = parts.memos.filter(m => m.type === 'question' && m.status === 'open').length
     const totalMemos = parts.memos.length
-    const resolvedMemos = parts.memos.filter(m => m.status !== 'open' && m.status !== 'in_progress').length
+    const resolvedMemos = parts.memos.filter(m => m.status !== 'open' && m.status !== 'in_progress' && m.status !== 'needs_review').length
+    const needsReviewMemos = parts.memos.filter(m => m.status === 'needs_review').length
     const inProgressMemos = parts.memos.filter(m => m.status === 'in_progress').length
     const doneMemos = parts.memos.filter(m => m.status === 'done').length
     const failedMemos = parts.memos.filter(m => m.status === 'failed').length
@@ -106,7 +134,7 @@ export function sendStatusInfo(raw: string, postMessage: (msg: Record<string, un
     if (parts.memos.length > 0 || gates.length > 0) {
       postMessage({
         type: 'status.summary',
-        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos, inProgressMemos, doneMemos, failedMemos },
+        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos, needsReviewMemos, inProgressMemos, doneMemos, failedMemos },
       })
     }
 

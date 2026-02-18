@@ -49,10 +49,15 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **Plan cursor** tracks current position in a document
 - **Keyboard shortcuts**: press 1, 2, 3 for instant annotation
 - **AI applies fixes** via MCP — agent reports implementations, you see inline before/after diffs
-- **6 status badges**: Open, Working, Answered, Done, Failed, Won't Fix
+- **7 status badges**: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
 - **File safety**: blocks writes to .env, credentials, node_modules
+- **Approve / Reject buttons** — accept or dismiss annotations inline
+- **Gate override** — manually control gate status when auto-evaluation isn't enough
+- **External file diffs inline** — see exactly what AI will change before applying
+- **Gate transition notifications** — know when gates unblock or complete
+- **File mutex** — prevents data corruption from concurrent MCP tool calls
 - **Auto-refresh**: document updates in real-time when AI writes changes
 - **Portable format**: annotations stored as HTML comments — works in any markdown renderer, survives git
 - **Rich rendering**: Mermaid diagrams, callout blocks, syntax-highlighted code

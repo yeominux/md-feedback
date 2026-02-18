@@ -52,6 +52,11 @@ That's it. No install, no setup — `npx` handles everything.
 | `batch_apply` | Apply multiple operations in a single transaction |
 | `get_memo_changes` | Get implementation history and progress for a memo |
 
+## Safety & Reliability
+
+- **File mutex** — concurrent MCP tool calls are serialized per-file, preventing data corruption
+- **Improved anchor matching** — annotations find their intended location more reliably, even with multiple matches
+
 ## How It Works
 
 1. You annotate a markdown plan in the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)

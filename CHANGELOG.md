@@ -10,6 +10,22 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.2.0] - 2026-02-18
+
+Human control over AI work — approve, reject, override, and see what changes before they happen.
+
+### Added
+- Review status — AI work lands in "Needs Review" state, you approve or reject after seeing what changed
+- Approve / Reject buttons on annotations — one click to accept or dismiss AI work
+- Gate override — manually set gate status from the metadata drawer
+- External file diffs — see file_create and file_patch content inline before applying
+- Gate transition toast — VS Code notification when gates change state
+- File mutex — prevents data corruption from concurrent MCP tool calls
+
+### Improved
+- Anchor text matching — annotations stick to their intended location more reliably
+- Removed unused unknownComments field from document model
+
 ## [1.1.1] - 2026-02-17
 
 Demo GIF now shows in README — on GitHub, npm, and VS Code Marketplace.
