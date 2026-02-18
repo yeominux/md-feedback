@@ -4,11 +4,20 @@
  * splitDocument(): parse annotated markdown into structured DocumentParts
  * mergeDocument(): reassemble DocumentParts back into markdown
  *
- * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor, unknown comments
+ * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor
  */
 
 import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
 import { colorToType, isResolved } from './types'
+
+// ─── Attribute escape/unescape (unified, handles &, ", newline, -->) ───
+
+export function escAttrValue(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;').replace(/-->/g, '--&#62;')
+}
+export function unescAttrValue(s: string): string {
+  return s.replace(/--&#62;/g, '-->').replace(/&#10;/g, '\n').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+}
 
 // ─── Hash utility (simple djb2, no crypto needed) ───
 
@@ -71,11 +80,10 @@ const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+t
 
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
-  const unesc = (s: string) => s.replace(/&#10;/g, '\n').replace(/&quot;/g, '"')
   const attrs: Record<string, string> = {}
   for (const line of lines) {
     const m = line.trim().match(/^(\w+)="([^"]*)"$/)
-    if (m) attrs[m[1]] = unesc(m[2])
+    if (m) attrs[m[1]] = unescAttrValue(m[2])
   }
   return attrs
 }
@@ -102,7 +110,6 @@ export function splitDocument(markdown: string): DocumentParts {
   const dependencies: MemoDependency[] = []
   const checkpoints: Checkpoint[] = []
   const gates: Gate[] = []
-  const unknownComments: string[] = []
   let cursor: PlanCursor | null = null
   let openResponse: ReviewResponse | null = null
 
@@ -194,6 +201,7 @@ export function splitDocument(markdown: string): DocumentParts {
       }
       i++ // skip -->
       const a = parseAttrs(attrLines)
+      const override = a.override as Gate['override'] | undefined
       gates.push({
         id: a.id || `gate_${Date.now()}`,
         type: (a.type as Gate['type']) || 'custom',
@@ -201,6 +209,7 @@ export function splitDocument(markdown: string): DocumentParts {
         blockedBy: a.blockedBy ? a.blockedBy.split(',').map(s => s.trim()).filter(Boolean) : [],
         canProceedIf: a.canProceedIf || '',
         doneDefinition: a.doneDefinition || '',
+        ...(override ? { override } : {}),
       })
       continue
     }
@@ -375,7 +384,6 @@ export function splitDocument(markdown: string): DocumentParts {
     checkpoints,
     gates,
     cursor,
-    unknownComments,
   }
 }
 
@@ -429,18 +437,17 @@ export function mergeDocument(parts: DocumentParts): string {
 // ─── Serializers ───
 
 export function serializeMemoV2(memo: MemoV2): string {
-  const esc = (s: string) => s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
   return [
     '<!-- USER_MEMO',
-    `  id="${esc(memo.id)}"`,
+    `  id="${escAttrValue(memo.id)}"`,
     `  type="${memo.type}"`,
     `  status="${memo.status}"`,
     `  owner="${memo.owner}"`,
-    `  source="${esc(memo.source)}"`,
+    `  source="${escAttrValue(memo.source)}"`,
     `  color="${memo.color}"`,
-    `  text="${esc(memo.text)}"`,
-    `  anchorText="${esc(memo.anchorText)}"`,
-    `  anchor="${esc(memo.anchor)}"`,
+    `  text="${escAttrValue(memo.text)}"`,
+    `  anchorText="${escAttrValue(memo.anchorText)}"`,
+    `  anchor="${escAttrValue(memo.anchor)}"`,
     `  createdAt="${memo.createdAt}"`,
     `  updatedAt="${memo.updatedAt}"`,
     '-->',
@@ -448,16 +455,20 @@ export function serializeMemoV2(memo: MemoV2): string {
 }
 
 export function serializeGate(gate: Gate): string {
-  return [
+  const lines = [
     '<!-- GATE',
     `  id="${gate.id}"`,
     `  type="${gate.type}"`,
     `  status="${gate.status}"`,
     `  blockedBy="${gate.blockedBy.join(',')}"`,
-    `  canProceedIf="${gate.canProceedIf.replace(/"/g, '&quot;')}"`,
-    `  doneDefinition="${gate.doneDefinition.replace(/"/g, '&quot;')}"`,
-    '-->',
-  ].join('\n')
+    `  canProceedIf="${escAttrValue(gate.canProceedIf)}"`,
+    `  doneDefinition="${escAttrValue(gate.doneDefinition)}"`,
+  ]
+  if (gate.override) {
+    lines.push(`  override="${gate.override}"`)
+  }
+  lines.push('-->')
+  return lines.join('\n')
 }
 
 export function serializeCursor(cursor: PlanCursor): string {
@@ -465,7 +476,7 @@ export function serializeCursor(cursor: PlanCursor): string {
     '<!-- PLAN_CURSOR',
     `  taskId="${cursor.taskId}"`,
     `  step="${cursor.step}"`,
-    `  nextAction="${cursor.nextAction.replace(/"/g, '&quot;')}"`,
+    `  nextAction="${escAttrValue(cursor.nextAction)}"`,
     `  lastSeenHash="${cursor.lastSeenHash}"`,
     `  updatedAt="${cursor.updatedAt}"`,
     '-->',
@@ -473,32 +484,28 @@ export function serializeCursor(cursor: PlanCursor): string {
 }
 
 export function serializeCheckpoint(cp: Checkpoint): string {
-  const note = cp.note.replace(/"/g, '&quot;')
   const sections = cp.sectionsReviewed.join(',')
-  return `<!-- CHECKPOINT id="${cp.id}" time="${cp.timestamp}" note="${note}" fixes=${cp.fixes} questions=${cp.questions} highlights=${cp.highlights} sections="${sections}" -->`
+  return `<!-- CHECKPOINT id="${cp.id}" time="${cp.timestamp}" note="${escAttrValue(cp.note)}" fixes=${cp.fixes} questions=${cp.questions} highlights=${cp.highlights} sections="${sections}" -->`
 }
 
 export function serializeMemoImpl(impl: MemoImpl): string {
-  const esc = (s: string) => s.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')
-  const ops = JSON.stringify(impl.operations).replace(/"/g, '&quot;')
   return [
     '<!-- MEMO_IMPL',
-    `  id="${esc(impl.id)}"`,
-    `  memoId="${esc(impl.memoId)}"`,
+    `  id="${escAttrValue(impl.id)}"`,
+    `  memoId="${escAttrValue(impl.memoId)}"`,
     `  status="${impl.status}"`,
-    `  operations="${ops}"`,
-    `  summary="${esc(impl.summary)}"`,
+    `  operations="${escAttrValue(JSON.stringify(impl.operations))}"`,
+    `  summary="${escAttrValue(impl.summary)}"`,
     `  appliedAt="${impl.appliedAt}"`,
     '-->',
   ].join('\n')
 }
 
 export function serializeMemoArtifact(art: MemoArtifact): string {
-  const esc = (s: string) => s.replace(/"/g, '&quot;')
   return [
     '<!-- MEMO_ARTIFACT',
-    `  id="${esc(art.id)}"`,
-    `  memoId="${esc(art.memoId)}"`,
+    `  id="${escAttrValue(art.id)}"`,
+    `  memoId="${escAttrValue(art.memoId)}"`,
     `  files="${art.files.join(',')}"`,
     `  linkedAt="${art.linkedAt}"`,
     '-->',

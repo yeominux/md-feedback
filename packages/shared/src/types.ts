@@ -53,7 +53,7 @@ export interface HighlightMark {
 // ─── v0.4.0 State Model ───
 
 export type MemoType = 'fix' | 'question' | 'highlight'
-export type MemoStatus = 'open' | 'in_progress' | 'answered' | 'done' | 'failed' | 'wontfix'
+export type MemoStatus = 'open' | 'in_progress' | 'needs_review' | 'answered' | 'done' | 'failed' | 'wontfix'
 
 /** Check if a memo status is considered "resolved" (not blocking gates) */
 export function isResolved(status: MemoStatus): boolean {
@@ -97,6 +97,8 @@ export interface Gate {
   canProceedIf: string
   /** Human-readable completion criteria. Does NOT affect evaluation. */
   doneDefinition: string
+  /** Human override — skips auto-evaluation when set */
+  override?: 'blocked' | 'proceed' | 'done' | null
 }
 
 export interface PlanCursor {
@@ -177,7 +179,6 @@ export interface DocumentParts {
   checkpoints: Checkpoint[]
   gates: Gate[]
   cursor: PlanCursor | null
-  unknownComments: string[]     // preserved unknown HTML comments
 }
 
 export interface ReviewDocument {
@@ -200,6 +201,7 @@ export interface ReviewDocument {
     total: number
     open: number
     inProgress: number
+    needsReview: number
     answered: number
     done: number
     failed: number
