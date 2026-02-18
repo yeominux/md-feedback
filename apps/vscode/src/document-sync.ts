@@ -2,13 +2,16 @@ import * as vscode from 'vscode'
 import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHighlightMarks } from '@md-feedback/shared'
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
-import type { Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
+import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 
 export interface DocumentSyncStateSetters {
   setPreservedFrontmatter: (value: string) => void
   setPreservedGates: (value: Gate[]) => void
   setPreservedCheckpoints: (value: Checkpoint[]) => void
   setPreservedCursor: (value: PlanCursor | null) => void
+  setPreservedImpls: (value: MemoImpl[]) => void
+  setPreservedArtifacts: (value: MemoArtifact[]) => void
+  setPreservedDependencies: (value: MemoDependency[]) => void
 }
 
 export interface DocumentSyncHandlers extends DocumentSyncStateSetters {
@@ -24,7 +27,7 @@ export function getActiveMarkdownDocument(): vscode.TextDocument | undefined {
 
 export function sendDocumentToWebview(
   document: vscode.TextDocument,
-  { postMessage, setPreservedFrontmatter, setPreservedGates, setPreservedCheckpoints, setPreservedCursor }: DocumentSyncHandlers,
+  { postMessage, setPreservedFrontmatter, setPreservedGates, setPreservedCheckpoints, setPreservedCursor, setPreservedImpls, setPreservedArtifacts, setPreservedDependencies }: DocumentSyncHandlers,
 ): void {
   const raw = document.getText()
 
@@ -36,6 +39,9 @@ export function sendDocumentToWebview(
     setPreservedGates(parts.gates)
     setPreservedCheckpoints(parts.checkpoints)
     setPreservedCursor(parts.cursor)
+    setPreservedImpls(parts.impls)
+    setPreservedArtifacts(parts.artifacts)
+    setPreservedDependencies(parts.dependencies)
 
     // Strip frontmatter before processing (keep memos for convertMemosToHtml)
     let processed = raw

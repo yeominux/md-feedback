@@ -2,9 +2,9 @@ import * as vscode from 'vscode'
 import { createCheckpoint } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown } from '@md-feedback/shared'
 import { generateContext, TARGET_LABELS, type TargetFormat } from '@md-feedback/shared'
-import { serializeGate, serializeCheckpoint, serializeCursor } from '@md-feedback/shared'
+import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
-import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
+import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
 import { wrapWithPrompt } from './exports'
 
@@ -23,6 +23,9 @@ export interface PanelViewContext {
   getPreservedGates: () => Gate[]
   getPreservedCheckpoints: () => Checkpoint[]
   getPreservedCursor: () => PlanCursor | null
+  getPreservedImpls: () => MemoImpl[]
+  getPreservedArtifacts: () => MemoArtifact[]
+  getPreservedDependencies: () => MemoDependency[]
   sendDocumentToWebview: (document: vscode.TextDocument) => void
   getActiveMarkdownDocument: () => vscode.TextDocument | undefined
   autoSaveExport: (document: vscode.TextDocument, target: TargetFormat, content: string, silent?: boolean) => Promise<boolean>
@@ -117,8 +120,17 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           fullContent = preservedFrontmatter.trimEnd() + '\n\n' + fullContent
         }
 
-        // Gates, Checkpoints, Cursor restoration (append at end)
+        // Impls, Artifacts, Dependencies, Gates, Checkpoints, Cursor restoration (append at end)
         const metadataSections: string[] = []
+        for (const impl of ctx.getPreservedImpls()) {
+          metadataSections.push(serializeMemoImpl(impl))
+        }
+        for (const art of ctx.getPreservedArtifacts()) {
+          metadataSections.push(serializeMemoArtifact(art))
+        }
+        for (const dep of ctx.getPreservedDependencies()) {
+          metadataSections.push(serializeMemoDependency(dep))
+        }
         for (const gate of ctx.getPreservedGates()) {
           metadataSections.push(serializeGate(gate))
         }
