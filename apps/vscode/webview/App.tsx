@@ -193,8 +193,8 @@ export default function App() {
   }, [])
 
   // Send the current editor markdown to the extension host
-  const sendEdit = useCallback(() => {
-    const md = editorRef.current?.getMarkdown()
+  const sendEdit = useCallback((annotatedMarkdown?: string) => {
+    const md = annotatedMarkdown ?? editorRef.current?.getAnnotatedMarkdown()
     if (!md) return
     let firstAnnotation = false
     if (!firstAnnotationSentRef.current && md.includes('<!-- USER_MEMO')) {
@@ -208,7 +208,7 @@ export default function App() {
   const handleUpdate = useCallback((annotatedMarkdown: string) => {
     if (isLoadingRef.current) return
     clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(() => sendEdit(), 800)
+    debounceRef.current = window.setTimeout(() => sendEdit(annotatedMarkdown), 800)
   }, [sendEdit])
 
   // Flush listener — immediately sends pending edits (used by status changes)

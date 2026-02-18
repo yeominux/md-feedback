@@ -7,15 +7,15 @@ import { GateBadge } from "./components/GateBadge";
 import { colors, container, sidebarPanel } from "./styles";
 
 /**
- * MD Feedback v1.2.0 Demo — 15s at 30 FPS (450 frames)
+ * MD Feedback v1.3.1 Demo — 15s at 30 FPS (450 frames)
  *
- * Story: Human annotates → AI implements → Human reviews → Approved → Gate passes
+ * Story: Human annotates → AI implements → Human reviews in editor (CodeLens) → Approved → Gate passes
  *
  * Timeline (generous pacing — each step breathes):
  *   0-2s    (0-60):    Title card
  *   2-4s    (60-120):  Editor content + Fix annotation appears
  *   4-6s    (120-180): AI working → diff slides in
- *   6-8s    (180-240): Status → Review, Approve/Reject buttons appear
+ *   6-8s    (180-240): Status → Review, CodeLens Approve/Reject appears
  *   8-10s   (240-300): Human clicks Approve → Done
  *   10-12s  (300-360): Gate: Blocked → Approved
  *   12-15s  (360-450): End card with install CTA
@@ -96,7 +96,7 @@ export const DemoComposition: React.FC = () => {
                 borderRadius: 4,
               }}
             >
-              v1.2
+              v1.3
             </span>
           </div>
 
