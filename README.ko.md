@@ -17,6 +17,8 @@
 
 ![MD Feedback 데모](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
+> 최신(v1.3.1): 형광펜 유지, needs_review 동기화, 승인/거부 UI 흐름이 실제 확장 사용 기준으로 안정화되었습니다.
+
 ## 작동 방식
 
 계획서에서 구현까지, 전체 AI 코딩 루프:
