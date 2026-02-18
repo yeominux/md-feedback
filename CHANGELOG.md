@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- AI agents can no longer set terminal memo statuses (answered, done, failed, wontfix) via MCP tools — these now require human approval through VS Code CodeLens
+- `respond_to_memo` now sets status to `needs_review` instead of `answered`
+- `update_memo_status` and `update_memo_progress` no longer accept terminal statuses
+
 ## [1.3.2] - 2026-02-18
 
 Review flow is clearer in the editor, and release reliability has been improved.
