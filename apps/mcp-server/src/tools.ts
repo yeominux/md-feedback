@@ -23,9 +23,9 @@ function computeLineHash(line: string): string {
   return hash.toString(16).padStart(8, '0').slice(0, 8)
 }
 
-export function registerTools(server: McpServer): void {
+export function registerTools(server: McpServer, workspace?: string): void {
 
-  const safety = createFileSafety()
+  const safety = createFileSafety(workspace)
 
   function safeRead(file: string): string {
     const check = validateFilePath(safety, file)
