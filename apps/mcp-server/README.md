@@ -37,7 +37,7 @@ That's it. No install, no setup — `npx` handles everything.
 | `get_review_status` | Annotation counts and session status |
 | `create_annotation` | Create annotation programmatically with anchor search |
 | `respond_to_memo` | Add AI response to an annotation |
-| `update_memo_status` | Mark a memo as open/in_progress/answered/done/failed/wontfix |
+| `update_memo_status` | Mark a memo as open/in_progress/needs_review/answered/done/failed/wontfix |
 | `update_cursor` | Set plan cursor position (task ID, step, next action) |
 | `evaluate_gates` | Check if merge/release/implement conditions are met |
 | `export_review` | Export for a specific AI tool format |
