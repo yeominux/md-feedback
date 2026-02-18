@@ -55,4 +55,4 @@ if (failed) {
   process.exit(1)
 }
 
-console.log('Public docs check passed for customer-facing copy.')
+console.log('Public docs check passed for user-facing copy.')

@@ -23,7 +23,7 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:commits
-      - run: pnpm check:customer
+      - run: pnpm check:user-facing
       - run: pnpm guard:public-surface
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
