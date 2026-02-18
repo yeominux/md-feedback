@@ -1,4 +1,6 @@
 import type { Gate, PlanCursor, Checkpoint } from '@md-feedback/shared'
+import { useState } from 'react'
+import { vscode } from '../lib/vscode-api'
 
 interface MetadataDrawerProps {
   open: boolean
@@ -6,6 +8,61 @@ interface MetadataDrawerProps {
   gates: Gate[]
   cursor: PlanCursor | null
   checkpoints?: Checkpoint[]
+}
+
+const OVERRIDE_OPTIONS = [
+  { value: '', label: 'Auto' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'proceed', label: 'Proceed' },
+  { value: 'done', label: 'Done' },
+] as const
+
+function GateCard({ gate }: { gate: Gate }) {
+  const [override, setOverride] = useState(gate.override || '')
+
+  const handleOverrideChange = (value: string) => {
+    setOverride(value)
+    vscode.postMessage({
+      type: 'gate.override',
+      gateId: gate.id,
+      override: value || null,
+    })
+  }
+
+  return (
+    <div className="p-2 bg-mf-bg rounded border border-mf-border text-xs">
+      <div className="flex justify-between items-center mb-1">
+        <span className="font-medium capitalize">{gate.type} Gate</span>
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+          gate.status === 'blocked' ? 'status-badge-blocked' :
+          gate.status === 'done' ? 'status-badge-approved' :
+          'status-badge-proceed'
+        }`}>
+          {gate.status.toUpperCase()}
+        </span>
+      </div>
+      {gate.doneDefinition && (
+        <div className="text-mf-muted mb-1">{gate.doneDefinition}</div>
+      )}
+      {gate.blockedBy.length > 0 && (
+        <div className="text-mf-faint mb-1">
+          Blocked by: {gate.blockedBy.length} memos
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 mt-1.5">
+        <span className="text-mf-faint">Override:</span>
+        <select
+          value={override}
+          onChange={(e) => handleOverrideChange(e.target.value)}
+          className="text-[10px] bg-mf-surface border border-mf-border rounded px-1 py-0.5 text-mf-text"
+        >
+          {OVERRIDE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
 }
 
 export function MetadataDrawer({ open, onClose, gates, cursor, checkpoints = [] }: MetadataDrawerProps) {
@@ -48,26 +105,7 @@ export function MetadataDrawer({ open, onClose, gates, cursor, checkpoints = [] 
           {gates.length > 0 ? (
             <div className="space-y-2">
               {gates.map(gate => (
-                <div key={gate.id} className="p-2 bg-mf-bg rounded border border-mf-border text-xs">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium capitalize">{gate.type} Gate</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                      gate.status === 'blocked' ? 'status-badge-blocked' :
-                      gate.status === 'done' ? 'status-badge-approved' :
-                      'status-badge-proceed'
-                    }`}>
-                      {gate.status.toUpperCase()}
-                    </span>
-                  </div>
-                  {gate.doneDefinition && (
-                    <div className="text-mf-muted mb-1">{gate.doneDefinition}</div>
-                  )}
-                  {gate.blockedBy.length > 0 && (
-                    <div className="text-mf-faint">
-                      Blocked by: {gate.blockedBy.length} memos
-                    </div>
-                  )}
-                </div>
+                <GateCard key={gate.id} gate={gate} />
               ))}
             </div>
           ) : (

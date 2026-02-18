@@ -2,15 +2,16 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
-import { Pencil, X, ChevronDown } from 'lucide-react'
+import { Pencil, X, ChevronDown, Check, XCircle, RotateCcw } from 'lucide-react'
 
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
-  open:        { label: 'Open',      color: 'text-mf-status-open',        bg: 'bg-mf-status-open' },
-  in_progress: { label: 'Working',   color: 'text-mf-status-in-progress', bg: 'bg-mf-status-in-progress' },
-  answered:    { label: 'Answered',  color: 'text-mf-status-answered',    bg: 'bg-mf-status-answered' },
-  done:        { label: 'Done',      color: 'text-mf-status-done',        bg: 'bg-mf-status-done' },
-  failed:      { label: 'Failed',    color: 'text-mf-status-failed',      bg: 'bg-mf-status-failed' },
-  wontfix:     { label: "Won't fix", color: 'text-mf-muted',             bg: 'bg-mf-border-subtle' },
+  open:         { label: 'Open',      color: 'text-mf-status-open',        bg: 'bg-mf-status-open' },
+  in_progress:  { label: 'Working',   color: 'text-mf-status-in-progress', bg: 'bg-mf-status-in-progress' },
+  needs_review: { label: 'Review',    color: 'text-indigo-400',            bg: 'bg-indigo-400/10' },
+  answered:     { label: 'Answered',  color: 'text-mf-status-answered',    bg: 'bg-mf-status-answered' },
+  done:         { label: 'Done',      color: 'text-mf-status-done',        bg: 'bg-mf-status-done' },
+  failed:       { label: 'Failed',    color: 'text-mf-status-failed',      bg: 'bg-mf-status-failed' },
+  wontfix:      { label: "Won't fix", color: 'text-mf-muted',             bg: 'bg-mf-border-subtle' },
 }
 
 export const MemoBlock = Node.create({
@@ -86,6 +87,14 @@ function normalizeMemoColor(raw: string): MemoColor {
 
 function MemoDiffSection({ memoId }: { memoId: string }) {
   const [expanded, setExpanded] = useState(false)
+  const [, setRevision] = useState(0)
+
+  useEffect(() => {
+    const handler = () => setRevision(r => r + 1)
+    window.addEventListener('mf:impls-updated', handler)
+    return () => window.removeEventListener('mf:impls-updated', handler)
+  }, [])
+
   const impls = (window as any).__mfImpls?.filter((i: MemoImpl) => i.memoId === memoId) as MemoImpl[] | undefined
 
   if (!impls || impls.length === 0) return null
@@ -93,10 +102,12 @@ function MemoDiffSection({ memoId }: { memoId: string }) {
   return (
     <div className="px-3 pb-2.5">
       {impls.map((impl) => {
-        const textReplaceOps = impl.operations.filter(op => op.type === 'text_replace')
-        const needsCollapse = textReplaceOps.some(op =>
-          op.type === 'text_replace' && (op.before.split('\n').length > 3 || op.after.split('\n').length > 3)
-        )
+        const needsCollapse = impl.operations.some(op => {
+          if (op.type === 'text_replace') return op.before.split('\n').length > 3 || op.after.split('\n').length > 3
+          if (op.type === 'file_create') return (op.content?.split('\n').length ?? 0) > 4
+          if (op.type === 'file_patch') return (op.patch?.split('\n').length ?? 0) > 4
+          return false
+        })
         const isCollapsed = needsCollapse && !expanded
 
         return (
@@ -126,10 +137,24 @@ function MemoDiffSection({ memoId }: { memoId: string }) {
                 )
               }
               if (op.type === 'file_create') {
-                return <div key={idx} className="memo-diff-summary">Created {op.file}</div>
+                return (
+                  <div key={idx} className="memo-diff">
+                    <div className="memo-diff-summary">Create: {op.file}</div>
+                    {op.content && (
+                      <div><span className="memo-diff-after">{isCollapsed ? op.content.split('\n').slice(0, 4).join('\n') + '\n...' : op.content}</span></div>
+                    )}
+                  </div>
+                )
               }
               if (op.type === 'file_patch') {
-                return <div key={idx} className="memo-diff-summary">Patched {op.file}</div>
+                return (
+                  <div key={idx} className="memo-diff">
+                    <div className="memo-diff-summary">Patch: {op.file}</div>
+                    {op.patch && (
+                      <div><span className="memo-diff-before">{isCollapsed ? op.patch.split('\n').slice(0, 4).join('\n') + '\n...' : op.patch}</span></div>
+                    )}
+                  </div>
+                )
               }
               return null
             })}
@@ -366,7 +391,53 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             </span>
           )}
           <div className="flex-1" />
+          {/* needs_review: always-visible approve/reject — this is the primary action */}
+          {status === 'needs_review' && (
+            <div className="flex items-center gap-1 mr-1">
+              <button
+                onClick={() => updateAttributes({ status: 'done' })}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors"
+                title="Approve"
+              >
+                <Check size={12} /> Approve
+              </button>
+              <button
+                onClick={() => updateAttributes({ status: 'open' })}
+                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
+                title="Request Changes"
+              >
+                <RotateCcw size={12} />
+              </button>
+              <button
+                onClick={() => updateAttributes({ status: 'wontfix' })}
+                className="p-1 rounded text-mf-faint hover:text-rose-400 hover:bg-mf-bg transition-colors"
+                title="Reject"
+              >
+                <XCircle size={12} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            {/* open: human can dismiss their own annotation */}
+            {status === 'open' && (
+              <button
+                onClick={() => updateAttributes({ status: 'wontfix' })}
+                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
+                title="Dismiss"
+              >
+                <XCircle size={13} />
+              </button>
+            )}
+            {/* answered: human confirms the AI answer is satisfactory */}
+            {status === 'answered' && (
+              <button
+                onClick={() => updateAttributes({ status: 'done' })}
+                className="p-1 rounded text-mf-faint hover:text-emerald-400 hover:bg-mf-bg transition-colors"
+                title="Acknowledge"
+              >
+                <Check size={13} />
+              </button>
+            )}
             {!editing && (
               <button
                 onClick={() => setEditing(true)}
