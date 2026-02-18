@@ -10,6 +10,41 @@
   - One-line summary answers "why should I update?"
 -->
 
+## [1.2.1] - 2026-02-18
+
+Review from your editor — no sidebar needed.
+
+### Added
+- CodeLens in editor — approve or reject annotations directly in the markdown file
+- Activity Bar badge — pending review count visible at a glance
+- Status bar indicator — persistent review count in VS Code's bottom bar
+- Toast notifications — get notified when AI delivers work for review
+- Keyboard shortcuts — Ctrl+Shift+A to approve, Ctrl+Shift+X to reject
+
+### Improved
+- Approve/Reject buttons are now always visible on needs_review annotations (no hover required)
+
+## [1.2.0] - 2026-02-18
+
+Human control over AI work — approve, reject, override, and see what changes before they happen.
+
+### Added
+- Review status — AI work lands in "Needs Review" state, you approve or reject after seeing what changed
+- Approve / Reject buttons on annotations — one click to accept or dismiss AI work
+- CodeLens in editor — approve or reject annotations directly from the markdown file, no sidebar needed
+- Activity Bar badge — see how many annotations need review at a glance
+- Status bar indicator — persistent review count in VS Code's bottom bar
+- Toast notifications — get notified when AI delivers work for review
+- Keyboard shortcuts — Ctrl+Shift+A to approve, Ctrl+Shift+X to reject nearest annotation
+- Gate override — manually set gate status from the metadata drawer
+- External file diffs — see file_create and file_patch content inline before applying
+- Gate transition toast — VS Code notification when gates change state
+- File mutex — prevents data corruption from concurrent MCP tool calls
+
+### Improved
+- Anchor text matching — annotations stick to their intended location more reliably
+- Removed unused unknownComments field from document model
+
 ## [1.1.1] - 2026-02-17
 
 Demo GIF now shows in README — on GitHub, npm, and VS Code Marketplace.

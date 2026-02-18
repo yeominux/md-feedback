@@ -18,6 +18,7 @@ export const colors = {
   // Status badges
   statusOpen: "#6b7280",
   statusWorking: "#3b82f6",
+  statusReview: "#6366f1",
   statusDone: "#22c55e",
   // Gate
   gateBlocked: "#ef4444",
@@ -30,6 +31,9 @@ export const colors = {
   // Card
   cardBg: "#2d2d2d",
   cardBorder: "#404040",
+  // Approve / Reject
+  approveGreen: "#22c55e",
+  rejectAmber: "#f59e0b",
 };
 
 export const container: CSSProperties = {
