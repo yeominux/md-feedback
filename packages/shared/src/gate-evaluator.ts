@@ -30,11 +30,12 @@ export function evaluateGate(gate: Gate, memos: MemoV2[]): 'blocked' | 'proceed'
   return 'proceed'
 }
 
-/** Evaluate all gates and update their status in-place. Returns updated gates. */
+/** Evaluate all gates and update their status in-place. Returns updated gates.
+ *  If a gate has a human override, that takes precedence over auto-evaluation. */
 export function evaluateAllGates(gates: Gate[], memos: MemoV2[]): Gate[] {
   return gates.map(gate => ({
     ...gate,
-    status: evaluateGate(gate, memos),
+    status: gate.override || evaluateGate(gate, memos),
   }))
 }
 
