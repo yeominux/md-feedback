@@ -1,14 +1,28 @@
 # Changelog
 
-<!--
-  Writing rules (keep this comment):
-  - Write from the user's perspective. "Add parsing logic" (X) → "AI responses appear in the panel" (O)
-  - Avoid technical terms, function names, file names.
-  - Describe the result (what the user sees), not the cause (internal implementation).
-  - One change per line. Short and clear.
-  - Sections: Added, Fixed, Improved, Changed
-  - One-line summary answers "why should I update?"
--->
+## [1.3.1] - 2026-02-18
+
+Human review loop is now stable in the actual VS Code UI.
+
+### Fixed
+- Highlights now persist after save and reload
+- AI-delivered review items now appear reliably as `Needs Review` in the UI
+- Approve/Reject review flow now syncs consistently between MCP updates and the extension UI
+- Syntax highlighting inside code blocks is rendered correctly again in the review panel
+
+### Improved
+- Demo GIF and product demo flow now match the current editor-first review experience
+
+## [1.3.0] - 2026-02-18
+
+More reliable MCP + extension experience in real projects.
+
+### Fixed
+- Better workspace detection for MCP clients that do not start in the project folder
+- Review status updates are reflected more reliably during active editing
+
+### Improved
+- Packaged artifacts are cleaner and safer for distribution
 
 ## [1.2.1] - 2026-02-18
 
@@ -43,7 +57,6 @@ Human control over AI work — approve, reject, override, and see what changes b
 
 ### Improved
 - Anchor text matching — annotations stick to their intended location more reliably
-- Removed unused unknownComments field from document model
 
 ## [1.1.1] - 2026-02-17
 
