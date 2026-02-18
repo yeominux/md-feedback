@@ -39,6 +39,9 @@ jobs:
       - name: Generate release notes from CHANGELOG
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/release-notes.mjs --output RELEASE_NOTES.md
+      - name: Validate release notes body
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/check-release-body.mjs --file RELEASE_NOTES.md
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -46,18 +49,24 @@ jobs:
           tag_name: ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           generate_release_notes: false
-      - name: Open or reuse dev -> main PR
+      - name: Validate published release body
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/check-release-body.mjs --tag "${GITHUB_REF_NAME}"
+      - name: Open or reuse post-release sync PR
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           existing_pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
           if [ -n "$existing_pr" ]; then
-            echo "Existing dev->main PR: #$existing_pr"
+            echo "Existing post-release sync PR: #$existing_pr"
             exit 0
           fi
           gh pr create \
             --base main \
             --head dev \
-            --title "Release sync: dev -> main (${GITHUB_REF_NAME})" \
-            --body "Automated release sync PR created from tag ${GITHUB_REF_NAME}."
+            --title "Release sync PR (${GITHUB_REF_NAME})" \
+            --body "Automated post-release sync PR created from tag ${GITHUB_REF_NAME}."
