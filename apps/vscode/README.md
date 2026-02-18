@@ -119,6 +119,14 @@ MD Feedback includes an MCP server with 19 tools that let AI agents read your an
 npx md-feedback
 ```
 
+**Workspace override** — if your MCP client doesn't set `cwd` to the project folder (e.g. Antigravity), specify it explicitly:
+
+```json
+{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=/path/to/project"] }
+```
+
+Or via environment variable: `MD_FEEDBACK_WORKSPACE=/path/to/project`
+
 For full details, see [MCP Server documentation](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme).
 
 ## Packages
