@@ -21,10 +21,15 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   private preservedArtifacts: MemoArtifact[] = []
   private preservedDependencies: MemoDependency[] = []
   private previousGateStatuses = new Map<string, string>()
+  private previousNeedsReviewCount = 0
 
   /** Fired after the first annotation edit has been applied to the document */
   private readonly _onFirstAnnotationApplied = new vscode.EventEmitter<void>()
   readonly onFirstAnnotationApplied = this._onFirstAnnotationApplied.event
+
+  /** Fired when needs_review count changes — used by extension.ts for status bar + CodeLens */
+  private readonly _onNeedsReviewCountChanged = new vscode.EventEmitter<number>()
+  readonly onNeedsReviewCountChanged = this._onNeedsReviewCountChanged.event
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -52,6 +57,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedDependencies: (value) => { this.preservedDependencies = value },
       getPreviousGateStatuses: () => this.previousGateStatuses,
       setPreviousGateStatuses: (value) => { this.previousGateStatuses = value },
+      onNeedsReviewCount: (count) => this.updateNeedsReviewCount(count),
     })
   }
 
@@ -109,6 +115,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedDependencies: (value) => { this.preservedDependencies = value },
       getPreviousGateStatuses: () => this.previousGateStatuses,
       setPreviousGateStatuses: (value) => { this.previousGateStatuses = value },
+      onNeedsReviewCount: (count) => this.updateNeedsReviewCount(count),
     })
   }
 
@@ -119,7 +126,32 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       this.postMessage.bind(this),
       () => this.previousGateStatuses,
       (value) => { this.previousGateStatuses = value },
+      (count) => this.updateNeedsReviewCount(count),
     )
+  }
+
+  /** Update Activity Bar badge + show toast when items appear for review */
+  private updateNeedsReviewCount(count: number): void {
+    // Activity Bar badge (#1)
+    if (this._view) {
+      this._view.badge = count > 0
+        ? { value: count, tooltip: `${count} annotation${count > 1 ? 's' : ''} need review` }
+        : undefined
+    }
+
+    // Toast notification (#3) — only when count increases from 0
+    if (count > 0 && this.previousNeedsReviewCount === 0) {
+      vscode.window.showInformationMessage(
+        `MD Feedback: ${count} annotation${count > 1 ? 's' : ''} ready for review`,
+        'Review Now',
+      ).then(action => {
+        if (action === 'Review Now' && this._view) {
+          this._view.show?.(true)
+        }
+      })
+    }
+    this.previousNeedsReviewCount = count
+    this._onNeedsReviewCountChanged.fire(count)
   }
 
   private getActiveMarkdownDocument(): vscode.TextDocument | undefined {

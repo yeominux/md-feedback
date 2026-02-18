@@ -55,7 +55,11 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
 - **File safety**: blocks writes to .env, credentials, node_modules
-- **Approve / Reject buttons** — accept or dismiss annotations inline
+- **Approve / Reject buttons** — accept or dismiss annotations inline, always visible when review needed
+- **CodeLens in editor** — approve or reject directly in the markdown file, no sidebar needed
+- **Activity Bar badge** — see pending review count at a glance
+- **Status bar + toast notifications** — never miss when AI delivers work for review
+- **Keyboard shortcuts** — Ctrl+Shift+A to approve, Ctrl+Shift+X to reject
 - **Gate override** — manually control gate status when auto-evaluation isn't enough
 - **External file diffs inline** — see exactly what AI will change before applying
 - **Gate transition notifications** — know when gates unblock or complete
