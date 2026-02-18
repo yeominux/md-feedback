@@ -2,11 +2,12 @@
 
 <!-- One sentence: what user problem is solved? -->
 
-## Customer-facing impact
+## Impact
 
+- [ ] No user-facing change (internal/refactor/chore)
 - [ ] Users will notice this change in product behavior/UI
 - [ ] README or docs updated if user workflow changed
-- [ ] CHANGELOG entry written in customer language
+- [ ] CHANGELOG entry written in user-facing language (if needed)
 
 ## What changed
 

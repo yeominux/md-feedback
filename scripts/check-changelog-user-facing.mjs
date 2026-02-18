@@ -100,11 +100,11 @@ for (let i = 0; i < sections.length; i++) {
 }
 
 if (failures.length > 0) {
-  console.error('CHANGELOG customer-language check failed:')
+  console.error('CHANGELOG user-facing language check failed:')
   for (const failure of failures) {
     console.error(`- ${failure}`)
   }
   process.exit(1)
 }
 
-console.log(`CHANGELOG customer-language check passed (${sections.length} versions).`)
+console.log(`CHANGELOG user-facing language check passed (${sections.length} versions).`)
