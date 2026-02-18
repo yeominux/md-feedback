@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, readdirSync } from 'fs'
 import { resolve, isAbsolute, dirname, join } from 'path'
+import { randomBytes } from 'node:crypto'
 
 /** Resolve file path: supports both absolute and relative (resolved against CWD) */
 function resolvePath(filePath: string): string {
@@ -20,9 +21,13 @@ export function readMarkdownFile(filePath: string): string {
 
 export function writeMarkdownFile(filePath: string, content: string): void {
   const resolved = resolvePath(filePath)
+  const dir = dirname(resolved)
+  const tmpPath = join(dir, `.mf-tmp-${randomBytes(6).toString('hex')}`)
   try {
-    writeFileSync(resolved, content, 'utf-8')
+    writeFileSync(tmpPath, content, 'utf-8')
+    renameSync(tmpPath, resolved)
   } catch (err) {
+    try { unlinkSync(tmpPath) } catch { /* ignore */ }
     throw new Error(`Cannot write file ${resolved}: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
@@ -56,6 +61,13 @@ export function writeSnapshot(mdFilePath: string, content: string): string {
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
   const snapshotPath = join(snapshotsDir, `snapshot-${ts}.md`)
   writeFileSync(snapshotPath, content, 'utf-8')
+
+  // Keep at most 20 snapshots
+  const files = readdirSync(snapshotsDir).filter(f => f.startsWith('snapshot-')).sort()
+  while (files.length > 20) {
+    try { unlinkSync(join(snapshotsDir, files.shift()!)) } catch { /* ignore */ }
+  }
+
   return snapshotPath
 }
 
