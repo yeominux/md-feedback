@@ -17,11 +17,16 @@ The tool consists of two components:
 - Export to 11 AI tools: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - Annotations stored as portable HTML comments in the markdown file — no proprietary format, no cloud dependency
 - AI applies fixes via MCP — agent reports implementations with inline diffs
-- 6 status badges: Open, Working, Answered, Done, Failed, Won't Fix
+- 7 status badges: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - Rollback: agent can undo its last change if something went wrong
 - Batch operations: multiple fixes in one transaction
 - File safety: blocks writes to .env, credentials, node_modules
 - Auto-refresh: document updates in real-time when AI writes changes
+- Approve/Reject buttons always visible on needs_review annotations
+- CodeLens in VS Code editor — approve/reject without opening sidebar
+- Activity Bar badge + status bar + toast notifications for review awareness
+- Gate override for manual human control
+- File mutex prevents concurrent write corruption
 - Quality gates with automatic evaluation (blocked/proceed/done)
 - Session handoffs preserve context across AI agent sessions
 - Checkpoints track review progress over time
@@ -35,9 +40,10 @@ The tool consists of two components:
 1. Write a plan in markdown
 2. Open in MD Feedback sidebar in VS Code — annotate with highlights, fixes, questions
 3. AI agent reads annotations via MCP — no export step needed
-4. Agent implements fixes, answers questions, marks memos done
-5. Gates auto-evaluate — agent knows when all items are resolved
-6. Agent generates handoff — next session picks up where you left off
+4. Agent implements fixes, answers questions
+5. Human reviews AI work — approve, request changes, or reject
+6. Gates auto-evaluate — agent knows when all items are resolved
+7. Agent generates handoff — next session picks up where you left off
 
 ## Design Philosophy
 
@@ -54,7 +60,7 @@ The tool consists of two components:
 - get_review_status: annotation counts and session status
 - create_annotation: create annotation programmatically with anchor search
 - respond_to_memo: add AI response to an annotation
-- update_memo_status: mark memo as open, in_progress, answered, done, failed, or wontfix
+- update_memo_status: mark memo as open, in_progress, needs_review, answered, done, failed, or wontfix
 - update_cursor: set plan cursor position
 - evaluate_gates: check if quality conditions are met
 - export_review: export for a specific AI tool format

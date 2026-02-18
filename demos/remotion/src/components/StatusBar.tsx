@@ -1,26 +1,51 @@
 import React from "react";
-import { interpolate, useCurrentFrame } from "remotion";
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors } from "../styles";
 
-/** Simulated status bar at the bottom showing progress */
+/**
+ * Status bar — shows real-time progress with smooth transitions
+ *
+ * Timeline:
+ *   frame 125: Open → Working
+ *   frame 180: Working → Review
+ *   frame 250: Review → Done
+ */
 export const StatusBar: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  // Progress transitions
-  const isDone = frame >= 150;
-  const isWorking = frame >= 90 && !isDone;
+  const isDone = frame >= 250;
+  const isReview = frame >= 180 && !isDone;
+  const isWorking = frame >= 125 && !isReview && !isDone;
 
   const doneCount = isDone ? 1 : 0;
+  const reviewCount = isReview ? 1 : 0;
   const workingCount = isWorking ? 1 : 0;
-  const openCount = 3 - doneCount - workingCount;
+  const openCount = 3 - doneCount - reviewCount - workingCount;
 
-  // Progress bar width
-  const progressWidth = interpolate(
-    frame,
-    [0, 90, 150, 160],
-    [0, 0, 0, 33.3],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
+  // Progress bar with spring
+  const progressTarget = isDone ? 33.3 : 0;
+  const progressWidth = isDone
+    ? interpolate(
+        spring({ frame: frame - 250, fps, config: { damping: 18, stiffness: 60 } }),
+        [0, 1],
+        [0, progressTarget]
+      )
+    : 0;
+
+  // Status text
+  const statusText = isDone
+    ? "1 fix approved"
+    : isReview
+    ? "Waiting for human review..."
+    : isWorking
+    ? "AI applying fix..."
+    : "Ready";
+
+  // Subtle indicator dot for review state
+  const reviewDotScale = isReview
+    ? 1 + 0.2 * Math.sin((frame - 180) * 0.1)
+    : 1;
 
   return (
     <div
@@ -33,25 +58,28 @@ export const StatusBar: React.FC = () => {
         backgroundColor: colors.accent,
         display: "flex",
         alignItems: "center",
-        padding: "0 12px",
+        padding: "0 14px",
         fontSize: 11,
         color: "white",
-        gap: 16,
+        gap: 14,
       }}
     >
-      <span style={{ fontWeight: 600 }}>MD Feedback</span>
-      <span>
+      <span style={{ fontWeight: 600, letterSpacing: 0.2 }}>MD Feedback</span>
+
+      {/* Counts */}
+      <span style={{ opacity: 0.9 }}>
         {doneCount}/3 done
-        {workingCount > 0 && ` | ${workingCount} working`}
-        {openCount > 0 && ` | ${openCount} open`}
+        {reviewCount > 0 && ` · ${reviewCount} review`}
+        {workingCount > 0 && ` · ${workingCount} working`}
+        {openCount > 0 && ` · ${openCount} open`}
       </span>
 
       {/* Mini progress bar */}
       <div
         style={{
           width: 80,
-          height: 4,
-          backgroundColor: "rgba(255,255,255,0.3)",
+          height: 3,
+          backgroundColor: "rgba(255,255,255,0.2)",
           borderRadius: 2,
           overflow: "hidden",
         }}
@@ -62,13 +90,34 @@ export const StatusBar: React.FC = () => {
             height: "100%",
             backgroundColor: "white",
             borderRadius: 2,
-            transition: "width 0.3s",
           }}
         />
       </div>
 
-      <span style={{ marginLeft: "auto", fontSize: 10, opacity: 0.8 }}>
-        {isWorking ? "AI applying fix..." : isDone ? "Fix applied" : "Ready"}
+      {/* Status text */}
+      <span
+        style={{
+          marginLeft: "auto",
+          fontSize: 10,
+          opacity: 0.85,
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+        }}
+      >
+        {isReview && (
+          <span
+            style={{
+              display: "inline-block",
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              backgroundColor: colors.statusReview,
+              transform: `scale(${reviewDotScale})`,
+            }}
+          />
+        )}
+        {statusText}
       </span>
     </div>
   );

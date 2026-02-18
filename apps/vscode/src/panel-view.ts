@@ -2,9 +2,9 @@ import * as vscode from 'vscode'
 import { createCheckpoint } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown } from '@md-feedback/shared'
 import { generateContext, TARGET_LABELS, type TargetFormat } from '@md-feedback/shared'
-import { serializeGate, serializeCheckpoint, serializeCursor } from '@md-feedback/shared'
+import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency, splitDocument, mergeDocument, evaluateAllGates } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
-import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
+import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
 import { wrapWithPrompt } from './exports'
 
@@ -23,6 +23,9 @@ export interface PanelViewContext {
   getPreservedGates: () => Gate[]
   getPreservedCheckpoints: () => Checkpoint[]
   getPreservedCursor: () => PlanCursor | null
+  getPreservedImpls: () => MemoImpl[]
+  getPreservedArtifacts: () => MemoArtifact[]
+  getPreservedDependencies: () => MemoDependency[]
   sendDocumentToWebview: (document: vscode.TextDocument) => void
   getActiveMarkdownDocument: () => vscode.TextDocument | undefined
   autoSaveExport: (document: vscode.TextDocument, target: TargetFormat, content: string, silent?: boolean) => Promise<boolean>
@@ -117,8 +120,17 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           fullContent = preservedFrontmatter.trimEnd() + '\n\n' + fullContent
         }
 
-        // Gates, Checkpoints, Cursor restoration (append at end)
+        // Impls, Artifacts, Dependencies, Gates, Checkpoints, Cursor restoration (append at end)
         const metadataSections: string[] = []
+        for (const impl of ctx.getPreservedImpls()) {
+          metadataSections.push(serializeMemoImpl(impl))
+        }
+        for (const art of ctx.getPreservedArtifacts()) {
+          metadataSections.push(serializeMemoArtifact(art))
+        }
+        for (const dep of ctx.getPreservedDependencies()) {
+          metadataSections.push(serializeMemoDependency(dep))
+        }
         for (const gate of ctx.getPreservedGates()) {
           metadataSections.push(serializeGate(gate))
         }
@@ -412,6 +424,34 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           const c = generateContext(pickTitle, pickFilePath, pickSections, pickHighlights, pickMemos, t)
           await ctx.autoSaveExport(document4, t, c)
         }
+        break
+      }
+
+      case 'gate.override': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) break
+
+        const raw = document.getText()
+        const parts = splitDocument(raw)
+        const gate = parts.gates.find(g => g.id === msg.gateId)
+        if (!gate) break
+
+        gate.override = msg.override || null
+        // Re-evaluate gates (override will take precedence in evaluateAllGates)
+        parts.gates = evaluateAllGates(parts.gates, parts.memos)
+
+        const updated = mergeDocument(parts)
+        const myVersion = ctx.incrementEditVersion()
+        ctx.setLastWebviewEditVersion(myVersion)
+
+        const edit = new vscode.WorkspaceEdit()
+        edit.replace(
+          document.uri,
+          new vscode.Range(0, 0, document.lineCount, 0),
+          updated,
+        )
+        await vscode.workspace.applyEdit(edit)
+        try { await document.save() } catch { /* best-effort */ }
         break
       }
 
