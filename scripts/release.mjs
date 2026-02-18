@@ -9,7 +9,7 @@
  *   pnpm release major           # 0.9.6 → 1.0.0
  *
  * What it does:
- *   1. Checks working tree and blocks local-only paths
+ *   1. Enforces clean + synced release state on dev branch
  *   2. Bumps version in all package.json files
  *   3. Validates CHANGELOG has an entry for this version
  *   4. Runs tests (abort on failure)
@@ -114,8 +114,16 @@ console.log(`\n╔════════════════════�
 console.log(`║  MD Feedback Release: ${currentVersion} → ${nextVersion}`)
 console.log(`╚══════════════════════════════════════╝`)
 
-// Step 1: Check for uncommitted changes
+// Step 1: Enforce clean + synced release state
 console.log('\n── Step 1/7: Check working tree ──')
+const branch = getCurrentBranch()
+if (branch !== 'dev') {
+  console.error(`  ✗ Releases must run from dev branch (current: ${branch})`)
+  process.exit(1)
+}
+
+run('git fetch origin --tags')
+
 const status = runQuiet('git status --porcelain')
 const changedPaths = parseChangedPathsFromPorcelain(status)
 const blockedPaths = ['.githooks/pre-commit']
@@ -131,8 +139,17 @@ if (blockedChanges.length > 0) {
 }
 
 if (status) {
-  console.log('  ⚠ Uncommitted changes detected — all tracked release changes will be committed:')
-  console.log(status.split('\n').map(l => `    ${l}`).join('\n'))
+  console.error('  ✗ Working tree must be clean before release.')
+  console.error('    Commit or stash changes first, then run release again.')
+  process.exit(1)
+}
+
+const aheadBehind = runQuiet('git rev-list --left-right --count HEAD...origin/dev').split(/\s+/).map(Number)
+const [ahead, behind] = aheadBehind
+if (ahead !== 0 || behind !== 0) {
+  console.error(`  ✗ Branch must be exactly synced with origin/dev (ahead=${ahead}, behind=${behind}).`)
+  console.error('    Run: git pull --rebase origin dev')
+  process.exit(1)
 }
 
 // Step 2: Bump version in all package.json files
