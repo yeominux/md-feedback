@@ -28,13 +28,15 @@ Step 3  AGENT      Reads annotations via MCP — no export step needed
           │
 Step 4  AGENT      Implements fixes, answers questions
           │
-Step 5  AGENT      Marks memos done → gates auto-evaluate
+Step 5  YOU        Review AI work → Approve, Request Changes, or Reject
+          │
+Step 6  AGENT      Gates auto-evaluate
           │         "3 fixes remaining" → "All done, ready to merge"
           │
-Step 6  AGENT      Generates handoff → next session picks up where you left off
+Step 7  AGENT      Generates handoff → next session picks up where you left off
 ```
 
-You do steps 1–2. The agent does the rest.
+You do steps 1–2 and 5. The agent does the rest.
 
 This is the MCP-first path. If you use export-based workflow, run export after step 2.
 
@@ -53,7 +55,11 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
 - **File safety**: blocks writes to .env, credentials, node_modules
-- **Approve / Reject buttons** — accept or dismiss annotations inline
+- **Approve / Reject buttons** — always visible when review needed, one click to accept or dismiss
+- **CodeLens in editor** — approve or reject directly in the markdown file, no sidebar needed
+- **Activity Bar badge** — see pending review count at a glance
+- **Status bar + toast notifications** — never miss when AI delivers work for review
+- **Keyboard shortcuts** — Ctrl+Shift+A to approve, Ctrl+Shift+X to reject
 - **Gate override** — manually control gate status when auto-evaluation isn't enough
 - **External file diffs inline** — see exactly what AI will change before applying
 - **Gate transition notifications** — know when gates unblock or complete
