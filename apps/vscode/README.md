@@ -14,6 +14,8 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
+> Latest (v1.3.1): highlight persistence, needs-review sync, and approve/reject UI flow are now stable in real extension usage.
+
 ## How It Works
 
 From plan to implementation, the complete AI coding loop:
