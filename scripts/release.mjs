@@ -9,12 +9,12 @@
  *   pnpm release major           # 0.9.6 → 1.0.0
  *
  * What it does:
- *   1. Validates clean working tree (no uncommitted changes except version files)
+ *   1. Checks working tree and blocks local-only paths
  *   2. Bumps version in all package.json files
  *   3. Validates CHANGELOG has an entry for this version
  *   4. Runs tests (abort on failure)
  *   5. Runs build (abort on failure)
- *   6. Git add + commit + tag
+ *   6. Git add -A + commit + tag (no release-file omissions)
  *   7. Git push + push tags
  *   8. Prints publish instructions
  *
@@ -42,6 +42,29 @@ function run(cmd, opts = {}) {
 
 function runQuiet(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim()
+}
+
+function hasUpstream() {
+  try {
+    runQuiet('git rev-parse --abbrev-ref --symbolic-full-name @{u}')
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getCurrentBranch() {
+  return runQuiet('git rev-parse --abbrev-ref HEAD')
+}
+
+function parseChangedPathsFromPorcelain(status) {
+  if (!status) return []
+  return status
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.slice(3))
+    .map((path) => (path.includes(' -> ') ? path.split(' -> ')[1] : path))
 }
 
 function readJson(path) {
@@ -94,9 +117,21 @@ console.log(`╚═════════════════════�
 // Step 1: Check for uncommitted changes
 console.log('\n── Step 1/7: Check working tree ──')
 const status = runQuiet('git status --porcelain')
+const changedPaths = parseChangedPathsFromPorcelain(status)
+const blockedPaths = ['.githooks/pre-commit']
+const blockedChanges = changedPaths.filter((path) => blockedPaths.includes(path))
+
+if (blockedChanges.length > 0) {
+  console.error('  ✗ Local-only files are changed and blocked from release automation:')
+  for (const path of blockedChanges) {
+    console.error(`    - ${path}`)
+  }
+  console.error('  → Revert/commit these separately, then run release again.')
+  process.exit(1)
+}
+
 if (status) {
-  // Allow uncommitted changes — they'll be included in the release commit
-  console.log('  ⚠ Uncommitted changes detected — will be included in release commit:')
+  console.log('  ⚠ Uncommitted changes detected — all tracked release changes will be committed:')
   console.log(status.split('\n').map(l => `    ${l}`).join('\n'))
 }
 
@@ -139,15 +174,18 @@ console.log('  ✓ Build successful')
 
 // Step 6: Git commit + tag
 console.log('\n── Step 6/7: Git commit + tag ──')
-for (const f of pkgFiles) run(`git add ${f}`)
-run('git add CHANGELOG.md')
+run('git add -A')
 run(`git commit -m "v${nextVersion}"`)
 run(`git tag v${nextVersion}`)
 console.log(`  ✓ Committed and tagged v${nextVersion}`)
 
 // Step 7: Git push
 console.log('\n── Step 7/7: Git push ──')
-run('git push')
+if (hasUpstream()) {
+  run('git push')
+} else {
+  run(`git push --set-upstream origin ${getCurrentBranch()}`)
+}
 run('git push --tags')
 console.log(`  ✓ Pushed to remote`)
 
