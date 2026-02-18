@@ -122,6 +122,14 @@ MD Feedback에는 19개의 도구를 갖춘 MCP 서버가 포함되어 있어 AI
 npx md-feedback
 ```
 
+**워크스페이스 지정** — MCP 클라이언트가 `cwd`를 프로젝트 폴더로 설정하지 않는 경우 (예: Antigravity) 명시적으로 지정:
+
+```json
+{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=/path/to/project"] }
+```
+
+또는 환경변수: `MD_FEEDBACK_WORKSPACE=/path/to/project`
+
 자세한 내용은 [MCP 서버 문서](./apps/mcp-server/README.md)를 참조하세요.
 
 ## 패키지
