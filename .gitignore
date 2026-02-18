@@ -18,20 +18,16 @@ generic-review-*.md
 scripts/test-e2e-scenario.mjs
 scripts/test-mcp-manual.mjs
 
-# Internal docs — not for public repo
-STRATEGY.md
-ROADMAP.md
-HANDOFF*.md
-RELEASING.md
-md-feedback-product-plan.md
-RELEASE-PLAN*.md
-*_홍보계획.md
-*_안정화_계획.md
-*_로드맵_상세.md
-*계획_통합.md
+# Local planning/ops docs
+*STRATEGY*.md
+*ROADMAP*.md
+*HANDOFF*.md
+*RELEASING*.md
+*RELEASE-PLAN*.md
+*계획*.md
 *_초안.md
 README_MCP_SETUP.md
-mcp-config.example.json
+mcp-config*.json
 run_mcp.bat
 
 *.bak

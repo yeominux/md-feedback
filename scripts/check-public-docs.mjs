@@ -7,7 +7,22 @@ const docs = [
   { path: 'apps/vscode/README.md', name: 'Marketplace README' },
 ]
 
-const banned = [/\bfeat:\b/i, /\bfix:\b/i, /\bchore:\b/i, /\brefactor:\b/i, /\bTODO\b/, /\bFIXME\b/]
+const banned = [
+  /\bfeat:\b/i,
+  /\bfix:\b/i,
+  /\bchore:\b/i,
+  /\brefactor:\b/i,
+  /\bTODO\b/,
+  /\bFIXME\b/,
+  /\bsolo shipping\b/i,
+  /\bupstream\b/i,
+  /\bdev\s*(->|→)\s*main\b/i,
+  /\brelease automation\b/i,
+  /\bbranch protection\b/i,
+  /\brelease branch synchronization\b/i,
+  /\bproduct operations?\b/i,
+  /\bmerge dev\b/i,
+]
 
 let failed = false
 
@@ -25,9 +40,12 @@ for (const doc of docs) {
     failed = true
   }
 
-  for (const pattern of banned) {
-    if (pattern.test(content)) {
-      console.error(`✗ ${doc.name}: contains developer-internal wording (${pattern}).`)
+  const lines = content.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    for (const pattern of banned) {
+      if (!pattern.test(line)) continue
+      console.error(`✗ ${doc.name}:${i + 1}: contains developer-internal wording (${pattern}).`)
       failed = true
     }
   }
