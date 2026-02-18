@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+import { readFileSync } from 'fs'
+
+const changelog = readFileSync('CHANGELOG.md', 'utf8')
+
+const versionHeaderRe = /^## \[(.+?)\] - (\d{4}-\d{2}-\d{2})$/gm
+const sections = []
+let match
+
+while ((match = versionHeaderRe.exec(changelog)) !== null) {
+  sections.push({
+    version: match[1],
+    index: match.index,
+    headerEnd: versionHeaderRe.lastIndex,
+  })
+}
+
+if (sections.length === 0) {
+  console.error('CHANGELOG check failed: no version sections found.')
+  process.exit(1)
+}
+
+const failures = []
+
+for (let i = 0; i < sections.length; i++) {
+  const current = sections[i]
+  const next = sections[i + 1]
+  const body = changelog
+    .slice(current.headerEnd, next ? next.index : changelog.length)
+    .trim()
+
+  if (!body) {
+    failures.push(`[${current.version}] has no content.`)
+    continue
+  }
+
+  const hasUserSection = /### (Added|Fixed|Improved|Changed)\b/.test(body)
+  if (!hasUserSection) {
+    failures.push(
+      `[${current.version}] should use user-facing sections (Added/Fixed/Improved/Changed).`
+    )
+  }
+
+  const bullets = body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+
+  if (bullets.length === 0) {
+    failures.push(`[${current.version}] should include at least one bullet point.`)
+  }
+
+  const bannedTechnicalTerms = [
+    /\b[A-Za-z0-9_-]+\.tsx\b/,
+    /\b[A-Za-z0-9_-]+\.ts\b/,
+    /\b[A-Za-z0-9_-]+\.mjs\b/,
+    /\bget[A-Z][A-Za-z0-9]*\(/,
+    /\bset[A-Z][A-Za-z0-9]*\(/,
+    /\brefactor\b/i,
+    /\bchore:\b/i,
+    /\bfeat:\b/i,
+    /\bfix:\b/i,
+    /\bsync-controller\b/i,
+    /\bApp\.tsx\b/i,
+  ]
+
+  for (const bullet of bullets) {
+    if (bannedTechnicalTerms.some((re) => re.test(bullet))) {
+      failures.push(
+        `[${current.version}] contains developer-internal wording: "${bullet}"`
+      )
+    }
+  }
+}
+
+if (failures.length > 0) {
+  console.error('CHANGELOG customer-language check failed:')
+  for (const failure of failures) {
+    console.error(`- ${failure}`)
+  }
+  process.exit(1)
+}
+
+console.log(`CHANGELOG customer-language check passed (${sections.length} versions).`)
