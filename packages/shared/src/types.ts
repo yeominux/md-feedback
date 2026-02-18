@@ -59,6 +59,13 @@ export type MemoStatus = 'open' | 'in_progress' | 'needs_review' | 'answered' | 
 export function isResolved(status: MemoStatus): boolean {
   return status === 'answered' || status === 'done' || status === 'failed' || status === 'wontfix'
 }
+
+/** Statuses an AI agent is allowed to set via MCP tools */
+export const AGENT_ALLOWED_STATUSES: MemoStatus[] = ['open', 'in_progress', 'needs_review']
+
+/** Statuses that require human action (VS Code CodeLens) */
+export const HUMAN_ONLY_STATUSES: MemoStatus[] = ['answered', 'done', 'failed', 'wontfix']
+
 export type MemoOwner = 'human' | 'agent' | 'tool'
 
 export interface MemoV2 {

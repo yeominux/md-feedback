@@ -364,12 +364,12 @@ export function splitDocument(markdown: string): DocumentParts {
     responses.push(openResponse)
   }
 
-  // Auto-answer: memos with a REVIEW_RESPONSE and status "open" → "answered"
-  // (Does not override in_progress, done, or failed)
+  // Auto-escalate: memos with a REVIEW_RESPONSE and status "open" → "needs_review"
+  // (Requires human approval via VS Code CodeLens to reach terminal status)
   const respondedMemoIds = new Set(responses.map(r => r.to))
   for (const memo of memos) {
     if (memo.status === 'open' && respondedMemoIds.has(memo.id)) {
-      memo.status = 'answered'
+      memo.status = 'needs_review'
     }
   }
 

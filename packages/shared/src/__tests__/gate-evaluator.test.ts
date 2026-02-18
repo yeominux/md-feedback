@@ -129,4 +129,159 @@ describe('gate-evaluator — evaluateGate and evaluateAllGates', () => {
     expect(updatedGates[0].status).toBe('blocked')
     expect(updatedGates[1].status).toBe('proceed')
   })
+
+  it('returns blocked when gate has blocking memo in needs_review', () => {
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'proceed',
+      blockedBy: ['m1'],
+      canProceedIf: 'all fixes addressed',
+      doneDefinition: 'all memos resolved',
+    }
+    const memos: MemoV2[] = [
+      {
+        id: 'm1',
+        type: 'fix',
+        status: 'needs_review',
+        owner: 'agent',
+        source: 'mcp',
+        color: 'red',
+        text: 'Fix this',
+        anchorText: 'Some text',
+        anchor: 'L1:L1|abc123',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ]
+
+    const status = evaluateGate(gate, memos)
+    expect(status).toBe('blocked')
+  })
+
+  it('returns proceed when blocking memo is done but another memo is needs_review', () => {
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: ['m1'],
+      canProceedIf: 'all fixes addressed',
+      doneDefinition: 'all memos resolved',
+    }
+    const memos: MemoV2[] = [
+      {
+        id: 'm1',
+        type: 'fix',
+        status: 'done',
+        owner: 'human',
+        source: 'cursor',
+        color: 'red',
+        text: 'Fix this',
+        anchorText: 'Some text',
+        anchor: 'L1:L1|abc123',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+      {
+        id: 'm2',
+        type: 'question',
+        status: 'needs_review',
+        owner: 'agent',
+        source: 'mcp',
+        color: 'blue',
+        text: 'Question',
+        anchorText: 'Some text',
+        anchor: 'L2:L2|def456',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ]
+
+    const status = evaluateGate(gate, memos)
+    expect(status).toBe('proceed')
+  })
+
+  it('returns done only when all memos are in terminal status (done/wontfix)', () => {
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: [],
+      canProceedIf: 'all fixes addressed',
+      doneDefinition: 'all memos resolved',
+    }
+    const memos: MemoV2[] = [
+      {
+        id: 'm1',
+        type: 'fix',
+        status: 'done',
+        owner: 'human',
+        source: 'cursor',
+        color: 'red',
+        text: 'Fix this',
+        anchorText: 'Some text',
+        anchor: 'L1:L1|abc123',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+      {
+        id: 'm2',
+        type: 'question',
+        status: 'wontfix',
+        owner: 'human',
+        source: 'cursor',
+        color: 'blue',
+        text: 'Question',
+        anchorText: 'Some text',
+        anchor: 'L2:L2|def456',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ]
+
+    const status = evaluateGate(gate, memos)
+    expect(status).toBe('done')
+  })
+
+  it('does not return done when any memo is needs_review', () => {
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: [],
+      canProceedIf: 'all fixes addressed',
+      doneDefinition: 'all memos resolved',
+    }
+    const memos: MemoV2[] = [
+      {
+        id: 'm1',
+        type: 'fix',
+        status: 'done',
+        owner: 'human',
+        source: 'cursor',
+        color: 'red',
+        text: 'Fix this',
+        anchorText: 'Some text',
+        anchor: 'L1:L1|abc123',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+      {
+        id: 'm2',
+        type: 'question',
+        status: 'needs_review',
+        owner: 'agent',
+        source: 'mcp',
+        color: 'blue',
+        text: 'Question',
+        anchorText: 'Some text',
+        anchor: 'L2:L2|def456',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      },
+    ]
+
+    const status = evaluateGate(gate, memos)
+    expect(status).not.toBe('done')
+  })
 })
