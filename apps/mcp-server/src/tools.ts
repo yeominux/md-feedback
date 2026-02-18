@@ -12,6 +12,7 @@ import { isResolved } from '@md-feedback/shared'
 import { existsSync } from 'node:fs'
 import { createFileSafety, validateFilePath } from './file-safety.js'
 import { computeMetrics } from './metrics.js'
+import { withFileLock } from './file-mutex.js'
 
 /** djb2 hash — must match shared/document-writer.ts hashLine */
 function computeLineHash(line: string): string {
@@ -46,7 +47,7 @@ export function registerTools(server: McpServer): void {
       file: z.string().describe('Path to the annotated markdown file'),
       note: z.string().describe('Checkpoint note (e.g., "Phase 1 review done")'),
     },
-    async ({ file, note }) => {
+    async ({ file, note }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const { checkpoint, updatedMarkdown } = createCheckpoint(markdown, note)
@@ -66,7 +67,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── get_checkpoints ───
@@ -267,6 +268,7 @@ export function registerTools(server: McpServer): void {
 
         const open = parts.memos.filter(m => m.status === 'open').length
         const inProgress = parts.memos.filter(m => m.status === 'in_progress').length
+        const needsReview = parts.memos.filter(m => m.status === 'needs_review').length
         const answered = parts.memos.filter(m => m.status === 'answered').length
         const done = parts.memos.filter(m => m.status === 'done').length
         const failed = parts.memos.filter(m => m.status === 'failed').length
@@ -293,6 +295,7 @@ export function registerTools(server: McpServer): void {
             total: parts.memos.length,
             open,
             inProgress,
+            needsReview,
             answered,
             done,
             failed,
@@ -339,29 +342,65 @@ export function registerTools(server: McpServer): void {
       text: z.string().describe('The review feedback or note to attach'),
       occurrence: z.number().int().min(1).optional().describe('Which occurrence of anchorText to annotate (1-indexed, default 1). Use when the same text appears multiple times.'),
     },
-    async ({ file, anchorText, type, text, occurrence }) => {
+    async ({ file, anchorText, type, text, occurrence }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
-        // B-7: Find the Nth occurrence of anchor in body
-        const targetOccurrence = occurrence ?? 1
+        // Find anchor text in body — exact match preferred, longest match wins on tie
         const bodyLines = parts.body.split('\n')
         let anchorLine = -1
-        let matchCount = 0
-        for (let i = 0; i < bodyLines.length; i++) {
-          if (bodyLines[i].includes(anchorText)) {
-            matchCount++
-            if (matchCount === targetOccurrence) { anchorLine = i; break }
+
+        if (occurrence) {
+          // Explicit occurrence requested — find the Nth match
+          let matchCount = 0
+          for (let i = 0; i < bodyLines.length; i++) {
+            if (bodyLines[i].includes(anchorText)) {
+              matchCount++
+              if (matchCount === occurrence) { anchorLine = i; break }
+            }
           }
-        }
-        if (anchorLine === -1) {
-          const errMsg = matchCount === 0
-            ? `Anchor text not found: "${anchorText}"`
-            : `Anchor text "${anchorText}" has ${matchCount} occurrence(s), but occurrence=${targetOccurrence} requested`
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ error: errMsg }) }],
-            isError: true,
+          if (anchorLine === -1) {
+            const errMsg = matchCount === 0
+              ? `Anchor text not found: "${anchorText}"`
+              : `Anchor text "${anchorText}" has ${matchCount} occurrence(s), but occurrence=${occurrence} requested`
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: errMsg }) }],
+              isError: true,
+            }
+          }
+        } else {
+          // No occurrence specified — find best match
+          const matches: number[] = []
+          for (let i = 0; i < bodyLines.length; i++) {
+            if (bodyLines[i].includes(anchorText)) matches.push(i)
+          }
+
+          if (matches.length === 0) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: `Anchor text not found: "${anchorText}"` }) }],
+              isError: true,
+            }
+          } else if (matches.length === 1) {
+            anchorLine = matches[0]
+          } else {
+            // Multiple matches — prefer exact line match, then longest matching line
+            const exactMatch = matches.find(i => bodyLines[i].trim() === anchorText.trim())
+            if (exactMatch !== undefined) {
+              anchorLine = exactMatch
+            } else {
+              // Pick the match where the line content is closest to the anchor text (shortest surplus)
+              let bestIdx = matches[0]
+              let bestSurplus = Infinity
+              for (const idx of matches) {
+                const surplus = bodyLines[idx].length - anchorText.length
+                if (surplus < bestSurplus) {
+                  bestSurplus = surplus
+                  bestIdx = idx
+                }
+              }
+              anchorLine = bestIdx
+            }
           }
         }
 
@@ -426,7 +465,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── respond_to_memo (v0.4.0 NEW) ───
@@ -438,7 +477,7 @@ export function registerTools(server: McpServer): void {
       memoId: z.string().describe('The memo ID to respond to'),
       response: z.string().describe('The response text (markdown supported)'),
     },
-    async ({ file, memoId, response }) => {
+    async ({ file, memoId, response }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -568,7 +607,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── update_memo_status (v0.4.0 NEW) ───
@@ -578,10 +617,10 @@ export function registerTools(server: McpServer): void {
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update'),
-      status: z.enum(['open', 'in_progress', 'answered', 'done', 'failed', 'wontfix']).describe('New status'),
+      status: z.enum(['open', 'in_progress', 'needs_review', 'answered', 'done', 'failed', 'wontfix']).describe('New status'),
       owner: z.enum(['human', 'agent', 'tool']).optional().describe('Optionally change the owner'),
     },
-    async ({ file, memoId, status, owner }) => {
+    async ({ file, memoId, status, owner }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -648,7 +687,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── update_cursor (v0.4.0 NEW) ───
@@ -661,7 +700,7 @@ export function registerTools(server: McpServer): void {
       step: z.string().describe('Current step (e.g., "3/7" or "Phase 2")'),
       nextAction: z.string().describe('Description of the next action to take'),
     },
-    async ({ file, taskId, step, nextAction }) => {
+    async ({ file, taskId, step, nextAction }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -705,7 +744,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── evaluate_gates (v0.4.0 NEW) ───
@@ -815,7 +854,7 @@ export function registerTools(server: McpServer): void {
       patch: z.string().optional().describe('For file_patch: the patch content'),
       content: z.string().optional().describe('For file_create: the file content to write'),
     },
-    async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => {
+    async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -897,7 +936,7 @@ export function registerTools(server: McpServer): void {
 
         // Record impl and update memo
         parts.impls.push(impl)
-        memo.status = 'done'
+        memo.status = 'needs_review'
         memo.updatedAt = new Date().toISOString()
 
         // Re-evaluate gates
@@ -936,7 +975,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── link_artifacts (v1.2 — link file artifacts to a memo) ───
@@ -948,7 +987,7 @@ export function registerTools(server: McpServer): void {
       memoId: z.string().describe('The memo ID to link artifacts to'),
       files: z.array(z.string()).describe('Array of relative file paths to link'),
     },
-    async ({ file, memoId, files: artifactFiles }) => {
+    async ({ file, memoId, files: artifactFiles }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -988,7 +1027,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── update_memo_progress (v1.1 — update memo progress with status and message) ───
@@ -998,10 +1037,10 @@ export function registerTools(server: McpServer): void {
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update progress for'),
-      status: z.enum(['in_progress', 'done', 'failed']).describe('New progress status'),
+      status: z.enum(['in_progress', 'needs_review', 'done', 'failed']).describe('New progress status'),
       message: z.string().describe('Progress message describing what was done or what failed'),
     },
-    async ({ file, memoId, status, message }) => {
+    async ({ file, memoId, status, message }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -1061,7 +1100,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── rollback_memo (v1.1 — rollback the latest implementation for a memo) ───
@@ -1072,7 +1111,7 @@ export function registerTools(server: McpServer): void {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to rollback'),
     },
-    async ({ file, memoId }) => {
+    async ({ file, memoId }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -1154,7 +1193,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── batch_apply (v1.1 — apply multiple operations in a single transaction) ───
@@ -1173,7 +1212,7 @@ export function registerTools(server: McpServer): void {
         content: z.string().optional().describe('For file_create: the file content to write'),
       })).describe('Array of operations to apply'),
     },
-    async ({ file, operations }) => {
+    async ({ file, operations }) => withFileLock(file, async () => {
       try {
         const markdown = safeRead(file)
         const parts = splitDocument(markdown)
@@ -1231,7 +1270,7 @@ export function registerTools(server: McpServer): void {
           }
 
           parts.impls.push(impl)
-          memo.status = 'done'
+          memo.status = 'needs_review'
           memo.updatedAt = new Date().toISOString()
           results.push({ memoId: op.memoId, implId: impl.id, status: 'applied' })
         }
@@ -1275,7 +1314,7 @@ export function registerTools(server: McpServer): void {
           isError: true,
         }
       }
-    },
+    }),
   )
 
   // ─── get_memo_changes (v1.1 — get implementation history for a memo) ───
