@@ -10,6 +10,7 @@ import { colors, editorPanel } from "../styles";
  *   frame 75:  fix annotation highlight appears
  *   frame 130: inline diff slides in
  *   frame 190: CodeLens Approve/Reject appears
+ *   frame 230: cursor clicks Approve in editor
  */
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
@@ -40,7 +41,20 @@ export const MockEditor: React.FC = () => {
     : 0;
   const lensOpacity = Math.max(0, lensIn - lensOut);
   const lensY = interpolate(lensIn, [0, 1], [8, 0]);
-  const approveHover = frame >= 232 && frame < 248;
+  const approveHover = frame >= 228 && frame < 250;
+  const cursorIn = frame >= 222
+    ? spring({ frame: frame - 222, fps, config: { damping: 15, stiffness: 100 } })
+    : 0;
+  const cursorOut = frame >= 252
+    ? spring({ frame: frame - 252, fps, config: { damping: 18, stiffness: 130 } })
+    : 0;
+  const cursorOpacity = Math.max(0, cursorIn - cursorOut);
+  const clickPulse = frame >= 236 && frame < 252
+    ? interpolate(frame, [236, 241, 252], [0, 0.65, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 0;
 
   // Line numbers for realism
   const lineNum = (n: number, opacity = 1) => (
@@ -194,6 +208,33 @@ export const MockEditor: React.FC = () => {
             </span>
             <span style={{ color: "rgba(212,212,212,0.45)" }}>|</span>
             <span style={{ color: "rgba(252,165,165,0.95)" }}>$(x) Reject</span>
+
+            {cursorOpacity > 0.01 && (
+              <span
+                style={{
+                  position: "relative",
+                  marginLeft: 8,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  opacity: cursorOpacity,
+                }}
+              >
+                <span style={{ color: "white", fontSize: 12, lineHeight: 1 }}>↖</span>
+                {clickPulse > 0.01 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: -4,
+                      top: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      border: `2px solid rgba(34,197,94,${clickPulse})`,
+                    }}
+                  />
+                )}
+              </span>
+            )}
           </div>
         )}
 

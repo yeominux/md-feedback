@@ -3,14 +3,14 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors } from "../styles";
 
 /**
- * Memo card — shows lifecycle:
+ * Memo card — shows lifecycle status mirrored from editor review:
  *   Open → Working → Review → Done
  *
  * Timeline:
  *   frame 65:  card slides in
  *   frame 125: status → Working
  *   frame 180: status → Review
- *   frame 250: user clicks Approve → Done
+ *   frame 250: editor approval completed → Done
  */
 export const MemoCard: React.FC = () => {
   const frame = useCurrentFrame();
@@ -52,14 +52,6 @@ export const MemoCard: React.FC = () => {
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [10, 0]);
 
-  // Click flash (frame 248)
-  const clickFlash = frame >= 248 && frame < 260
-    ? interpolate(frame, [248, 252, 260], [0, 0.3, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 0;
-
   return (
     <div
       style={{
@@ -74,22 +66,6 @@ export const MemoCard: React.FC = () => {
         position: "relative",
       }}
     >
-      {/* Click flash overlay */}
-      {clickFlash > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            borderRadius: 10,
-            backgroundColor: `rgba(34, 197, 94, ${clickFlash})`,
-            pointerEvents: "none",
-          }}
-        />
-      )}
-
       {/* Header */}
       <div
         style={{
