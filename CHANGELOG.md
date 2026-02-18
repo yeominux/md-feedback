@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.3] - 2026-02-18
 
 ### Changed
 - AI agents can no longer set terminal memo statuses (answered, done, failed, wontfix) via MCP tools — these now require human approval through VS Code CodeLens
