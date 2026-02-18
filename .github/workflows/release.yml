@@ -10,6 +10,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -25,7 +26,7 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check:customer
+      - run: pnpm check:user-facing
       - run: pnpm guard:public-surface
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
@@ -38,20 +39,46 @@ jobs:
       - run: pnpm --filter md-feedback-vscode package
       - name: Generate release notes from CHANGELOG
         if: startsWith(github.ref, 'refs/tags/v')
-        run: pnpm release:notes > RELEASE_NOTES.md
+        run: node scripts/release-notes.mjs --output RELEASE_NOTES.md
+      - name: Validate release notes body
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/check-release-body.mjs --file RELEASE_NOTES.md
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@c9b5f385f063c6b7f2e0b8dfd7d4c35b39b7efac # v2.2.2
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           generate_release_notes: false
-      - name: Merge dev into main (fast-forward)
+      - name: Validate published release body
         if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/check-release-body.mjs --tag "${GITHUB_REF_NAME}"
+      - name: Open or reuse post-release sync PR
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main dev
-          git checkout main
-          git merge --ff-only origin/dev
-          git push origin main
+          set +e
+          existing_pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+          list_status=$?
+          if [ $list_status -ne 0 ]; then
+            echo "Skipping sync PR step: unable to list PRs with current token permissions."
+            exit 0
+          fi
+          if [ -n "$existing_pr" ]; then
+            echo "Existing post-release sync PR: #$existing_pr"
+            exit 0
+          fi
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "Release sync PR (${GITHUB_REF_NAME})" \
+            --body "Automated post-release sync PR created from tag ${GITHUB_REF_NAME}."
+          create_status=$?
+          if [ $create_status -ne 0 ]; then
+            echo "Skipping sync PR creation: GitHub Actions token cannot create PRs in this repository."
+            exit 0
+          fi
