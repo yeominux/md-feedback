@@ -9,6 +9,7 @@ import { evaluateAllGates } from '@md-feedback/shared'
 import { generateContext, type TargetFormat } from '@md-feedback/shared'
 import type { MemoStatus, MemoType, MemoColor, MemoV2, ReviewDocument, ReviewHighlight, ReviewMemo, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
 import { isResolved } from '@md-feedback/shared'
+import { existsSync } from 'node:fs'
 import { createFileSafety, validateFilePath } from './file-safety.js'
 import { computeMetrics } from './metrics.js'
 
@@ -23,6 +24,20 @@ function computeLineHash(line: string): string {
 
 export function registerTools(server: McpServer): void {
 
+  const safety = createFileSafety()
+
+  function safeRead(file: string): string {
+    const check = validateFilePath(safety, file)
+    if (!check.safe) throw new Error(check.reason!)
+    return readMarkdownFile(file)
+  }
+
+  function safeWrite(file: string, content: string): void {
+    const check = validateFilePath(safety, file)
+    if (!check.safe) throw new Error(check.reason!)
+    writeMarkdownFile(file, content)
+  }
+
   // ─── create_checkpoint ───
   server.tool(
     'create_checkpoint',
@@ -33,9 +48,9 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, note }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const { checkpoint, updatedMarkdown } = createCheckpoint(markdown, note)
-        writeMarkdownFile(file, updatedMarkdown)
+        safeWrite(file, updatedMarkdown)
         return {
           content: [{
             type: 'text' as const,
@@ -63,7 +78,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const checkpoints = extractCheckpoints(markdown)
         return {
           content: [{
@@ -94,7 +109,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, target }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const doc = buildHandoffDocument(markdown, file)
         const handoff = formatHandoffMarkdown(doc, target || 'standalone')
         return {
@@ -124,7 +139,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const counts = getAnnotationCounts(markdown)
         const checkpoints = extractCheckpoints(markdown)
         const sections = getSectionsWithAnnotations(markdown)
@@ -162,7 +177,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const doc = parseHandoffFile(markdown)
         if (!doc) {
           return {
@@ -200,7 +215,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
         const annotations = parts.memos.map(m => ({
           id: m.id,
@@ -242,7 +257,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
         const allSections = getAllSections(markdown)
         const reviewedSections = getSectionsWithAnnotations(markdown)
@@ -326,7 +341,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, anchorText, type, text, occurrence }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         // B-7: Find the Nth occurrence of anchor in body
@@ -394,7 +409,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -425,7 +440,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId, response }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -531,7 +546,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -568,7 +583,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId, status, owner }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -616,7 +631,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -648,7 +663,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, taskId, step, nextAction }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         // Validate taskId exists in memos
@@ -673,7 +688,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -702,7 +717,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
         const gates = evaluateAllGates(parts.gates, parts.memos)
 
@@ -742,7 +757,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, target }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
 
         if (target === 'handoff') {
           const doc = buildHandoffDocument(markdown, file)
@@ -788,7 +803,7 @@ export function registerTools(server: McpServer): void {
   // ─── apply_memo (v1.1 — apply an implementation to a memo) ───
   server.tool(
     'apply_memo',
-    'Apply an implementation action to a memo. Supports text_replace (on current document), file_patch (apply patch to target file), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to done.',
+    'Apply an implementation action to a memo. Supports text_replace (replaces all occurrences in current document), file_patch (overwrites target file — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to done.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to apply implementation to'),
@@ -802,7 +817,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -859,18 +874,6 @@ export function registerTools(server: McpServer): void {
           }
         }
 
-        // File safety check for external file operations
-        if ((action === 'file_patch' || action === 'file_create') && targetFile) {
-          const safety = createFileSafety()
-          const check = validateFilePath(safety, targetFile)
-          if (!check.safe) {
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify({ error: `File safety: ${check.reason}` }) }],
-              isError: true,
-            }
-          }
-        }
-
         // Create snapshot before modification
         writeSnapshot(file, markdown)
 
@@ -882,11 +885,14 @@ export function registerTools(server: McpServer): void {
               isError: true,
             }
           }
-          parts.body = parts.body.replace(oldText!, newText!)
+          parts.body = parts.body.split(oldText!).join(newText!)
         } else if (action === 'file_patch') {
-          writeMarkdownFile(targetFile!, patch!)
+          if (existsSync(targetFile!)) {
+            writeSnapshot(targetFile!, readMarkdownFile(targetFile!))
+          }
+          safeWrite(targetFile!, patch!)
         } else if (action === 'file_create') {
-          writeMarkdownFile(targetFile!, fileContent!)
+          safeWrite(targetFile!, fileContent!)
         }
 
         // Record impl and update memo
@@ -913,7 +919,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -944,7 +950,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId, files: artifactFiles }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -965,7 +971,7 @@ export function registerTools(server: McpServer): void {
         parts.artifacts.push(artifact)
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -997,7 +1003,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId, status, message }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -1038,7 +1044,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -1068,7 +1074,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const memo = parts.memos.find(m => m.id === memoId)
@@ -1095,7 +1101,7 @@ export function registerTools(server: McpServer): void {
           if (op.type === 'text_replace') {
             // Swap before/after to reverse
             if (parts.body.includes(op.after)) {
-              parts.body = parts.body.replace(op.after, op.before)
+              parts.body = parts.body.split(op.after).join(op.before)
             }
           }
           // file_patch and file_create are not automatically reversible
@@ -1127,7 +1133,7 @@ export function registerTools(server: McpServer): void {
         }
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -1169,7 +1175,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, operations }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         // Snapshot before batch
@@ -1177,22 +1183,11 @@ export function registerTools(server: McpServer): void {
 
         const results: Array<{ memoId: string; implId: string; status: string }> = []
 
-        const safety = createFileSafety()
-
         for (const op of operations) {
           const memo = parts.memos.find(m => m.id === op.memoId)
           if (!memo) {
             results.push({ memoId: op.memoId, implId: '', status: `error: memo not found` })
             continue
-          }
-
-          // File safety check for external file operations
-          if ((op.action === 'file_patch' || op.action === 'file_create') && op.targetFile) {
-            const check = validateFilePath(safety, op.targetFile)
-            if (!check.safe) {
-              results.push({ memoId: op.memoId, implId: '', status: `error: file safety: ${check.reason}` })
-              continue
-            }
           }
 
           let operation: ImplOperation
@@ -1206,21 +1201,24 @@ export function registerTools(server: McpServer): void {
               results.push({ memoId: op.memoId, implId: '', status: 'error: oldText not found in body' })
               continue
             }
-            parts.body = parts.body.replace(op.oldText, op.newText)
+            parts.body = parts.body.split(op.oldText).join(op.newText)
           } else if (op.action === 'file_patch') {
             if (!op.targetFile || !op.patch) {
               results.push({ memoId: op.memoId, implId: '', status: 'error: file_patch requires targetFile and patch' })
               continue
             }
             operation = { type: 'file_patch', file: op.targetFile, patch: op.patch } as FilePatchOp
-            writeMarkdownFile(op.targetFile, op.patch)
+            if (existsSync(op.targetFile)) {
+              writeSnapshot(op.targetFile, readMarkdownFile(op.targetFile))
+            }
+            safeWrite(op.targetFile, op.patch)
           } else {
             if (!op.targetFile || op.content === undefined) {
               results.push({ memoId: op.memoId, implId: '', status: 'error: file_create requires targetFile and content' })
               continue
             }
             operation = { type: 'file_create', file: op.targetFile, content: op.content } as FileCreateOp
-            writeMarkdownFile(op.targetFile, op.content)
+            safeWrite(op.targetFile, op.content)
           }
 
           const impl: MemoImpl = {
@@ -1260,7 +1258,7 @@ export function registerTools(server: McpServer): void {
         writeTransaction(file, { type: 'batch_apply', results, timestamp: new Date().toISOString() })
 
         const updated = mergeDocument(parts)
-        writeMarkdownFile(file, updated)
+        safeWrite(file, updated)
 
         return {
           content: [{
@@ -1290,7 +1288,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ file, memoId }) => {
       try {
-        const markdown = readMarkdownFile(file)
+        const markdown = safeRead(file)
         const parts = splitDocument(markdown)
 
         const impls = memoId
