@@ -8,10 +8,15 @@ package-lock.json
 .idea/
 .claude/
 .md-feedback/
+.sisyphus/
+.test-e2e/
+Microsoft/
 .DS_Store
 *.tmp
 test-*.md
 generic-review-*.md
+scripts/test-e2e-scenario.mjs
+scripts/test-mcp-manual.mjs
 
 # Internal docs — not for public repo
 STRATEGY.md
