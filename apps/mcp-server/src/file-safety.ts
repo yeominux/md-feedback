@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { existsSync, realpathSync } from 'node:fs'
 
 export interface FileSafetyConfig {
   workspaceRoot: string
@@ -67,6 +68,17 @@ export function validateFilePath(
   // Check: path traversal — is the resolved path within workspaceRoot?
   if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
     return { safe: false, reason: `Path "${filePath}" resolves outside workspace root` }
+  }
+
+  // Check: symlink escape — verify realpath stays within workspace
+  if (existsSync(resolved)) {
+    try {
+      const realResolved = realpathSync(resolved)
+      const realRoot = realpathSync(normalizedRoot)
+      if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+        return { safe: false, reason: `Path "${filePath}" resolves outside workspace via symlink` }
+      }
+    } catch { /* ENOENT — new file, skip */ }
   }
 
   // Get relative path for glob matching

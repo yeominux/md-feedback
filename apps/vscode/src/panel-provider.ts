@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import type { TargetFormat } from '@md-feedback/shared'
-import type { Gate, Checkpoint, PlanCursor } from '@md-feedback/shared'
+import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getActiveMarkdownDocument, sendDocumentToWebview, sendStatusInfo } from './document-sync'
 import { autoSaveExport, handleGenericExport } from './exports'
 import { resolveWebviewView } from './panel-view'
@@ -17,6 +17,9 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   private preservedGates: Gate[] = []
   private preservedCheckpoints: Checkpoint[] = []
   private preservedCursor: PlanCursor | null = null
+  private preservedImpls: MemoImpl[] = []
+  private preservedArtifacts: MemoArtifact[] = []
+  private preservedDependencies: MemoDependency[] = []
 
   /** Fired after the first annotation edit has been applied to the document */
   private readonly _onFirstAnnotationApplied = new vscode.EventEmitter<void>()
@@ -43,6 +46,9 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedGates: (value) => { this.preservedGates = value },
       setPreservedCheckpoints: (value) => { this.preservedCheckpoints = value },
       setPreservedCursor: (value) => { this.preservedCursor = value },
+      setPreservedImpls: (value) => { this.preservedImpls = value },
+      setPreservedArtifacts: (value) => { this.preservedArtifacts = value },
+      setPreservedDependencies: (value) => { this.preservedDependencies = value },
     })
   }
 
@@ -72,6 +78,9 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       getPreservedGates: () => this.preservedGates,
       getPreservedCheckpoints: () => this.preservedCheckpoints,
       getPreservedCursor: () => this.preservedCursor,
+      getPreservedImpls: () => this.preservedImpls,
+      getPreservedArtifacts: () => this.preservedArtifacts,
+      getPreservedDependencies: () => this.preservedDependencies,
       sendDocumentToWebview: this.sendDocumentToWebview.bind(this),
       getActiveMarkdownDocument: this.getActiveMarkdownDocument.bind(this),
       autoSaveExport: this.autoSaveExport.bind(this),
@@ -92,6 +101,9 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       setPreservedGates: (value) => { this.preservedGates = value },
       setPreservedCheckpoints: (value) => { this.preservedCheckpoints = value },
       setPreservedCursor: (value) => { this.preservedCursor = value },
+      setPreservedImpls: (value) => { this.preservedImpls = value },
+      setPreservedArtifacts: (value) => { this.preservedArtifacts = value },
+      setPreservedDependencies: (value) => { this.preservedDependencies = value },
     })
   }
 
