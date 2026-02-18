@@ -22,6 +22,36 @@ if (sections.length === 0) {
 
 const failures = []
 
+const bannedTechnicalTerms = [
+  /\b[A-Za-z0-9_-]+\.tsx\b/i,
+  /\b[A-Za-z0-9_-]+\.ts\b/i,
+  /\b[A-Za-z0-9_-]+\.mjs\b/i,
+  /\bget[A-Z][A-Za-z0-9]*\(/,
+  /\bset[A-Z][A-Za-z0-9]*\(/,
+  /\brefactor\b/i,
+  /\bchore:\b/i,
+  /\bfeat:\b/i,
+  /\bfix:\b/i,
+  /\bsync-controller\b/i,
+  /\bApp\.tsx\b/i,
+]
+
+const bannedInternalOpsTerms = [
+  /\bsolo shipping\b/i,
+  /\bupstream\b/i,
+  /\bdev\s*(->|→)\s*main\b/i,
+  /\brelease automation\b/i,
+  /\bbranch protection\b/i,
+  /\brelease branch synchronization\b/i,
+  /\bproduct operations?\b/i,
+  /\bmerge dev\b/i,
+]
+
+function findBodyLineNumber(changelogText, sectionHeaderEnd, matchIndexInBody) {
+  const absoluteIndex = sectionHeaderEnd + matchIndexInBody
+  return changelogText.slice(0, absoluteIndex).split('\n').length
+}
+
 for (let i = 0; i < sections.length; i++) {
   const current = sections[i]
   const next = sections[i + 1]
@@ -50,19 +80,15 @@ for (let i = 0; i < sections.length; i++) {
     failures.push(`[${current.version}] should include at least one bullet point.`)
   }
 
-  const bannedTechnicalTerms = [
-    /\b[A-Za-z0-9_-]+\.tsx\b/,
-    /\b[A-Za-z0-9_-]+\.ts\b/,
-    /\b[A-Za-z0-9_-]+\.mjs\b/,
-    /\bget[A-Z][A-Za-z0-9]*\(/,
-    /\bset[A-Z][A-Za-z0-9]*\(/,
-    /\brefactor\b/i,
-    /\bchore:\b/i,
-    /\bfeat:\b/i,
-    /\bfix:\b/i,
-    /\bsync-controller\b/i,
-    /\bApp\.tsx\b/i,
-  ]
+  for (const re of bannedInternalOpsTerms) {
+    const matchInBody = body.search(re)
+    if (matchInBody >= 0) {
+      const lineNo = findBodyLineNumber(changelog, current.headerEnd, matchInBody)
+      failures.push(
+        `[${current.version}] line ${lineNo}: contains internal operational wording (${re}).`
+      )
+    }
+  }
 
   for (const bullet of bullets) {
     if (bannedTechnicalTerms.some((re) => re.test(bullet))) {
