@@ -33,20 +33,15 @@ const TEXT_EXTENSIONS = new Set([
   '.npmignore',
 ])
 
-// Encoded to avoid leaking internal identifiers in the public repo.
-// Each entry is a base64-encoded plain string checked as a case-insensitive substring.
-const FORBIDDEN_ENCODED = [
-  'a2VybmVsLWZpeGVyQGRldi5sb2NhbA==',
-  'a2VybmVsIGZpeGVy',
-  'b2gtbXktb3BlbmNvZGU=',
-  'eW1rZXJuZWxvcw==',
-  'aGVwaGFlc3R1cy1hZ2VudA==',
-  'c2lzeXBodXMtZGV2LWFp',
-  'anVzdHNpc3lwaHVz',
-]
-const FORBIDDEN_PATTERNS = FORBIDDEN_ENCODED.map(
-  e => new RegExp(Buffer.from(e, 'base64').toString(), 'i'),
-)
+// Forbidden patterns are injected via GUARD_PATTERNS env var (comma-separated
+// base64 strings) to avoid leaking internal identifiers in the public repo.
+// Set the GitHub Actions secret GUARD_PATTERNS to enable this check in CI.
+const raw = process.env.GUARD_PATTERNS ?? ''
+const FORBIDDEN_PATTERNS = raw
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .map(e => new RegExp(Buffer.from(e, 'base64').toString(), 'i'))
 
 function isTextFile(filePath) {
   const base = filePath.split('/').pop() ?? filePath
@@ -96,4 +91,8 @@ if (violations.length > 0) {
   process.exit(1)
 }
 
-console.log('Public surface guard passed')
+if (FORBIDDEN_PATTERNS.length === 0) {
+  console.log('Public surface guard skipped (GUARD_PATTERNS not set)')
+} else {
+  console.log(`Public surface guard passed (${FORBIDDEN_PATTERNS.length} patterns checked)`)
+}
