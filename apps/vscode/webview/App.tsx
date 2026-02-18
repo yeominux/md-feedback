@@ -54,7 +54,8 @@ export default function App() {
           // #10: Clear any pending debounce to prevent stale edits from overwriting loaded doc
           clearTimeout(debounceRef.current)
           debounceRef.current = undefined
-          window.__mfImpls = []
+          // Set impls BEFORE setMarkdown so MemoBlock has data on mount
+          window.__mfImpls = (msg.impls as MemoImpl[]) || []
           isLoadingRef.current = true
           if (editorRef.current) {
             editorRef.current.setMarkdown(msg.cleanContent || msg.content)
@@ -191,29 +192,36 @@ export default function App() {
     vscode.postMessage({ type: 'webview.ready' })
   }, [])
 
+  // Send the current editor markdown to the extension host
+  const sendEdit = useCallback(() => {
+    const md = editorRef.current?.getMarkdown()
+    if (!md) return
+    let firstAnnotation = false
+    if (!firstAnnotationSentRef.current && md.includes('<!-- USER_MEMO')) {
+      firstAnnotation = true
+      firstAnnotationSentRef.current = true
+    }
+    vscode.postMessage({ type: 'document.edit', content: md, firstAnnotation })
+  }, [])
+
   // Called when editor content changes (annotations)
   const handleUpdate = useCallback((annotatedMarkdown: string) => {
     if (isLoadingRef.current) return
     clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(() => {
-      // Merge annotation.first flag into document.edit to avoid race condition:
-      // both are async, and annotation.first must not fire until the edit is applied.
-      let firstAnnotation = false
-      if (!firstAnnotationSentRef.current) {
-        const hasAnnotations = annotatedMarkdown.includes('<!-- USER_MEMO')
-        if (hasAnnotations) {
-          firstAnnotation = true
-          firstAnnotationSentRef.current = true
-        }
-      }
+    debounceRef.current = window.setTimeout(() => sendEdit(), 800)
+  }, [sendEdit])
 
-      vscode.postMessage({
-        type: 'document.edit',
-        content: annotatedMarkdown,
-        firstAnnotation,
-      })
-    }, 800)
-  }, [])
+  // Flush listener — immediately sends pending edits (used by status changes)
+  useEffect(() => {
+    const handler = () => {
+      if (isLoadingRef.current) return
+      clearTimeout(debounceRef.current)
+      debounceRef.current = undefined
+      sendEdit()
+    }
+    window.addEventListener('mf:flush-edit', handler)
+    return () => window.removeEventListener('mf:flush-edit', handler)
+  }, [sendEdit])
 
   const handleCopy = useCallback((text: string) => {
     vscode.postMessage({ type: 'clipboard.copy', text })
