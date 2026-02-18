@@ -8,7 +8,7 @@ import { splitDocument, mergeDocument, serializeMemoV2, serializeCursor, generat
 import { evaluateAllGates } from '@md-feedback/shared'
 import { generateContext, type TargetFormat } from '@md-feedback/shared'
 import type { MemoStatus, MemoType, MemoColor, MemoV2, ReviewDocument, ReviewHighlight, ReviewMemo, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
-import { isResolved } from '@md-feedback/shared'
+import { isResolved, AGENT_ALLOWED_STATUSES } from '@md-feedback/shared'
 import { existsSync } from 'node:fs'
 import { createFileSafety, validateFilePath } from './file-safety.js'
 import { computeMetrics } from './metrics.js'
@@ -471,7 +471,7 @@ export function registerTools(server: McpServer, workspace?: string): void {
   // ─── respond_to_memo (v0.4.0 NEW) ───
   server.tool(
     'respond_to_memo',
-    'Add an AI response to a memo annotation. Inserts a REVIEW_RESPONSE block into the markdown file directly below the memo\'s anchor text. Automatically sets the memo status to "answered".',
+    'Add an AI response to a memo annotation. Inserts a REVIEW_RESPONSE block into the markdown file directly below the memo\'s anchor text. Automatically sets the memo status to "needs_review" for human approval.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to respond to'),
@@ -573,9 +573,9 @@ export function registerTools(server: McpServer, workspace?: string): void {
           })
         }
 
-        // Auto-answer the memo
-        if (memo.status === 'open') {
-          memo.status = 'answered'
+        // Auto-escalate to needs_review (requires human approval for terminal status)
+        if (memo.status === 'open' || memo.status === 'in_progress') {
+          memo.status = 'needs_review'
           memo.updatedAt = new Date().toISOString()
         }
 
@@ -613,11 +613,11 @@ export function registerTools(server: McpServer, workspace?: string): void {
   // ─── update_memo_status (v0.4.0 NEW) ───
   server.tool(
     'update_memo_status',
-    'Update the status of a memo annotation. Writes the change back to the markdown file. Returns the updated memo.',
+    'Update the status of a memo annotation. Writes the change back to the markdown file. Returns the updated memo. Terminal statuses (answered, done, failed, wontfix) require human approval via VS Code.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update'),
-      status: z.enum(['open', 'in_progress', 'needs_review', 'answered', 'done', 'failed', 'wontfix']).describe('New status'),
+      status: z.enum(['open', 'in_progress', 'needs_review']).describe('New status. Terminal statuses (answered, done, failed, wontfix) require human approval via VS Code.'),
       owner: z.enum(['human', 'agent', 'tool']).optional().describe('Optionally change the owner'),
     },
     async ({ file, memoId, status, owner }) => withFileLock(file, async () => {
@@ -1033,11 +1033,11 @@ export function registerTools(server: McpServer, workspace?: string): void {
   // ─── update_memo_progress (v1.1 — update memo progress with status and message) ───
   server.tool(
     'update_memo_progress',
-    'Update the progress of a memo with a status change and message. Writes progress to .md-feedback/progress.json and updates the memo status.',
+    'Update the progress of a memo with a status change and message. Writes progress to .md-feedback/progress.json and updates the memo status. Terminal statuses (done, failed) require human approval via VS Code.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to update progress for'),
-      status: z.enum(['in_progress', 'needs_review', 'done', 'failed']).describe('New progress status'),
+      status: z.enum(['in_progress', 'needs_review']).describe('New progress status. Terminal statuses (done, failed) require human approval via VS Code.'),
       message: z.string().describe('Progress message describing what was done or what failed'),
     },
     async ({ file, memoId, status, message }) => withFileLock(file, async () => {
