@@ -3,13 +3,13 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors } from "../styles";
 
 /**
- * Memo card — shows the full v1.2.0 lifecycle:
- *   Open → Working → Review (with Approve/Reject) → Done
+ * Memo card — shows lifecycle:
+ *   Open → Working → Review → Done
  *
  * Timeline:
  *   frame 65:  card slides in
  *   frame 125: status → Working
- *   frame 180: status → Review, approve/reject buttons appear
+ *   frame 180: status → Review
  *   frame 250: user clicks Approve → Done
  */
 export const MemoCard: React.FC = () => {
@@ -51,19 +51,6 @@ export const MemoCard: React.FC = () => {
     ? spring({ frame: frame - 155, fps, config: { damping: 18, stiffness: 70 } })
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [10, 0]);
-
-  /* ─── Approve / Reject buttons (frame 190) ─── */
-  const buttonsIn = frame >= 190
-    ? spring({ frame: frame - 190, fps, config: { damping: 14, stiffness: 90, mass: 0.6 } })
-    : 0;
-  // Buttons disappear after approve click
-  const buttonsOut = frame >= 248
-    ? spring({ frame: frame - 248, fps, config: { damping: 20, stiffness: 150 } })
-    : 0;
-  const buttonsOpacity = Math.max(0, buttonsIn - buttonsOut);
-
-  // Cursor hover effect on Approve button (frame 230-248)
-  const isHovering = frame >= 232 && frame < 248;
 
   // Click flash (frame 248)
   const clickFlash = frame >= 248 && frame < 260
@@ -186,52 +173,6 @@ export const MemoCard: React.FC = () => {
         </div>
       )}
 
-      {/* Approve / Reject buttons */}
-      {buttonsOpacity > 0.01 && (
-        <div
-          style={{
-            opacity: buttonsOpacity,
-            display: "flex",
-            gap: 6,
-            marginTop: 10,
-          }}
-        >
-          <button
-            style={{
-              flex: 1,
-              fontSize: 10,
-              fontWeight: 600,
-              color: "white",
-              backgroundColor: isHovering
-                ? colors.approveGreen
-                : "rgba(34, 197, 94, 0.8)",
-              border: "none",
-              borderRadius: 6,
-              padding: "5px 0",
-              cursor: "pointer",
-              transform: `scale(${isHovering ? 1.03 : 1})`,
-              boxShadow: isHovering ? "0 2px 8px rgba(34, 197, 94, 0.3)" : "none",
-            }}
-          >
-            ✓ Approve
-          </button>
-          <button
-            style={{
-              flex: 1,
-              fontSize: 10,
-              fontWeight: 600,
-              color: colors.text,
-              backgroundColor: "rgba(255,255,255,0.06)",
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: 6,
-              padding: "5px 0",
-              cursor: "pointer",
-            }}
-          >
-            ✕ Reject
-          </button>
-        </div>
-      )}
     </div>
   );
 };

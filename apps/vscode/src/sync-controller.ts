@@ -24,6 +24,7 @@ export class SyncController implements vscode.Disposable {
   private currentDocumentUri: vscode.Uri | undefined
   private fileWatcher: vscode.FileSystemWatcher | undefined
   private fileWatchDebounce: ReturnType<typeof setTimeout> | undefined
+  private skipNextFileWatch = false
   private readonly disposables: vscode.Disposable[] = []
   private readonly docStates = new Map<string, DocumentState>()
 
@@ -55,7 +56,7 @@ export class SyncController implements vscode.Disposable {
       const edits = this.panelProvider as unknown as PanelEditVersionAccess
       const isWebviewEdit = edits.lastWebviewEditVersion === edits.editVersion
       if (isWebviewEdit) {
-        edits.lastWebviewEditVersion = 0  // Reset for next cycle
+        this.skipNextFileWatch = true
         return
       }
 
@@ -342,9 +343,13 @@ export class SyncController implements vscode.Disposable {
   private handleExternalFileChange(): void {
     if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
     this.fileWatchDebounce = setTimeout(() => {
-      // Skip if the change came from the webview
+      // Skip exactly one watcher event after a webview-originated document change.
       const edits = this.panelProvider as unknown as PanelEditVersionAccess
-      if (edits.lastWebviewEditVersion === edits.editVersion) return
+      if (this.skipNextFileWatch || edits.lastWebviewEditVersion === edits.editVersion) {
+        this.skipNextFileWatch = false
+        edits.lastWebviewEditVersion = 0
+        return
+      }
 
       const document = this.currentDocument()
       if (!document) return

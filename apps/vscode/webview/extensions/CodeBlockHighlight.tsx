@@ -1,17 +1,51 @@
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent } from '@tiptap/react'
+import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { common, createLowlight } from 'lowlight'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { vscode } from '../lib/vscode-api'
 
 const lowlight = createLowlight(common)
 
-function CodeBlockView({ node, updateAttributes, extension }: any) {
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function renderNode(node: any): string {
+  if (!node) return ''
+  if (node.type === 'text') return escapeHtml(node.value || '')
+  if (node.type !== 'element') {
+    return (node.children || []).map(renderNode).join('')
+  }
+
+  const classNames = node.properties?.className
+  const classAttr = Array.isArray(classNames) && classNames.length > 0
+    ? ` class="${classNames.map((c: string) => escapeHtml(c)).join(' ')}"`
+    : ''
+
+  const children = (node.children || []).map(renderNode).join('')
+  return `<${node.tagName}${classAttr}>${children}</${node.tagName}>`
+}
+
+function CodeBlockView({ node }: any) {
   const [copied, setCopied] = useState(false)
   const language = node.attrs.language || 'plaintext'
+  const code = node.textContent || ''
+
+  const highlightedHtml = useMemo(() => {
+    try {
+      const tree = lowlight.highlight(language, code)
+      return (tree.children || []).map(renderNode).join('')
+    } catch {
+      return escapeHtml(code)
+    }
+  }, [language, code])
 
   const handleCopy = () => {
-    const code = node.textContent
     vscode.postMessage({ type: 'clipboard.copy', text: code })
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -30,7 +64,10 @@ function CodeBlockView({ node, updateAttributes, extension }: any) {
         </button>
       </div>
       <pre className="code-block-pre" spellCheck={false}>
-        <NodeViewContent as="code" className={`language-${language}`} />
+        <code
+          className={`hljs language-${language}`}
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
       </pre>
     </NodeViewWrapper>
   )
