@@ -479,18 +479,6 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
   })
   disposables.push(messageHandler)
 
-  const changeHandler = vscode.workspace.onDidChangeTextDocument((e) => {
-    const document = ctx.getCurrentDocument()
-    if (!document) return
-    if (e.document.uri.toString() !== document.uri.toString()) return
-    if (ctx.getLastWebviewEditVersion() === ctx.getEditVersion()) {
-      ctx.setLastWebviewEditVersion(0)
-      return
-    }
-    ctx.sendDocumentToWebview(document)
-  })
-  disposables.push(changeHandler)
-
   // Resync document when panel becomes visible again (prevents stale state after toggle)
   const visibilityHandler = webviewView.onDidChangeVisibility(() => {
     if (webviewView.visible) {
