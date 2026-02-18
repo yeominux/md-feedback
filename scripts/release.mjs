@@ -124,6 +124,8 @@ if (!changelog.includes(`[${nextVersion}]`)) {
   process.exit(1)
 }
 console.log(`  ✓ Found [${nextVersion}] in CHANGELOG.md`)
+run('node scripts/check-public-docs.mjs')
+run('node scripts/check-changelog-customer.mjs')
 
 // Step 4: Run tests
 console.log('\n── Step 4/7: Run tests ──')

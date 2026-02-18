@@ -17,6 +17,8 @@ const releaseTag = `v${version}`
 console.log(`Preparing release checks for ${releaseTag}`)
 
 run('node scripts/check-sync.mjs')
+run('node scripts/check-public-docs.mjs')
+run('node scripts/check-changelog-customer.mjs')
 run('node scripts/guard-public-surface.mjs')
 run('node scripts/verify-release.mjs', { RELEASE_TAG: releaseTag })
 run('pnpm -r build')
