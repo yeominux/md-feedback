@@ -1,17 +1,28 @@
-## Summary
+## Why this change matters
 
-<!-- Brief description of what this PR does -->
+<!-- One sentence: what user problem is solved? -->
 
-## Changes
+## Customer-facing impact
 
--
+- [ ] Users will notice this change in product behavior/UI
+- [ ] README or docs updated if user workflow changed
+- [ ] CHANGELOG entry written in customer language
 
-## Testing
+## What changed
 
-- [ ] Tested locally
+- 
+
+## Validation
+
+- [ ] Tested in VS Code extension UI (not MCP-only)
 - [ ] `pnpm test` passes
 - [ ] `pnpm -r build` succeeds
 
-## Related Issues
+## Release notes draft
+
+<!-- 2-5 bullets you can paste into CHANGELOG/Marketplace release notes -->
+- 
+
+## Related issues
 
 <!-- Closes #N -->

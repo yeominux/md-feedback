@@ -12,6 +12,8 @@ https://github.com/yeominux/md-feedback/issues
 - Keep changes focused and user-facing.
 - Include a clear summary of what changed and why.
 - Avoid adding internal-only operational details to public docs.
+- Write release notes and README updates from the customer's perspective.
+- Use `pnpm check:customer` before opening a PR or tagging a release.
 
 ## License
 
