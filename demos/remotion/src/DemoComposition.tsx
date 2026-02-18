@@ -7,7 +7,7 @@ import { GateBadge } from "./components/GateBadge";
 import { colors, container, sidebarPanel } from "./styles";
 
 /**
- * MD Feedback v1.3.1 Demo — 15s at 30 FPS (450 frames)
+ * MD Feedback v1.3.2 Demo — 15s at 30 FPS (450 frames)
  *
  * Story: Human annotates → AI implements → Human reviews in editor (CodeLens) → Approved → Gate passes
  *
@@ -96,7 +96,7 @@ export const DemoComposition: React.FC = () => {
                 borderRadius: 4,
               }}
             >
-              v1.3
+              v1.3.2
             </span>
           </div>
 
