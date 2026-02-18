@@ -22,7 +22,9 @@ The tool consists of two components:
 - Batch operations: multiple fixes in one transaction
 - File safety: blocks writes to .env, credentials, node_modules
 - Auto-refresh: document updates in real-time when AI writes changes
-- Approve/Reject buttons for quick annotation resolution
+- Approve/Reject buttons always visible on needs_review annotations
+- CodeLens in VS Code editor — approve/reject without opening sidebar
+- Activity Bar badge + status bar + toast notifications for review awareness
 - Gate override for manual human control
 - File mutex prevents concurrent write corruption
 - Quality gates with automatic evaluation (blocked/proceed/done)

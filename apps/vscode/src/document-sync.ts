@@ -18,6 +18,7 @@ export interface DocumentSyncHandlers extends DocumentSyncStateSetters {
   postMessage: (msg: Record<string, unknown>) => void
   getPreviousGateStatuses?: () => Map<string, string>
   setPreviousGateStatuses?: (value: Map<string, string>) => void
+  onNeedsReviewCount?: (count: number) => void
 }
 
 export function getActiveMarkdownDocument(): vscode.TextDocument | undefined {
@@ -87,6 +88,7 @@ export function sendStatusInfo(
   postMessage: (msg: Record<string, unknown>) => void,
   getPreviousGateStatuses?: () => Map<string, string>,
   setPreviousGateStatuses?: (value: Map<string, string>) => void,
+  onNeedsReviewCount?: (count: number) => void,
 ): void {
   try {
     const parts = splitDocument(raw)
@@ -136,6 +138,11 @@ export function sendStatusInfo(
         type: 'status.summary',
         summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos, needsReviewMemos, inProgressMemos, doneMemos, failedMemos },
       })
+    }
+
+    // Notify extension host of needs_review count (for badge + status bar)
+    if (onNeedsReviewCount) {
+      onNeedsReviewCount(needsReviewMemos)
     }
 
     // Send metadata for drawer (gates, cursor, checkpoints, impls, artifacts, dependencies)
