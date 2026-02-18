@@ -391,38 +391,38 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             </span>
           )}
           <div className="flex-1" />
+          {/* needs_review: always-visible approve/reject — this is the primary action */}
+          {status === 'needs_review' && (
+            <div className="flex items-center gap-1 mr-1">
+              <button
+                onClick={() => updateAttributes({ status: 'done' })}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors"
+                title="Approve"
+              >
+                <Check size={12} /> Approve
+              </button>
+              <button
+                onClick={() => updateAttributes({ status: 'open' })}
+                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
+                title="Request Changes"
+              >
+                <RotateCcw size={12} />
+              </button>
+              <button
+                onClick={() => updateAttributes({ status: 'wontfix' })}
+                className="p-1 rounded text-mf-faint hover:text-rose-400 hover:bg-mf-bg transition-colors"
+                title="Reject"
+              >
+                <XCircle size={12} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            {/* needs_review: AI delivered work — human reviews and decides */}
-            {status === 'needs_review' && (
-              <>
-                <button
-                  onClick={() => updateAttributes({ status: 'done' })}
-                  className="p-1 rounded text-mf-faint hover:text-emerald-400 hover-bg-mf-bg transition-colors"
-                  title="Approve"
-                >
-                  <Check size={13} />
-                </button>
-                <button
-                  onClick={() => updateAttributes({ status: 'open' })}
-                  className="p-1 rounded text-mf-faint hover:text-amber-400 hover-bg-mf-bg transition-colors"
-                  title="Request Changes"
-                >
-                  <RotateCcw size={13} />
-                </button>
-                <button
-                  onClick={() => updateAttributes({ status: 'wontfix' })}
-                  className="p-1 rounded text-mf-faint hover:text-rose-400 hover-bg-mf-bg transition-colors"
-                  title="Reject"
-                >
-                  <XCircle size={13} />
-                </button>
-              </>
-            )}
             {/* open: human can dismiss their own annotation */}
             {status === 'open' && (
               <button
                 onClick={() => updateAttributes({ status: 'wontfix' })}
-                className="p-1 rounded text-mf-faint hover:text-amber-400 hover-bg-mf-bg transition-colors"
+                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
                 title="Dismiss"
               >
                 <XCircle size={13} />
@@ -432,7 +432,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             {status === 'answered' && (
               <button
                 onClick={() => updateAttributes({ status: 'done' })}
-                className="p-1 rounded text-mf-faint hover:text-emerald-400 hover-bg-mf-bg transition-colors"
+                className="p-1 rounded text-mf-faint hover:text-emerald-400 hover:bg-mf-bg transition-colors"
                 title="Acknowledge"
               >
                 <Check size={13} />

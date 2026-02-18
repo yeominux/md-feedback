@@ -2,7 +2,7 @@
   "name": "md-feedback-vscode",
   "displayName": "MD Feedback",
   "description": "Annotate markdown plans with Fix/Question/Highlight in VS Code, then let AI agents read and execute your feedback via MCP.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "yeominux",
   "license": "SUL-1.0",
   "icon": "icon.png",
@@ -148,6 +148,45 @@
         "command": "md-feedback.showOnboarding",
         "title": "Show Onboarding",
         "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.approveMemo",
+        "title": "Approve Annotation",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.requestChangesMemo",
+        "title": "Request Changes on Annotation",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.rejectMemo",
+        "title": "Reject Annotation",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.approveNearest",
+        "title": "Approve Nearest Annotation",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.rejectNearest",
+        "title": "Reject Nearest Annotation",
+        "category": "MD Feedback"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "md-feedback.approveNearest",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorLangId == markdown"
+      },
+      {
+        "command": "md-feedback.rejectNearest",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x",
+        "when": "editorLangId == markdown"
       }
     ],
     "configuration": {
