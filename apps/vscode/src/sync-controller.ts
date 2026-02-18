@@ -54,7 +54,10 @@ export class SyncController implements vscode.Disposable {
 
       const edits = this.panelProvider as unknown as PanelEditVersionAccess
       const isWebviewEdit = edits.lastWebviewEditVersion === edits.editVersion
-      if (isWebviewEdit) return
+      if (isWebviewEdit) {
+        edits.lastWebviewEditVersion = 0  // Reset for next cycle
+        return
+      }
 
       this.panelProvider.handleDocumentUpdate(e.document)
     })
