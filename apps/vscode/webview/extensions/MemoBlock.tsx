@@ -86,6 +86,14 @@ function normalizeMemoColor(raw: string): MemoColor {
 
 function MemoDiffSection({ memoId }: { memoId: string }) {
   const [expanded, setExpanded] = useState(false)
+  const [, setRevision] = useState(0)
+
+  useEffect(() => {
+    const handler = () => setRevision(r => r + 1)
+    window.addEventListener('mf:impls-updated', handler)
+    return () => window.removeEventListener('mf:impls-updated', handler)
+  }, [])
+
   const impls = (window as any).__mfImpls?.filter((i: MemoImpl) => i.memoId === memoId) as MemoImpl[] | undefined
 
   if (!impls || impls.length === 0) return null

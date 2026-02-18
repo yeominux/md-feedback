@@ -54,6 +54,7 @@ export default function App() {
           // #10: Clear any pending debounce to prevent stale edits from overwriting loaded doc
           clearTimeout(debounceRef.current)
           debounceRef.current = undefined
+          window.__mfImpls = []
           isLoadingRef.current = true
           if (editorRef.current) {
             editorRef.current.setMarkdown(msg.cleanContent || msg.content)
@@ -155,7 +156,10 @@ export default function App() {
           if (msg.gates) setGates(msg.gates as Gate[])
           if (msg.cursor !== undefined) setCursor(msg.cursor as PlanCursor | null)
           if (msg.checkpoints) setCheckpoints(msg.checkpoints as Checkpoint[])
-          if (msg.impls) window.__mfImpls = msg.impls as MemoImpl[]
+          if (msg.impls) {
+            window.__mfImpls = msg.impls as MemoImpl[]
+            window.dispatchEvent(new CustomEvent('mf:impls-updated'))
+          }
           break
 
         case 'gates.update':
