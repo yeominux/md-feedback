@@ -61,7 +61,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
           existing_pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+          list_status=$?
+          if [ $list_status -ne 0 ]; then
+            echo "Skipping sync PR step: unable to list PRs with current token permissions."
+            exit 0
+          fi
           if [ -n "$existing_pr" ]; then
             echo "Existing post-release sync PR: #$existing_pr"
             exit 0
@@ -71,3 +77,8 @@ jobs:
             --head dev \
             --title "Release sync PR (${GITHUB_REF_NAME})" \
             --body "Automated post-release sync PR created from tag ${GITHUB_REF_NAME}."
+          create_status=$?
+          if [ $create_status -ne 0 ]; then
+            echo "Skipping sync PR creation: GitHub Actions token cannot create PRs in this repository."
+            exit 0
+          fi
