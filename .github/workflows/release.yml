@@ -9,10 +9,10 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build-and-package:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -36,7 +36,22 @@ jobs:
       - run: pnpm -r build
       - run: pnpm test
       - run: pnpm --filter md-feedback-vscode package
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Generate release notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: pnpm release:notes > RELEASE_NOTES.md
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@c9b5f385f063c6b7f2e0b8dfd7d4c35b39b7efac # v2.2.2
         with:
-          name: vsix
-          path: apps/vscode/*.vsix
+          tag_name: ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: false
+      - name: Merge dev into main (fast-forward)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main dev
+          git checkout main
+          git merge --ff-only origin/dev
+          git push origin main
