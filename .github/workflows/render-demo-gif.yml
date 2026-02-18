@@ -9,6 +9,9 @@ on:
     paths:
       - "demos/remotion/**"
 
+permissions:
+  contents: write
+
 jobs:
   render:
     runs-on: ubuntu-latest
@@ -32,3 +35,20 @@ jobs:
         with:
           name: demo-gif
           path: demos/remotion/out/*.gif
+
+      - name: Sync demo.gif into assets (dev push only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: cp demos/remotion/out/demo.gif assets/demo.gif
+
+      - name: Commit updated demo.gif (dev push only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/demo.gif
+          if git diff --cached --quiet; then
+            echo "No demo.gif changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: update demo gif"
+          git push
