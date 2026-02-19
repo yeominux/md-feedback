@@ -118,7 +118,7 @@ Advanced timing and performance tuning options are available for large workspace
 
 ## MCP Server
 
-MD Feedback includes an MCP server with 19 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
+MD Feedback includes an MCP server with 26 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
 
 **Setup:**
 
