@@ -12,9 +12,9 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 **You review. The agent builds. Gates track completion. Handoffs preserve context.**
 
-![MD Feedback Demo](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
+![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.3.1): highlight persistence, needs-review sync, and approve/reject UI flow are now stable in real extension usage.
+> Latest (v1.3.6): license and privacy documentation, Marketplace changelog tab, and improved accessibility for screen readers.
 
 ## How It Works
 
