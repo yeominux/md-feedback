@@ -196,6 +196,7 @@ export function splitDocument(markdown: string): DocumentParts {
         anchor: freshAnchor,
         createdAt: a.createdAt || new Date().toISOString(),
         updatedAt: a.updatedAt || new Date().toISOString(),
+        ...(a.rejectReason ? { rejectReason: a.rejectReason } : {}),
       })
       continue
     }
@@ -491,7 +492,7 @@ export function mergeDocument(parts: DocumentParts): string {
 // ─── Serializers ───
 
 export function serializeMemoV2(memo: MemoV2): string {
-  return [
+  const lines = [
     '<!-- USER_MEMO',
     `  id="${escAttrValue(memo.id)}"`,
     `  type="${memo.type}"`,
@@ -504,8 +505,12 @@ export function serializeMemoV2(memo: MemoV2): string {
     `  anchor="${escAttrValue(memo.anchor)}"`,
     `  createdAt="${memo.createdAt}"`,
     `  updatedAt="${memo.updatedAt}"`,
-    '-->',
-  ].join('\n')
+  ]
+  if (memo.rejectReason) {
+    lines.push(`  rejectReason="${escAttrValue(memo.rejectReason)}"`)
+  }
+  lines.push('-->')
+  return lines.join('\n')
 }
 
 export function serializeGate(gate: Gate): string {

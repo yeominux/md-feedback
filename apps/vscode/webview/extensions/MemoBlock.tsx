@@ -3,6 +3,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
 import { Pencil, X, ChevronDown, Check, XCircle, RotateCcw } from 'lucide-react'
+import { vscode } from '../lib/vscode-api'
 
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
   open:         { label: 'Open',      color: 'text-mf-status-open',        bg: 'bg-mf-status-open' },
@@ -32,6 +33,7 @@ export const MemoBlock = Node.create({
       color:      { default: 'red' as MemoColor },
       anchorText: { default: '' },
       status:     { default: 'open' as MemoStatus },
+      rejectReason: { default: '' },
     }
   },
 
@@ -419,7 +421,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
                 <RotateCcw size={12} />
               </button>
               <button
-                onClick={() => { updateAttributes({ status: 'wontfix' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+                onClick={() => { vscode.postMessage({ type: 'memo.rejectWithReason', memoId: node.attrs.memoId }) }}
                 className="p-1 rounded text-mf-faint hover:text-rose-400 hover:bg-mf-bg transition-colors"
                 title="Reject"
               >
@@ -431,7 +433,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             {/* open: human can dismiss their own annotation */}
             {status === 'open' && (
               <button
-                onClick={() => { updateAttributes({ status: 'wontfix' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+                onClick={() => { vscode.postMessage({ type: 'memo.rejectWithReason', memoId: node.attrs.memoId }) }}
                 className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
                 title="Dismiss"
               >
@@ -494,6 +496,13 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             </p>
           )}
         </div>
+
+        {/* Reject reason — shown on wontfix memos */}
+        {status === 'wontfix' && node.attrs.rejectReason && (
+          <div className="px-3 pb-2 text-[12px] text-mf-faint italic">
+            Reason: {node.attrs.rejectReason}
+          </div>
+        )}
 
         {/* Inline diff section — shown when impls exist for this memo */}
         <MemoDiffSection memoId={node.attrs.memoId} />
