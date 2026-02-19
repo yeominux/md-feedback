@@ -76,6 +76,32 @@ Anchor line
     expect(redMemos[0].id).toBe('m1')
   })
 
+  it('does not create duplicate when memo anchorText has heading prefix but highlight mark does not', () => {
+    const input = `# Title
+
+### Step 3: Add session management
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="wontfix"
+  owner="human"
+  source="generic"
+  color="red"
+  text="remove"
+  anchorText="### Step 3: Add session management"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="Add" anchor="Step 3: Add session management" -->`
+
+    const parts = splitDocument(input)
+    const redMemos = parts.memos.filter(m => m.color === 'red')
+
+    expect(redMemos).toHaveLength(1)
+    expect(redMemos[0].id).toBe('m1')
+  })
+
   it('recovers distinct memos when anchors share long prefix', () => {
     const shared = 'A'.repeat(40)
     const input = `# Title
