@@ -6,7 +6,10 @@ package-lock.json
 # Local workspace artifacts
 .vscode/
 .idea/
+.agent/
+.agents/
 .claude/
+.kiro/
 .md-feedback/
 .sisyphus/
 .test-e2e/
