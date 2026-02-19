@@ -110,7 +110,14 @@ export function sendDocumentToWebview(
     })
 
     // Send v0.4.0 status info (cursor + summary)
-    sendStatusInfo(raw, postMessage, handlers.getPreviousGateStatuses, handlers.setPreviousGateStatuses, handlers.onNeedsReviewCount)
+    sendStatusInfo(
+      raw,
+      postMessage,
+      handlers.getPreviousGateStatuses,
+      handlers.setPreviousGateStatuses,
+      handlers.onNeedsReviewCount,
+      document,
+    )
   } catch (error) {
     // Fallback: send raw content without processing
     postMessage({
@@ -129,13 +136,14 @@ export function sendStatusInfo(
   getPreviousGateStatuses?: () => Map<string, string>,
   setPreviousGateStatuses?: (value: Map<string, string>) => void,
   onNeedsReviewCount?: (count: number) => void,
+  sourceDocument?: vscode.TextDocument,
 ): void {
   try {
     const parts = splitDocument(raw)
     const gates = evaluateAllGates(parts.gates, parts.memos)
-    const activeDoc = getActiveMarkdownDocument()
-    const workflow = activeDoc ? readWorkflowSidecar(activeDoc) : null
-    const severity = activeDoc ? readSeveritySidecar(activeDoc) : { overrides: {} }
+    const sidecarDoc = sourceDocument ?? getActiveMarkdownDocument()
+    const workflow = sidecarDoc ? readWorkflowSidecar(sidecarDoc) : null
+    const severity = sidecarDoc ? readSeveritySidecar(sidecarDoc) : { overrides: {} }
 
     // Detect gate transitions and show toast notifications
     if (getPreviousGateStatuses && setPreviousGateStatuses && gates.length > 0) {

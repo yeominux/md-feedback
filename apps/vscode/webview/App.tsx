@@ -358,11 +358,7 @@ export default function App() {
   }
 
   const hasNeedsReviewMemos = (statusSummary?.needsReviewMemos ?? 0) > 0
-<<<<<<< HEAD
-  const showActionApproval = approvalRequired && pendingApprovalTool && !hasNeedsReviewMemos
-=======
   const showActionApproval = approvalRequired && Boolean(pendingApprovalTool)
->>>>>>> main
 
   useEffect(() => {
     if (!approvalRequired || !pendingApprovalTool || hasNeedsReviewMemos) {
@@ -522,10 +518,6 @@ export default function App() {
               <>
                 <button
                   className="floating-btn-secondary"
-<<<<<<< HEAD
-                  onClick={openApprovalForm}
-                  title={`Approve pending checkpoint for ${pendingApprovalTool}`}
-=======
                   onClick={() => {
                     if (!hasNeedsReviewMemos) openApprovalForm()
                   }}
@@ -533,7 +525,6 @@ export default function App() {
                   title={hasNeedsReviewMemos
                     ? 'Resolve memo reviews first, then approve action'
                     : `Approve pending checkpoint for ${pendingApprovalTool}`}
->>>>>>> main
                 >
                   Approve Action
                 </button>
