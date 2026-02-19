@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.13] - 2026-02-20
+
+### Fixed
+- `Approve Action` now enables immediately after approving all memos — previously the button stayed disabled until a manual reload
+- `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files
+- MCP server workflow and severity sidecar reads are now BOM-tolerant
+
+
 ## [1.3.12] - 2026-02-20
 
 ### Fixed
