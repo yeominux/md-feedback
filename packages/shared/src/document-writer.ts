@@ -175,6 +175,11 @@ export function splitDocument(markdown: string): DocumentParts {
       i++ // skip -->
       const a = parseAttrs(attrLines)
       const anchorText = a.anchorText || findAnchorAbove(bodyLines) || ''
+      // Refresh anchor from current body position to prevent stale references
+      const anchorLineIdx = findAnchorLineIdx(bodyLines)
+      const freshAnchor = anchorLineIdx >= 0
+        ? `L${anchorLineIdx + 1}|${hashLine(bodyLines[anchorLineIdx])}`
+        : (a.anchor || '')
       memos.push({
         id: a.id || `memo_${Date.now()}`,
         type: (a.type as MemoV2['type']) || colorToType((a.color || 'red') as MemoColor),
@@ -184,7 +189,7 @@ export function splitDocument(markdown: string): DocumentParts {
         color: (a.color || 'red') as MemoColor,
         text: a.text || '',
         anchorText,
-        anchor: a.anchor || '',
+        anchor: freshAnchor,
         createdAt: a.createdAt || new Date().toISOString(),
         updatedAt: a.updatedAt || new Date().toISOString(),
       })
@@ -579,7 +584,7 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
 }
 
 /** Find the best line index for a memo based on its anchor */
-function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
+export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
   // Try anchor hash first: "L42|a3f8c2d1" or "L42:L45|a3f8c2d1"
   if (memo.anchor) {
     const anchorMatch = memo.anchor.match(/^L(\d+)(?::L\d+)?\|(.+)$/)
@@ -608,6 +613,16 @@ function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
     const needle = memo.anchorText.trim()
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].includes(needle)) return i
+    }
+  }
+
+  // Last resort: line-number-only fallback (clamped to valid range)
+  // Prevents memos from being pushed to end-of-file when hash/text are stale
+  if (memo.anchor) {
+    const lineMatch = memo.anchor.match(/^L(\d+)/)
+    if (lineMatch) {
+      const lineNum = parseInt(lineMatch[1], 10) - 1
+      return Math.max(0, Math.min(lineNum, lines.length - 1))
     }
   }
 
