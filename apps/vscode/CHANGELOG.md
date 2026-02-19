@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.12] - 2026-02-20
+
+### Fixed
+- `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files — previously the button was visible but clicking it silently failed, showing "No pending approval checkpoint"
+- MCP server workflow and severity sidecar reads are now BOM-tolerant, preventing silent fallback to default state
+
+## [1.3.11] - 2026-02-19
+
+### Fixed
+- `Approve Action` no longer disappears when workflow sidecar files contain UTF-8 BOM.
+- Sidecar JSON parsing is now BOM-tolerant for stable workflow and severity status rendering.
+
 ## [1.3.10] - 2026-02-19
 
 ### Fixed

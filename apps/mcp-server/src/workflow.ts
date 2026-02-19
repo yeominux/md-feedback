@@ -96,7 +96,8 @@ function readMemoSeverityOverrides(file: string): MemoSeverityOverrides {
     return { version: '1.0', overrides: {}, updatedAt: new Date().toISOString() }
   }
   try {
-    const parsed = JSON.parse(readFileSync(severityPath, 'utf-8')) as Partial<MemoSeverityOverrides>
+    const raw = readFileSync(severityPath, 'utf-8').replace(/^\uFEFF/, '')
+    const parsed = JSON.parse(raw) as Partial<MemoSeverityOverrides>
     return {
       version: '1.0',
       overrides: (parsed.overrides && typeof parsed.overrides === 'object' ? parsed.overrides : {}) as Record<string, MemoSeverity>,
@@ -176,7 +177,8 @@ export function readWorkflowState(file: string): WorkflowState {
   }
 
   try {
-    const parsed = JSON.parse(readFileSync(workflowPath, 'utf-8')) as Partial<WorkflowState>
+    const raw = readFileSync(workflowPath, 'utf-8').replace(/^\uFEFF/, '')
+    const parsed = JSON.parse(raw) as Partial<WorkflowState>
     const phase = parsed.phase
     const transitions = Array.isArray(parsed.transitions) ? parsed.transitions : []
     if (!phase || !WORKFLOW_PHASE_ORDER.includes(phase)) {
