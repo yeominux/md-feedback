@@ -1,7 +1,11 @@
 # Changelog
 
-<<<<<<< HEAD
-=======
+## [1.3.10] - 2026-02-19
+
+### Fixed
+- `Approve Action` visibility now remains stable even when focus leaves the markdown editor, by reading workflow sidecars from the current document context
+- Resolved merge-conflict artifacts that could break panel behavior and release/test pipelines
+
 ## [1.3.9] - 2026-02-19
 
 ### Changed
@@ -23,7 +27,6 @@
 - MCP workflow policy handling is more predictable for agent-driven review operations
 - Publishing commands are now cross-shell safe (PowerShell and POSIX) for VS Code Marketplace and Open VSX
 
->>>>>>> main
 ## [1.3.7] - 2026-02-19
 
 ### Fixed
