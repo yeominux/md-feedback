@@ -15,9 +15,9 @@
 
 **리뷰하세요. 에이전트가 구현합니다. 게이트가 완료를 추적합니다. 핸드오프가 컨텍스트를 보존합니다.**
 
-![MD Feedback 데모](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
+![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.3.1): 형광펜 유지, needs_review 동기화, 승인/거부 UI 흐름이 실제 확장 사용 기준으로 안정화되었습니다.
+> 최신(v1.3.6): 라이선스 및 개인정보 보호 문서화, Marketplace 변경 로그 탭, 스크린 리더 접근성 개선.
 
 ## 작동 방식
 
