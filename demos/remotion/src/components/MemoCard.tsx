@@ -3,29 +3,29 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors } from "../styles";
 
 /**
- * Memo card — shows lifecycle:
+ * Memo card — shows lifecycle status mirrored from editor review:
  *   Open → Working → Review → Done
  *
  * Timeline:
- *   frame 65:  card slides in
- *   frame 125: status → Working
- *   frame 180: status → Review
- *   frame 250: user clicks Approve → Done
+ *   frame 105: card slides in
+ *   frame 220: status → Working
+ *   frame 310: status → Review
+ *   frame 430: editor approval completed → Done
  */
 export const MemoCard: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   /* ─── Card entrance ─── */
-  const cardIn = frame >= 65
-    ? spring({ frame: frame - 65, fps, config: { damping: 16, stiffness: 80, mass: 0.8 } })
+  const cardIn = frame >= 105
+    ? spring({ frame: frame - 105, fps, config: { damping: 16, stiffness: 80, mass: 0.8 } })
     : 0;
   const cardY = interpolate(cardIn, [0, 1], [14, 0]);
 
   /* ─── Status transitions ─── */
-  const isWorking = frame >= 125 && frame < 180;
-  const isReview = frame >= 180 && frame < 250;
-  const isDone = frame >= 250;
+  const isWorking = frame >= 220 && frame < 310;
+  const isReview = frame >= 310 && frame < 430;
+  const isDone = frame >= 430;
 
   const badgeLabel = isDone ? "Done" : isReview ? "Review" : isWorking ? "Working" : "Open";
   const badgeColor = isDone
@@ -44,21 +44,13 @@ export const MemoCard: React.FC = () => {
     }
     return 1;
   };
-  const badgeScale = pulseAt(125) * pulseAt(180) * pulseAt(250);
+  const badgeScale = pulseAt(220) * pulseAt(310) * pulseAt(430);
 
-  /* ─── Diff section (frame 155) ─── */
-  const diffIn = frame >= 155
-    ? spring({ frame: frame - 155, fps, config: { damping: 18, stiffness: 70 } })
+  /* ─── Diff section (frame 260) ─── */
+  const diffIn = frame >= 260
+    ? spring({ frame: frame - 260, fps, config: { damping: 18, stiffness: 70 } })
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [10, 0]);
-
-  // Click flash (frame 248)
-  const clickFlash = frame >= 248 && frame < 260
-    ? interpolate(frame, [248, 252, 260], [0, 0.3, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 0;
 
   return (
     <div
@@ -74,22 +66,6 @@ export const MemoCard: React.FC = () => {
         position: "relative",
       }}
     >
-      {/* Click flash overlay */}
-      {clickFlash > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            borderRadius: 10,
-            backgroundColor: `rgba(34, 197, 94, ${clickFlash})`,
-            pointerEvents: "none",
-          }}
-        />
-      )}
-
       {/* Header */}
       <div
         style={{

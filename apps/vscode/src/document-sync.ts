@@ -2,7 +2,10 @@ import * as vscode from 'vscode'
 import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHighlightMarks } from '@md-feedback/shared'
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
+import { isResolved } from '@md-feedback/shared'
 import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 export interface DocumentSyncStateSetters {
   setPreservedFrontmatter: (value: string) => void
@@ -19,6 +22,42 @@ export interface DocumentSyncHandlers extends DocumentSyncStateSetters {
   getPreviousGateStatuses?: () => Map<string, string>
   setPreviousGateStatuses?: (value: Map<string, string>) => void
   onNeedsReviewCount?: (count: number) => void
+}
+
+interface WorkflowSidecar {
+  phase: 'scope' | 'root_cause' | 'implementation' | 'verification'
+  pendingCheckpoint: null | { tool: string }
+}
+
+interface SeveritySidecar {
+  overrides: Record<string, 'blocking' | 'non_blocking'>
+}
+
+function readWorkflowSidecar(document: vscode.TextDocument): WorkflowSidecar | null {
+  try {
+    const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'workflow.json')
+    if (!existsSync(sidecarPath)) return null
+    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<WorkflowSidecar>
+    if (!parsed.phase) return null
+    return {
+      phase: parsed.phase,
+      pendingCheckpoint: parsed.pendingCheckpoint ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+function readSeveritySidecar(document: vscode.TextDocument): SeveritySidecar {
+  try {
+    const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'severity.json')
+    if (!existsSync(sidecarPath)) return { overrides: {} }
+    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<SeveritySidecar>
+    if (!parsed.overrides || typeof parsed.overrides !== 'object') return { overrides: {} }
+    return { overrides: parsed.overrides }
+  } catch {
+    return { overrides: {} }
+  }
 }
 
 export function getActiveMarkdownDocument(): vscode.TextDocument | undefined {
@@ -94,6 +133,9 @@ export function sendStatusInfo(
   try {
     const parts = splitDocument(raw)
     const gates = evaluateAllGates(parts.gates, parts.memos)
+    const activeDoc = getActiveMarkdownDocument()
+    const workflow = activeDoc ? readWorkflowSidecar(activeDoc) : null
+    const severity = activeDoc ? readSeveritySidecar(activeDoc) : { overrides: {} }
 
     // Detect gate transitions and show toast notifications
     if (getPreviousGateStatuses && setPreviousGateStatuses && gates.length > 0) {
@@ -118,14 +160,29 @@ export function sendStatusInfo(
     postMessage({ type: 'cursor.update', cursor: parts.cursor })
 
     // Send status summary (extended with totals for status bar)
-    const openFixes = parts.memos.filter(m => m.type === 'fix' && m.status === 'open').length
-    const openQuestions = parts.memos.filter(m => m.type === 'question' && m.status === 'open').length
+    let openFixes = 0
+    let openQuestions = 0
+    let resolvedMemos = 0
+    let needsReviewMemos = 0
+    let inProgressMemos = 0
+    let doneMemos = 0
+    let failedMemos = 0
+    for (const memo of parts.memos) {
+      if (memo.status === 'open') {
+        if (memo.type === 'fix') openFixes++
+        else if (memo.type === 'question') openQuestions++
+      } else if (memo.status === 'needs_review') {
+        needsReviewMemos++
+      } else if (memo.status === 'in_progress') {
+        inProgressMemos++
+      } else {
+        resolvedMemos++
+        if (memo.status === 'done') doneMemos++
+        else if (memo.status === 'failed') failedMemos++
+      }
+    }
+
     const totalMemos = parts.memos.length
-    const resolvedMemos = parts.memos.filter(m => m.status !== 'open' && m.status !== 'in_progress' && m.status !== 'needs_review').length
-    const needsReviewMemos = parts.memos.filter(m => m.status === 'needs_review').length
-    const inProgressMemos = parts.memos.filter(m => m.status === 'in_progress').length
-    const doneMemos = parts.memos.filter(m => m.status === 'done').length
-    const failedMemos = parts.memos.filter(m => m.status === 'failed').length
     const blockedGate = gates.find(g => g.status === 'blocked')
     const allGatesDone = gates.length > 0 && gates.every(g => g.status === 'done')
 
@@ -134,10 +191,29 @@ export function sendStatusInfo(
       : allGatesDone ? 'done'
       : 'proceed'
 
+    const unresolvedBlockingMemos = parts.memos
+      .filter(m => !isResolved(m.status))
+      .filter(m => (severity.overrides[m.id] ?? (m.type === 'fix' ? 'blocking' : 'non_blocking')) === 'blocking')
+      .map(m => m.id)
+
     if (parts.memos.length > 0 || gates.length > 0) {
       postMessage({
         type: 'status.summary',
-        summary: { openFixes, openQuestions, gateStatus, totalMemos, resolvedMemos, needsReviewMemos, inProgressMemos, doneMemos, failedMemos },
+        summary: {
+          openFixes,
+          openQuestions,
+          gateStatus,
+          totalMemos,
+          resolvedMemos,
+          needsReviewMemos,
+          inProgressMemos,
+          doneMemos,
+          failedMemos,
+          workflowPhase: workflow?.phase ?? null,
+          unresolvedBlockingCount: unresolvedBlockingMemos.length,
+          approvalRequired: Boolean(workflow?.pendingCheckpoint),
+          pendingApprovalTool: workflow?.pendingCheckpoint?.tool ?? null,
+        },
       })
     }
 
@@ -155,6 +231,8 @@ export function sendStatusInfo(
       impls: parts.impls,
       artifacts: parts.artifacts,
       dependencies: parts.dependencies,
+      workflow,
+      unresolvedBlockingMemos,
     })
   } catch {
     // best-effort — don't break document loading

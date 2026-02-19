@@ -1,7 +1,7 @@
 {
   "name": "md-feedback",
-  "version": "1.3.1",
-  "description": "MCP server for markdown plan review — AI agents read annotations, mark tasks done, evaluate quality gates, and generate session handoffs. 19 tools for Claude Code, Cursor, Copilot, and 8 more AI tools.",
+  "version": "1.3.7",
+  "description": "MCP server for markdown plan review — companion to the MD Feedback VS Code extension. AI agents read annotations, mark tasks done, evaluate quality gates, and generate session handoffs. 19 tools for Claude Code, Cursor, Copilot, and 8 more AI tools.",
   "license": "SUL-1.0",
   "author": "Yeomin Seon",
   "type": "commonjs",
@@ -11,10 +11,12 @@
   "files": [
     "dist/mcp-server.js",
     "bin/md-feedback.cjs",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "node esbuild.mjs"
+    "build": "node esbuild.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -41,33 +43,15 @@
     "model-context-protocol",
     "markdown",
     "feedback",
-    "ai",
     "annotation",
     "review",
     "plan-review",
+    "ai",
     "ai-agent",
-    "coding-workflow",
-    "handoff",
-    "session-handoff",
-    "structured-feedback",
-    "checkpoint",
-    "ai-context",
     "ai-coding",
-    "claude-code",
-    "cursor-ai",
-    "vibe-coding",
-    "context-engineering",
-    "gates",
-    "plan-review-tool",
-    "document-annotation",
-    "code-review",
-    "ai-workflow",
-    "copilot",
-    "markdown-review",
-    "developer-tools",
+    "handoff",
     "quality-gate",
-    "file-safety",
-    "concurrent-safety",
-    "gate-override"
+    "developer-tools",
+    "vibe-coding"
   ]
 }

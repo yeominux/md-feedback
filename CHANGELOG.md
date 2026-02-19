@@ -1,5 +1,79 @@
 # Changelog
 
+## [1.3.7] - 2026-02-19
+
+### Fixed
+- Memo cards no longer disappear immediately after blur when newly created and empty; accidental auto-delete behavior is prevented
+- Release validation no longer fails intermittently due to package resolution issues during test runs
+- Recovered memos created from `HIGHLIGHT_MARK` metadata now use deterministic IDs, so subsequent agent actions (for example `respond_to_memo`) can reliably target them
+
+### Improved
+- Added memo save-behavior regression test coverage in VS Code tests
+- Added shared parser regression coverage for missing-memo recovery from persisted highlight marks
+- Added MCP tool regression coverage to ensure highlight marks are preserved when responding to recovered memos
+
+## [1.3.6] - 2026-02-19
+
+### Improved
+- Privacy policy included — confirms no data is collected by the extension or MCP server
+- Code of conduct added for community contributors
+- License text now includes machine-readable SPDX identifier for tooling compatibility
+- Security policy updated to cover v1.3.x in supported versions
+- npm package now ships license text alongside the server binary
+- Marketplace listing now shows a changelog tab for version history
+- Demo animation includes descriptive alt text for screen reader accessibility
+- Marketplace description clarifies that MD Feedback is free for personal and non-commercial use
+- npm and VS Code Marketplace descriptions now reference each other for discoverability
+- VS Code category changed from "Other" to "Linters" for better Marketplace browsing
+- Package keywords consolidated across npm and Marketplace to reduce duplication
+- Publishing guide documents which packages are public and which are internal
+
+## [1.3.5] - 2026-02-19
+
+### Fixed
+- REVIEW_RESPONSE blocks no longer drift to end-of-file after `text_replace` operations
+- Memo anchors now refresh on parse, preventing stale hash references from accumulating
+- Re-approval loop is now stable across repeated batch_apply + respond_to_memo cycles
+
+### Improved
+- `respond_to_memo` now reuses shared anchor logic instead of a duplicate implementation
+- `batch_apply` now keeps memo `anchorText` in sync after text replacements
+- VS Code timing behavior is now configurable via settings:
+  `md-feedback.autoCheckpointIntervalMs`,
+  `md-feedback.sectionTrackDebounceMs`,
+  `md-feedback.editorSwitchDebounceMs`,
+  `md-feedback.fileWatchDebounceMs`
+- MCP/Shared stability coverage expanded with additional query/tool regression tests
+- Shared parsing now includes structured JSON parse error types for clearer diagnostics
+- MCP tool failures now return standardized error codes/types/details across mutation/query paths
+- MCP server tests now include structured failure-path assertions (anchor/memo/handoff/validation)
+- Export context generation now uses a format registry (easier target extension, lower switch churn)
+- Shared type docs now align with `generateId(...)` usage for impl/artifact/dependency/checkpoint IDs
+- Shared markdown parsing no longer keeps module-level global `/g` regex state
+
+## [1.3.3] - 2026-02-18
+
+### Changed
+- AI agents can no longer set terminal memo statuses (answered, done, failed, wontfix) via MCP tools — these now require human approval through VS Code CodeLens
+- `respond_to_memo` now sets status to `needs_review` instead of `answered`
+- `update_memo_status` and `update_memo_progress` no longer accept terminal statuses
+
+## [1.3.2] - 2026-02-18
+
+Review flow is clearer in the editor, and release reliability has been improved.
+
+### Fixed
+- Demo now visibly shows approval happening in the editor CodeLens flow, not as a sidebar action
+- Release commits now include all intended tracked changes, preventing release-file omissions
+- Release flow now handles repository push configuration more reliably
+
+### Added
+- Automatic GitHub Release creation from the latest changelog section on tag push
+- Automatic post-release synchronization through pull-request safeguards
+
+### Improved
+- README and Marketplace copy now explicitly reflect the latest review flow behavior
+
 ## [1.3.1] - 2026-02-18
 
 Human review loop is now stable in the actual VS Code UI.

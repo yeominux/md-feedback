@@ -11,4 +11,3 @@ postcss.config.mjs
 **/*.map
 *.bak
 *.vsix
-CHANGELOG.md
