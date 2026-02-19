@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.3.10] - 2026-02-19
+
+### Fixed
+- `Approve Action` visibility now remains stable even when focus leaves the markdown editor, by reading workflow sidecars from the current document context
+- Resolved merge-conflict artifacts that could break panel behavior and release/test pipelines
+
+## [1.3.9] - 2026-02-19
+
+### Changed
+- `Approve Action` is now always visible when a pending action approval exists, even if memo reviews are still pending
+- When memo reviews are pending, `Approve Action` remains visible but disabled with guidance tooltip to resolve memo reviews first
+
+### Improved
+- Extension now shows a one-time per-version notice that VS Code extension updates and npm MCP updates are separate channels
+- Added quick-copy actions for `npm update -g md-feedback` and `npx -y md-feedback` in that notice
+
+## [1.3.8] - 2026-02-19
+
+### Changed
+- Approval flow UX is clarified: checkpoint approval and memo approval are shown as separate actions
+- Conflicting duplicate approve CTA in the panel is removed to prevent action ambiguity
+- Demo GIF is refreshed to match the current approval flow in the editor
+
+### Improved
+- MCP workflow policy handling is more predictable for agent-driven review operations
+- Publishing commands are now cross-shell safe (PowerShell and POSIX) for VS Code Marketplace and Open VSX
+
+## [1.3.7] - 2026-02-19
+
+### Fixed
+- Memo cards no longer disappear immediately after blur when newly created and empty; accidental auto-delete behavior is prevented
+- Release validation no longer fails intermittently due to package resolution issues during test runs
+- Recovered memos created from `HIGHLIGHT_MARK` metadata now use deterministic IDs, so subsequent agent actions (for example `respond_to_memo`) can reliably target them
+
+### Improved
+- Added memo save-behavior regression test coverage in VS Code tests
+- Added shared parser regression coverage for missing-memo recovery from persisted highlight marks
+- Added MCP tool regression coverage to ensure highlight marks are preserved when responding to recovered memos
+
 ## [1.3.6] - 2026-02-19
 
 ### Improved
@@ -38,6 +77,17 @@
 - Export context generation now uses a format registry (easier target extension, lower switch churn)
 - Shared type docs now align with `generateId(...)` usage for impl/artifact/dependency/checkpoint IDs
 - Shared markdown parsing no longer keeps module-level global `/g` regex state
+
+## [1.3.4] - 2026-02-19
+
+### Fixed
+- REVIEW_RESPONSE blocks no longer drift to end-of-file after `text_replace` operations
+- Memo anchors now refresh on parse, preventing stale hash references from accumulating
+- Re-approval loop is now stable across repeated batch_apply + respond_to_memo cycles
+
+### Improved
+- `respond_to_memo` now reuses shared anchor logic instead of a duplicate implementation
+- `batch_apply` now keeps memo `anchorText` in sync after text replacements
 
 ## [1.3.3] - 2026-02-18
 
