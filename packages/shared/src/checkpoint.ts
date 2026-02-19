@@ -1,17 +1,7 @@
 import type { Checkpoint } from './types'
 import { extractCheckpoints, serializeCheckpoint } from './markdown-roundtrip'
 import { splitDocument } from './document-writer'
-
-// ─── ID generation (no external deps) ───
-
-const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'
-function nanoid6(): string {
-  let id = ''
-  for (let i = 0; i < 6; i++) {
-    id += ALPHABET[Math.floor(Math.random() * ALPHABET.length)]
-  }
-  return id
-}
+import { generateId } from './id'
 
 // ─── Annotation counting ───
 
@@ -46,6 +36,7 @@ export function getAnnotationCounts(markdown: string): AnnotationCounts {
 export function getSectionsWithAnnotations(markdown: string): string[] {
   const lines = markdown.split('\n')
   const sections: string[] = []
+  const seenSections = new Set<string>()
   let currentSection = ''
 
   for (const line of lines) {
@@ -63,7 +54,8 @@ export function getSectionsWithAnnotations(markdown: string): string[] {
       line.includes('<mark') ||
       /(?<!`)==.+==(?!`)/.test(line)
 
-    if (hasAnnotation && !sections.includes(currentSection)) {
+    if (hasAnnotation && !seenSections.has(currentSection)) {
+      seenSections.add(currentSection)
       sections.push(currentSection)
     }
   }
@@ -91,7 +83,7 @@ export function createCheckpoint(
   const sectionsReviewed = getSectionsWithAnnotations(markdown)
 
   const checkpoint: Checkpoint = {
-    id: `ckpt_${nanoid6()}`,
+    id: generateId('ckpt', { separator: '_' }),
     timestamp: new Date().toISOString(),
     note,
     fixes: counts.fixes,

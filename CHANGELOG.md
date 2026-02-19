@@ -10,6 +10,18 @@
 ### Improved
 - `respond_to_memo` now reuses shared anchor logic instead of a duplicate implementation
 - `batch_apply` now keeps memo `anchorText` in sync after text replacements
+- VS Code timing behavior is now configurable via settings:
+  `md-feedback.autoCheckpointIntervalMs`,
+  `md-feedback.sectionTrackDebounceMs`,
+  `md-feedback.editorSwitchDebounceMs`,
+  `md-feedback.fileWatchDebounceMs`
+- MCP/Shared stability coverage expanded with additional query/tool regression tests
+- Shared parsing now includes structured JSON parse error types for clearer diagnostics
+- MCP tool failures now return standardized error codes/types/details across mutation/query paths
+- MCP server tests now include structured failure-path assertions (anchor/memo/handoff/validation)
+- Export context generation now uses a format registry (easier target extension, lower switch churn)
+- Shared type docs now align with `generateId(...)` usage for impl/artifact/dependency/checkpoint IDs
+- Shared markdown parsing no longer keeps module-level global `/g` regex state
 
 ## [1.3.3] - 2026-02-18
 
