@@ -1,6 +1,10 @@
 {
   "name": "md-feedback",
+<<<<<<< HEAD
   "version": "1.3.7",
+=======
+  "version": "1.3.9",
+>>>>>>> main
   "description": "MCP server for markdown plan review — companion to the MD Feedback VS Code extension. AI agents read annotations, mark tasks done, evaluate quality gates, and generate session handoffs. 19 tools for Claude Code, Cursor, Copilot, and 8 more AI tools.",
   "license": "SUL-1.0",
   "author": "Yeomin Seon",
