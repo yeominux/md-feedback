@@ -129,12 +129,14 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
 
   /** Extract and send cursor + status summary to webview */
   private sendStatusInfo(raw: string): void {
+    const sourceDocument = this.currentDocument ?? this.getActiveMarkdownDocument()
     sendStatusInfo(
       raw,
       this.postMessage.bind(this),
       () => this.previousGateStatuses,
       (value) => { this.previousGateStatuses = value },
       (count) => this.updateNeedsReviewCount(count),
+      sourceDocument,
     )
   }
 
