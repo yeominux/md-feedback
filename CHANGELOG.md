@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.9] - 2026-02-19
+
+### Changed
+- `Approve Action` is now always visible when a pending action approval exists, even if memo reviews are still pending
+- When memo reviews are pending, `Approve Action` remains visible but disabled with guidance tooltip to resolve memo reviews first
+
+### Improved
+- Extension now shows a one-time per-version notice that VS Code extension updates and npm MCP updates are separate channels
+- Added quick-copy actions for `npm update -g md-feedback` and `npx -y md-feedback` in that notice
+
 ## [1.3.8] - 2026-02-19
 
 ### Changed
