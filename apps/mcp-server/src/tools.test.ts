@@ -31,6 +31,7 @@ describe('mcp-server tools', () => {
   })
 
   afterEach(() => {
+    delete process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT
     rmSync(workspace, { recursive: true, force: true })
   })
 
@@ -108,6 +109,103 @@ describe('mcp-server tools', () => {
     expect(parts.body).toContain('Handled by AI response')
   })
 
+  it('respond_to_memo preserves highlight marks when memo was recovered from HIGHLIGHT_MARK', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\nAnchor line\n<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->\n',
+      'utf-8',
+    )
+
+    const getDocumentStructure = server.handlers.get('get_document_structure')!
+    const structure = parseJson(await getDocumentStructure({ file })) as { memos: Array<{ id: string; source: string }> }
+    const recovered = structure.memos.find(m => m.source === 'recovered-highlight')
+    expect(recovered).toBeDefined()
+
+    const respondToMemo = server.handlers.get('respond_to_memo')!
+    const respondResult = await respondToMemo({
+      file,
+      memoId: recovered!.id,
+      response: 'AI answer on recovered memo',
+    })
+
+    expect(respondResult.isError).toBeUndefined()
+    const updated = readFileSync(file, 'utf-8')
+    expect(updated).toContain('<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->')
+    expect(updated).toContain('<!-- REVIEW_RESPONSE to="')
+    expect(updated).toContain('AI answer on recovered memo')
+  })
+
+  it('respond_to_memo keeps explicit memo + highlight mark visible after reply', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      `# Title
+Anchor line
+<!-- USER_MEMO
+  id="q1"
+  type="question"
+  status="open"
+  owner="human"
+  source="generic"
+  color="blue"
+  text="Need clarification"
+  anchorText="Anchor line"
+  anchor="L2|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->
+`,
+      'utf-8',
+    )
+
+    const respondToMemo = server.handlers.get('respond_to_memo')!
+    const respondResult = await respondToMemo({
+      file,
+      memoId: 'q1',
+      response: 'Added answer for review',
+    })
+
+    expect(respondResult.isError).toBeUndefined()
+    const updated = readFileSync(file, 'utf-8')
+    const parts = splitDocument(updated)
+    const memo = parts.memos.find(m => m.id === 'q1')
+
+    expect(updated).toContain('<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->')
+    expect(updated).toContain('<!-- REVIEW_RESPONSE to="q1" -->')
+    expect(parts.responses.some(r => r.to === 'q1')).toBe(true)
+    expect(memo?.status).toBe('needs_review')
+  })
+
+  it('respond_to_memo rejects fix memos to enforce apply_memo workflow', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const createResult = await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Must be implemented, not answered',
+    })
+    const created = parseJson(createResult) as { memo: { id: string } }
+
+    const respondToMemo = server.handlers.get('respond_to_memo')!
+    const result = await respondToMemo({
+      file,
+      memoId: created.memo.id,
+      response: 'I only explained it',
+    })
+
+    expect(result.isError).toBe(true)
+    expect(parseJson(result)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      type: 'OperationValidationError',
+      details: { memoId: created.memo.id, memoType: 'fix' },
+    })
+  })
+
   it('apply_memo file_patch applies unified diff to target file', async () => {
     const file = join(workspace, 'review.md')
     const targetFile = join(workspace, 'target.txt')
@@ -174,6 +272,35 @@ describe('mcp-server tools', () => {
     })
   })
 
+  it('apply_memo rejects question memos to enforce respond_to_memo workflow', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'question',
+      text: 'Need clarification',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Anchor line',
+      newText: 'Updated line',
+    })
+
+    expect(result.isError).toBe(true)
+    expect(parseJson(result)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      type: 'OperationValidationError',
+      details: { memoId: created.memo.id, memoType: 'question' },
+    })
+  })
+
   it('batch_apply is atomic when an operation fails', async () => {
     const file = join(workspace, 'review.md')
     const targetFile = join(workspace, 'target.txt')
@@ -220,6 +347,292 @@ describe('mcp-server tools', () => {
     expect(parseJson(result)).toMatchObject({ code: 'OPERATION_INVALID', type: 'OperationValidationError' })
     expect(readFileSync(targetFile, 'utf-8')).toBe(beforeTarget)
     expect(readFileSync(file, 'utf-8')).toBe(beforeDoc)
+  })
+
+  it('batch_apply rejects non-fix memo operations', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor one\nAnchor two\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const fixMemo = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor one',
+      type: 'fix',
+      text: 'Fix path',
+    })) as { memo: { id: string } }
+    const questionMemo = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor two',
+      type: 'question',
+      text: 'Question path',
+    })) as { memo: { id: string } }
+
+    const before = readFileSync(file, 'utf-8')
+    const batchApply = server.handlers.get('batch_apply')!
+    const result = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: fixMemo.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor one',
+          newText: 'Updated one',
+        },
+        {
+          memoId: questionMemo.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor two',
+          newText: 'Updated two',
+        },
+      ],
+    })
+
+    expect(result.isError).toBe(true)
+    expect(parseJson(result)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      type: 'OperationValidationError',
+      details: { memoId: questionMemo.memo.id, memoType: 'question', action: 'batch_apply' },
+    })
+    expect(readFileSync(file, 'utf-8')).toBe(before)
+  })
+
+  it('get_policy_status returns active profile and memo action rules', async () => {
+    const getPolicyStatus = server.handlers.get('get_policy_status')!
+    const result = await getPolicyStatus({})
+
+    expect(result.isError).toBeUndefined()
+    expect(parseJson(result)).toMatchObject({
+      policy: {
+        profile: expect.any(String),
+        memoActions: {
+          respond_to_memo: { allowedMemoTypes: ['question'] },
+          apply_memo: { allowedMemoTypes: ['fix'] },
+          batch_apply: { allowedMemoTypes: ['fix'] },
+        },
+      },
+    })
+  })
+
+  it('strict workflow mode blocks implementation tools before phase transition', async () => {
+    process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT = 'strict'
+
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Needs implementation',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const blocked = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Anchor line',
+      newText: 'Updated line',
+    })
+
+    expect(blocked.isError).toBe(true)
+    expect(parseJson(blocked)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      details: {
+        tool: 'apply_memo',
+        currentPhase: 'scope',
+        allowedPhases: ['implementation'],
+      },
+    })
+  })
+
+  it('strict workflow mode allows apply_memo after sequential phase advancement', async () => {
+    process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT = 'strict'
+
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Needs implementation',
+    })) as { memo: { id: string } }
+
+    const advance = server.handlers.get('advance_workflow_phase')!
+    const step1 = await advance({ file, toPhase: 'root_cause', note: 'debugged root cause' })
+    const step2 = await advance({ file, toPhase: 'implementation', note: 'ready to implement' })
+    expect(step1.isError).toBeUndefined()
+    expect(step2.isError).toBeUndefined()
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Anchor line',
+      newText: 'Updated line',
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect(readFileSync(file, 'utf-8')).toContain('Updated line')
+
+    const getWorkflowStatus = server.handlers.get('get_workflow_status')!
+    const workflowBody = parseJson(await getWorkflowStatus({ file })) as {
+      workflow: { phase: string; transitions: Array<{ from: string; to: string }> }
+    }
+    expect(workflowBody.workflow.phase).toBe('implementation')
+    expect(workflowBody.workflow.transitions).toEqual([
+      { from: 'scope', to: 'root_cause', tool: 'advance_workflow_phase', note: 'debugged root cause', timestamp: expect.any(String) },
+      { from: 'root_cause', to: 'implementation', tool: 'advance_workflow_phase', note: 'ready to implement', timestamp: expect.any(String) },
+    ])
+  })
+
+  it('strict workflow mode blocks transition to verification with unresolved blocking memo', async () => {
+    process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT = 'strict'
+
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Blocking memo',
+    })
+
+    const advance = server.handlers.get('advance_workflow_phase')!
+    expect((await advance({ file, toPhase: 'root_cause' })).isError).toBeUndefined()
+    expect((await advance({ file, toPhase: 'implementation' })).isError).toBeUndefined()
+
+    const blocked = await advance({ file, toPhase: 'verification' })
+    expect(blocked.isError).toBe(true)
+    expect(parseJson(blocked)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      details: {
+        requestedPhase: 'verification',
+        unresolvedBlockingMemos: [expect.any(String)],
+      },
+    })
+  })
+
+  it('strict workflow mode allows verification transition when blocking memo is downgraded', async () => {
+    process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT = 'strict'
+
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Initially blocking',
+    })) as { memo: { id: string } }
+
+    const setSeverity = server.handlers.get('set_memo_severity')!
+    const severityResult = await setSeverity({
+      file,
+      memoId: created.memo.id,
+      severity: 'non_blocking',
+    })
+    expect(severityResult.isError).toBeUndefined()
+
+    const advance = server.handlers.get('advance_workflow_phase')!
+    expect((await advance({ file, toPhase: 'root_cause' })).isError).toBeUndefined()
+    expect((await advance({ file, toPhase: 'implementation' })).isError).toBeUndefined()
+    const toVerification = await advance({ file, toPhase: 'verification' })
+    expect(toVerification.isError).toBeUndefined()
+
+    const getSeverityStatus = server.handlers.get('get_severity_status')!
+    const severityBody = parseJson(await getSeverityStatus({ file })) as {
+      severity: { overrides: Record<string, string>; unresolvedBlockingMemos: string[] }
+    }
+    expect(severityBody.severity.overrides[created.memo.id]).toBe('non_blocking')
+    expect(severityBody.severity.unresolvedBlockingMemos).toEqual([])
+  })
+
+  it('strict HITL blocks high-risk batch_apply until approved and consumes approval grant', async () => {
+    process.env.MD_FEEDBACK_WORKFLOW_ENFORCEMENT = 'strict'
+
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor one\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor one',
+      type: 'fix',
+      text: 'Batch change',
+    })) as { memo: { id: string } }
+
+    const setSeverity = server.handlers.get('set_memo_severity')!
+    await setSeverity({ file, memoId: created.memo.id, severity: 'non_blocking' })
+
+    const advance = server.handlers.get('advance_workflow_phase')!
+    await advance({ file, toPhase: 'root_cause' })
+    await advance({ file, toPhase: 'implementation' })
+
+    const batchApply = server.handlers.get('batch_apply')!
+    const blocked = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: created.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor one',
+          newText: 'Anchor updated',
+        },
+      ],
+    })
+    expect(blocked.isError).toBe(true)
+    expect(parseJson(blocked)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      error: expect.stringContaining('Approval required'),
+      details: { tool: 'batch_apply' },
+    })
+
+    const approve = server.handlers.get('approve_checkpoint')!
+    const approved = await approve({
+      file,
+      tool: 'batch_apply',
+      approvedBy: 'human-reviewer',
+      reason: 'Approved for controlled batch change',
+    })
+    expect(approved.isError).toBeUndefined()
+
+    const allowedOnce = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: created.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor one',
+          newText: 'Anchor updated',
+        },
+      ],
+    })
+    expect(allowedOnce.isError).toBeUndefined()
+
+    const blockedAgain = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: created.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor updated',
+          newText: 'Anchor final',
+        },
+      ],
+    })
+    expect(blockedAgain.isError).toBe(true)
+    expect(parseJson(blockedAgain)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      details: { tool: 'batch_apply' },
+    })
   })
 
   it('update_memo_progress preserves all entries under concurrent calls', async () => {

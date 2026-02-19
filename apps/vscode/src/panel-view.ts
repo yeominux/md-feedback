@@ -7,6 +7,7 @@ import { extractCheckpoints } from '@md-feedback/shared'
 import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
 import { wrapWithPrompt } from './exports'
+import { advanceWorkflowPhase, approveCheckpoint, getWorkflowState } from './workflow-sidecar'
 
 export interface PanelViewContext {
   extensionUri: vscode.Uri
@@ -184,6 +185,72 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
           } catch {
             // best-effort restore
           }
+        }
+        break
+      }
+
+      case 'workflow.advance': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) {
+          vscode.window.showWarningMessage('Open a markdown file to review.')
+          break
+        }
+        const toPhase = msg.toPhase as 'root_cause' | 'implementation' | 'verification' | undefined
+        const current = getWorkflowState(document.uri.fsPath)
+        const computedNext = current.phase === 'scope'
+          ? 'root_cause'
+          : current.phase === 'root_cause'
+            ? 'implementation'
+            : current.phase === 'implementation'
+              ? 'verification'
+              : null
+        const next = toPhase || computedNext
+        if (!next) break
+
+        try {
+          advanceWorkflowPhase(document.uri.fsPath, next, 'vscode.workflow.advance', 'Triggered from status CTA')
+          ctx.sendStatusInfo(document.getText())
+          vscode.window.showInformationMessage(`Workflow advanced to ${next}`)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          vscode.window.showWarningMessage(message)
+        }
+        break
+      }
+
+      case 'workflow.approve': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) {
+          vscode.window.showWarningMessage('Open a markdown file to review.')
+          break
+        }
+        const state = getWorkflowState(document.uri.fsPath)
+        const pendingTool = state.pendingCheckpoint?.tool
+        const requestedTool = typeof msg.tool === 'string' ? msg.tool : undefined
+        const tool = requestedTool || pendingTool
+        const approvedBy = typeof msg.approvedBy === 'string' && msg.approvedBy.trim().length > 0
+          ? msg.approvedBy.trim()
+          : 'vscode-user'
+        const reason = typeof msg.reason === 'string' && msg.reason.trim().length > 0
+          ? msg.reason.trim()
+          : `Approved ${tool ?? 'checkpoint'} via VS Code status CTA`
+        if (!tool) {
+          vscode.window.showWarningMessage('No pending approval checkpoint.')
+          break
+        }
+
+        try {
+          approveCheckpoint(
+            document.uri.fsPath,
+            tool,
+            approvedBy,
+            reason,
+          )
+          ctx.sendStatusInfo(document.getText())
+          vscode.window.showInformationMessage(`Approved checkpoint for ${tool} by ${approvedBy}`)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          vscode.window.showWarningMessage(message)
         }
         break
       }
