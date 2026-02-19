@@ -75,14 +75,26 @@ export function activate(context: vscode.ExtensionContext) {
       await updateMemoStatusInDocument(uri, memoId, 'open')
     }),
     vscode.commands.registerCommand('md-feedback.rejectMemo', async (uri: vscode.Uri, memoId: string) => {
-      await updateMemoStatusInDocument(uri, memoId, 'wontfix')
+      const reason = await vscode.window.showInputBox({
+        prompt: 'Rejection reason (optional — press Enter to skip, Esc to cancel)',
+        placeHolder: 'e.g. "Not applicable to this scope"',
+      })
+      if (reason === undefined) return // ESC = cancel reject entirely
+      await updateMemoStatusInDocument(uri, memoId, 'wontfix', reason || undefined)
     }),
   )
 
   // 9. Keyboard shortcuts — approve/reject nearest memo
   context.subscriptions.push(
     vscode.commands.registerCommand('md-feedback.approveNearest', () => updateNearestMemo('done')),
-    vscode.commands.registerCommand('md-feedback.rejectNearest', () => updateNearestMemo('wontfix')),
+    vscode.commands.registerCommand('md-feedback.rejectNearest', async () => {
+      const reason = await vscode.window.showInputBox({
+        prompt: 'Rejection reason (optional — press Enter to skip, Esc to cancel)',
+        placeHolder: 'e.g. "Not applicable to this scope"',
+      })
+      if (reason === undefined) return // ESC = cancel reject entirely
+      await updateNearestMemo('wontfix', reason || undefined)
+    }),
   )
 
   // 10. One-time per version notice: extension update does not auto-update npm MCP package
