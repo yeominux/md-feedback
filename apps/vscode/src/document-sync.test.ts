@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mergeDocument, type DocumentParts, type Gate, type MemoV2 } from '@md-feedback/shared'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 vi.mock('vscode', () => ({
   window: {
@@ -95,5 +98,54 @@ describe('document-sync sendStatusInfo', () => {
       'Open Document',
     )
     expect(prevStatuses.get('gate-1')).toBe('done')
+  })
+
+  it('includes workflow and blocking metadata from sidecar files', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-'))
+    const mdFile = join(workspace, 'plan.md')
+    const sidecar = join(workspace, '.md-feedback')
+    mkdirSync(sidecar, { recursive: true })
+    writeFileSync(mdFile, '# Title\nAnchor\n', 'utf-8')
+    writeFileSync(
+      join(sidecar, 'workflow.json'),
+      JSON.stringify({
+        version: '1.0',
+        phase: 'implementation',
+        pendingCheckpoint: { id: 'chk_1', tool: 'batch_apply', reason: 'risk', requestedAt: '2026-02-19T00:00:00.000Z' },
+      }),
+      'utf-8',
+    )
+
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: ['memo-1'],
+      canProceedIf: '',
+      doneDefinition: 'All review annotations resolved',
+    }
+    const raw = buildRaw('open', gate)
+    const postMessage = vi.fn()
+
+    ;(vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = {
+      document: {
+        languageId: 'markdown',
+        uri: { fsPath: mdFile },
+      },
+    }
+
+    try {
+      sendStatusInfo(raw, postMessage)
+      const summaryMsg = postMessage.mock.calls.find(call => call[0]?.type === 'status.summary')?.[0]
+      const metadataMsg = postMessage.mock.calls.find(call => call[0]?.type === 'metadata.update')?.[0]
+
+      expect(summaryMsg.summary.workflowPhase).toBe('implementation')
+      expect(summaryMsg.summary.approvalRequired).toBe(true)
+      expect(summaryMsg.summary.unresolvedBlockingCount).toBe(1)
+      expect(metadataMsg.unresolvedBlockingMemos).toEqual(['memo-1'])
+    } finally {
+      ;(vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined
+      rmSync(workspace, { recursive: true, force: true })
+    }
   })
 })

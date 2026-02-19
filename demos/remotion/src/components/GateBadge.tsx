@@ -6,23 +6,23 @@ import { colors } from "../styles";
  * Quality gate badge: Blocked → Approved
  *
  * Timeline:
- *   frame 90:  gate card appears
- *   frame 310: gate transitions Blocked → Approved
+ *   frame 130: gate card appears
+ *   frame 500: gate transitions Blocked → Approved
  */
 export const GateBadge: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   /* ─── Card entrance ─── */
-  const gateIn = frame >= 90
-    ? spring({ frame: frame - 90, fps, config: { damping: 18, stiffness: 70 } })
+  const gateIn = frame >= 130
+    ? spring({ frame: frame - 130, fps, config: { damping: 18, stiffness: 70 } })
     : 0;
   const gateY = interpolate(gateIn, [0, 1], [10, 0]);
 
-  /* ─── Gate transition at frame 310 ─── */
-  const isApproved = frame >= 310;
-  const transitionProgress = frame >= 310
-    ? spring({ frame: frame - 310, fps, config: { damping: 13, stiffness: 100, mass: 0.7 } })
+  /* ─── Gate transition at frame 500 ─── */
+  const isApproved = frame >= 500;
+  const transitionProgress = frame >= 500
+    ? spring({ frame: frame - 500, fps, config: { damping: 13, stiffness: 100, mass: 0.7 } })
     : 0;
 
   const gateColor = isApproved
@@ -33,7 +33,7 @@ export const GateBadge: React.FC = () => {
   const gateSubtext = isApproved ? "All items resolved" : "1 fix remaining";
 
   // Subtle pulse on transition
-  const gateScale = frame >= 310 && frame <= 330
+  const gateScale = frame >= 500 && frame <= 530
     ? 1 + 0.08 * Math.sin(transitionProgress * Math.PI)
     : 1;
 

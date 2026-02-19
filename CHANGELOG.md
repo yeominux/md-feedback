@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.7] - 2026-02-19
+
+### Fixed
+- Memo cards no longer disappear immediately after blur when newly created and empty; accidental auto-delete behavior is prevented
+- Release validation no longer fails intermittently due to package resolution issues during test runs
+- Recovered memos created from `HIGHLIGHT_MARK` metadata now use deterministic IDs, so subsequent agent actions (for example `respond_to_memo`) can reliably target them
+
+### Improved
+- Added memo save-behavior regression test coverage in VS Code tests
+- Added shared parser regression coverage for missing-memo recovery from persisted highlight marks
+- Added MCP tool regression coverage to ensure highlight marks are preserved when responding to recovered memos
+
 ## [1.3.6] - 2026-02-19
 
 ### Improved

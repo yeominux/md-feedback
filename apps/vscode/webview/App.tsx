@@ -21,6 +21,11 @@ interface StatusSummary {
   inProgressMemos: number
   doneMemos: number
   failedMemos: number
+  needsReviewMemos?: number
+  workflowPhase?: 'scope' | 'root_cause' | 'implementation' | 'verification' | null
+  unresolvedBlockingCount?: number
+  approvalRequired?: boolean
+  pendingApprovalTool?: string | null
 }
 
 export default function App() {
@@ -40,6 +45,13 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [gates, setGates] = useState<Gate[]>([])
   const [cursor, setCursor] = useState<PlanCursor | null>(null)
+  const [workflowPhase, setWorkflowPhase] = useState<StatusSummary['workflowPhase']>(null)
+  const [unresolvedBlockingCount, setUnresolvedBlockingCount] = useState(0)
+  const [approvalRequired, setApprovalRequired] = useState(false)
+  const [pendingApprovalTool, setPendingApprovalTool] = useState<string | null>(null)
+  const [showApprovalForm, setShowApprovalForm] = useState(false)
+  const [approvalBy, setApprovalBy] = useState('vscode-user')
+  const [approvalReason, setApprovalReason] = useState('')
 
   const isLoadingRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
@@ -151,6 +163,10 @@ export default function App() {
 
         case 'status.summary':
           setStatusSummary(msg.summary as StatusSummary)
+          setWorkflowPhase((msg.summary as StatusSummary).workflowPhase ?? null)
+          setUnresolvedBlockingCount((msg.summary as StatusSummary).unresolvedBlockingCount ?? 0)
+          setApprovalRequired(Boolean((msg.summary as StatusSummary).approvalRequired))
+          setPendingApprovalTool((msg.summary as StatusSummary).pendingApprovalTool ?? null)
           break
 
         case 'metadata.update':
@@ -160,6 +176,15 @@ export default function App() {
           if (msg.impls) {
             window.__mfImpls = msg.impls as MemoImpl[]
             window.dispatchEvent(new CustomEvent('mf:impls-updated'))
+          }
+          if (msg.workflow && typeof msg.workflow === 'object') {
+            setWorkflowPhase((msg.workflow as { phase?: StatusSummary['workflowPhase'] }).phase ?? null)
+            const pending = (msg.workflow as { pendingCheckpoint?: { tool?: string } | null }).pendingCheckpoint
+            setApprovalRequired(Boolean(pending))
+            setPendingApprovalTool(pending?.tool ?? null)
+          }
+          if (Array.isArray(msg.unresolvedBlockingMemos)) {
+            setUnresolvedBlockingCount(msg.unresolvedBlockingMemos.length)
           }
           break
 
@@ -288,6 +313,59 @@ export default function App() {
     // Don't mark as done — show reminder in floating bar
   }
 
+  const nextWorkflowPhase = (phase: StatusSummary['workflowPhase']): Exclude<StatusSummary['workflowPhase'], null> | null => {
+    if (phase === 'scope') return 'root_cause'
+    if (phase === 'root_cause') return 'implementation'
+    if (phase === 'implementation') return 'verification'
+    return null
+  }
+
+  const handleAdvancePhase = () => {
+    const toPhase = nextWorkflowPhase(workflowPhase)
+    if (!toPhase) return
+    vscode.postMessage({ type: 'workflow.advance', toPhase })
+  }
+
+  const handleApproveCheckpoint = () => {
+    if (!pendingApprovalTool) return
+    const approvedBy = approvalBy.trim() || 'vscode-user'
+    const reason = approvalReason.trim() || `Approved ${pendingApprovalTool} via VS Code status CTA`
+    try {
+      window.localStorage.setItem('md-feedback.approver', approvedBy)
+    } catch {
+      // best-effort
+    }
+    vscode.postMessage({
+      type: 'workflow.approve',
+      tool: pendingApprovalTool,
+      approvedBy,
+      reason,
+    })
+    setShowApprovalForm(false)
+  }
+
+  const openApprovalForm = () => {
+    if (!pendingApprovalTool) return
+    let savedApprover = 'vscode-user'
+    try {
+      savedApprover = window.localStorage.getItem('md-feedback.approver') || 'vscode-user'
+    } catch {
+      // best-effort
+    }
+    setApprovalBy(savedApprover)
+    setApprovalReason(`Approved ${pendingApprovalTool} via VS Code status CTA`)
+    setShowApprovalForm(true)
+  }
+
+  const hasNeedsReviewMemos = (statusSummary?.needsReviewMemos ?? 0) > 0
+  const showActionApproval = approvalRequired && pendingApprovalTool && !hasNeedsReviewMemos
+
+  useEffect(() => {
+    if (!approvalRequired || !pendingApprovalTool || hasNeedsReviewMemos) {
+      setShowApprovalForm(false)
+    }
+  }, [approvalRequired, pendingApprovalTool, hasNeedsReviewMemos])
+
   return (
     <div className="md-feedback-root">
       {/* MCP Setup Screen — shown on first launch */}
@@ -406,6 +484,87 @@ export default function App() {
               <span className="status-detail" title={cursor.nextAction}>
                 Step {cursor.step}
               </span>
+            )}
+
+            {/* Workflow phase */}
+            {workflowPhase && (
+              <span className="status-badge status-badge-proceed" title="Workflow phase">
+                {workflowPhase}
+              </span>
+            )}
+
+            {/* Blocking memo count */}
+            {unresolvedBlockingCount > 0 && (
+              <span className="status-badge status-badge-blocked" title="Unresolved blocking memos">
+                {unresolvedBlockingCount} blocking
+              </span>
+            )}
+
+            {/* Approval required */}
+            {approvalRequired && (
+              <span className="status-badge status-badge-blocked" title="High-risk action requires approval">
+                action approval required
+              </span>
+            )}
+
+            {approvalRequired && hasNeedsReviewMemos && (
+              <span className="status-detail" title="Resolve memo reviews first">
+                review memos first
+              </span>
+            )}
+
+            {/* Action CTA */}
+            {showActionApproval && (
+              <>
+                <button
+                  className="floating-btn-secondary"
+                  onClick={openApprovalForm}
+                  title={`Approve pending checkpoint for ${pendingApprovalTool}`}
+                >
+                  Approve Action
+                </button>
+                {showApprovalForm && (
+                  <div className="approval-form" role="group" aria-label="Approval details">
+                    <input
+                      className="approval-input"
+                      value={approvalBy}
+                      onChange={(e) => setApprovalBy(e.target.value)}
+                      placeholder="approver"
+                      title="Approver"
+                    />
+                    <input
+                      className="approval-input approval-input-reason"
+                      value={approvalReason}
+                      onChange={(e) => setApprovalReason(e.target.value)}
+                      placeholder="reason"
+                      title="Reason"
+                    />
+                    <button
+                      className="floating-btn-secondary"
+                      onClick={handleApproveCheckpoint}
+                      title={`Confirm approval for ${pendingApprovalTool}`}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      className="floating-btn-secondary"
+                      onClick={() => setShowApprovalForm(false)}
+                      title="Cancel approval"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+            {!approvalRequired && unresolvedBlockingCount === 0 && nextWorkflowPhase(workflowPhase) && (
+              <button
+                className="floating-btn-secondary"
+                onClick={handleAdvancePhase}
+                title={`Advance workflow to ${nextWorkflowPhase(workflowPhase)}`}
+              >
+                Next Step
+              </button>
             )}
 
             {/* Checkpoint count */}
