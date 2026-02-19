@@ -33,11 +33,16 @@ interface SeveritySidecar {
   overrides: Record<string, 'blocking' | 'non_blocking'>
 }
 
+function parseJsonWithBom<T>(text: string): T {
+  // Some editors/tools write UTF-8 BOM; strip it so JSON.parse remains stable.
+  return JSON.parse(text.replace(/^\uFEFF/, '')) as T
+}
+
 function readWorkflowSidecar(document: vscode.TextDocument): WorkflowSidecar | null {
   try {
     const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'workflow.json')
     if (!existsSync(sidecarPath)) return null
-    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<WorkflowSidecar>
+    const parsed = parseJsonWithBom<Partial<WorkflowSidecar>>(readFileSync(sidecarPath, 'utf-8'))
     if (!parsed.phase) return null
     return {
       phase: parsed.phase,
@@ -52,7 +57,7 @@ function readSeveritySidecar(document: vscode.TextDocument): SeveritySidecar {
   try {
     const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'severity.json')
     if (!existsSync(sidecarPath)) return { overrides: {} }
-    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<SeveritySidecar>
+    const parsed = parseJsonWithBom<Partial<SeveritySidecar>>(readFileSync(sidecarPath, 'utf-8'))
     if (!parsed.overrides || typeof parsed.overrides !== 'object') return { overrides: {} }
     return { overrides: parsed.overrides }
   } catch {
