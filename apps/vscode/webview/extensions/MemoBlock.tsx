@@ -14,6 +14,10 @@ const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: stri
   wontfix:      { label: "Won't fix", color: 'text-mf-muted',             bg: 'bg-mf-border-subtle' },
 }
 
+export function shouldDeleteEmptyMemoOnSave(text: string, source: 'enter' | 'blur'): boolean {
+  return !text.trim() && source === 'enter'
+}
+
 export const MemoBlock = Node.create({
   name: 'memoBlock',
   group: 'block',
@@ -206,9 +210,15 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
     }
   }, [text])
 
-  const handleSave = () => {
-    if (!text.trim()) {
+  const handleSave = (source: 'enter' | 'blur' = 'enter') => {
+    if (shouldDeleteEmptyMemoOnSave(text, source)) {
+      // Avoid accidental deletion when focus moves unexpectedly after inserting a new memo.
+      // Keep the empty memo card visible unless the user explicitly confirms with Enter.
       handleDelete()
+      return
+    }
+    if (!text.trim()) {
+      setEditing(false)
       return
     }
     // text is already synced via useEffect; just exit editing mode
@@ -219,7 +229,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
     e.stopPropagation()
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSave()
+      handleSave('enter')
     }
     if (e.key === 'Escape') {
       if (!node.attrs.text) {
@@ -466,7 +476,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onBlur={handleSave}
+                onBlur={() => handleSave('blur')}
                 placeholder="Write your feedback..."
                 className="w-full text-[14px] leading-relaxed bg-transparent border-none resize-none focus:outline-none min-h-[36px] text-mf-text placeholder-mf-faint"
                 rows={2}
@@ -480,7 +490,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
               className="text-[14px] text-mf-muted leading-relaxed whitespace-pre-wrap cursor-pointer hover:text-mf-text transition-colors"
               onClick={() => setEditing(true)}
             >
-              {node.attrs.text}
+              {node.attrs.text || 'Click to add feedback...'}
             </p>
           )}
         </div>

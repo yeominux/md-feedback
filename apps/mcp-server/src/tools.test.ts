@@ -108,6 +108,33 @@ describe('mcp-server tools', () => {
     expect(parts.body).toContain('Handled by AI response')
   })
 
+  it('respond_to_memo preserves highlight marks when memo was recovered from HIGHLIGHT_MARK', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\nAnchor line\n<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->\n',
+      'utf-8',
+    )
+
+    const getDocumentStructure = server.handlers.get('get_document_structure')!
+    const structure = parseJson(await getDocumentStructure({ file })) as { memos: Array<{ id: string; source: string }> }
+    const recovered = structure.memos.find(m => m.source === 'recovered-highlight')
+    expect(recovered).toBeDefined()
+
+    const respondToMemo = server.handlers.get('respond_to_memo')!
+    const respondResult = await respondToMemo({
+      file,
+      memoId: recovered!.id,
+      response: 'AI answer on recovered memo',
+    })
+
+    expect(respondResult.isError).toBeUndefined()
+    const updated = readFileSync(file, 'utf-8')
+    expect(updated).toContain('<!-- HIGHLIGHT_MARK color="#93c5fd" text="Anchor line" anchor="Anchor line" -->')
+    expect(updated).toContain('<!-- REVIEW_RESPONSE to="')
+    expect(updated).toContain('AI answer on recovered memo')
+  })
+
   it('apply_memo file_patch applies unified diff to target file', async () => {
     const file = join(workspace, 'review.md')
     const targetFile = join(workspace, 'target.txt')
