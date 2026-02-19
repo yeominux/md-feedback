@@ -4,7 +4,7 @@ import { readMarkdownFile, writeMarkdownFile, writeSnapshot, readProgress, appen
 import { createCheckpoint, extractCheckpoints, getAnnotationCounts, getSectionsWithAnnotations, getAllSections } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown, parseHandoffFile } from '@md-feedback/shared'
 import { extractMemos } from '@md-feedback/shared'
-import { splitDocument, mergeDocument, serializeMemoV2, serializeCursor, generateBodyHash } from '@md-feedback/shared'
+import { splitDocument, mergeDocument, serializeMemoV2, serializeCursor, generateBodyHash, findMemoAnchorLine } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
 import { generateContext, type TargetFormat } from '@md-feedback/shared'
 import type { MemoStatus, MemoType, MemoColor, MemoV2, ReviewDocument, ReviewHighlight, ReviewMemo, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
@@ -510,43 +510,8 @@ export function registerTools(server: McpServer, workspace?: string): void {
         } else {
           // Insert new response after the memo's anchor line
           const bodyLines = parts.body.split('\n')
-          let insertAfter = -1
-
-          // Find the memo's anchor line
-          if (memo.anchor) {
-            const anchorMatch = memo.anchor.match(/^L(\d+)(?::L\d+)?\|(.+)$/)
-            if (anchorMatch) {
-              const lineNum = parseInt(anchorMatch[1], 10) - 1
-              const expectedHash = computeLineHash(bodyLines[lineNum] || '')
-              if (lineNum >= 0 && lineNum < bodyLines.length && expectedHash === anchorMatch[2]) {
-                insertAfter = lineNum
-              } else {
-                // Search nearby
-                for (let delta = 1; delta <= 10; delta++) {
-                  for (const d of [lineNum - delta, lineNum + delta]) {
-                    if (d >= 0 && d < bodyLines.length && computeLineHash(bodyLines[d]) === anchorMatch[2]) {
-                      insertAfter = d
-                      break
-                    }
-                  }
-                  if (insertAfter >= 0) break
-                }
-              }
-            }
-          }
-          // Fallback: search by anchorText
-          if (insertAfter === -1 && memo.anchorText) {
-            for (let i = 0; i < bodyLines.length; i++) {
-              if (bodyLines[i].includes(memo.anchorText)) {
-                insertAfter = i
-                break
-              }
-            }
-          }
-          // Last resort: append to end
-          if (insertAfter === -1) {
-            insertAfter = bodyLines.length - 1
-          }
+          const anchorIdx = findMemoAnchorLine(bodyLines, memo)
+          const insertAfter = anchorIdx >= 0 ? anchorIdx : bodyLines.length - 1
 
           // Skip past any existing memos on this anchor line (they'll be reinserted by mergeDocument)
           // Just insert the response content into the body
@@ -1241,6 +1206,12 @@ export function registerTools(server: McpServer, workspace?: string): void {
               continue
             }
             parts.body = parts.body.split(op.oldText).join(op.newText)
+            // Sync anchorText for affected memos to prevent stale references
+            for (const m of parts.memos) {
+              if (m.anchorText && m.anchorText.includes(op.oldText)) {
+                m.anchorText = m.anchorText.replace(op.oldText, op.newText)
+              }
+            }
           } else if (op.action === 'file_patch') {
             if (!op.targetFile || !op.patch) {
               results.push({ memoId: op.memoId, implId: '', status: 'error: file_patch requires targetFile and patch' })
