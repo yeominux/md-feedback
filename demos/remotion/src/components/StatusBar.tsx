@@ -151,7 +151,7 @@ export const StatusBar: React.FC = () => {
               letterSpacing: 0.3,
             }}
           >
-            approval required
+            action approval required
           </span>
           <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(255,255,255,0.12)", padding: "2px 6px", borderRadius: 4 }}>
             approver: vscode-user
@@ -160,7 +160,7 @@ export const StatusBar: React.FC = () => {
             reason: approve batch_apply
           </span>
           <span style={{ fontSize: 9, fontWeight: 700, backgroundColor: "rgba(34,197,94,0.9)", color: "#052e16", padding: "2px 8px", borderRadius: 4 }}>
-            Confirm
+            Approve Action
           </span>
         </div>
       )}
