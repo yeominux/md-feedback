@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.13] - 2026-02-20
+
+### Fixed
+- Status bar now refreshes after memo approve/reject from the panel — previously `Approve Action` stayed disabled after approving all memos because the webview edit bypass in sync-controller also skipped status updates
+- `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files
+- MCP server workflow and severity sidecar reads are now BOM-tolerant
+
 ## [1.3.12] - 2026-02-20
 
 ### Fixed
