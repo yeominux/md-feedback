@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHighlightMarks } from '@md-feedback/shared'
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
-import { isResolved } from '@md-feedback/shared'
+import { isResolved, parseJsonWithBom } from '@md-feedback/shared'
 import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -31,11 +31,6 @@ interface WorkflowSidecar {
 
 interface SeveritySidecar {
   overrides: Record<string, 'blocking' | 'non_blocking'>
-}
-
-function parseJsonWithBom<T>(text: string): T {
-  // Some editors/tools write UTF-8 BOM; strip it so JSON.parse remains stable.
-  return JSON.parse(text.replace(/^\uFEFF/, '')) as T
 }
 
 function readWorkflowSidecar(document: vscode.TextDocument): WorkflowSidecar | null {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitDocument, mergeDocument, getAnnotationCounts, findMemoAnchorLine } from '../index'
+import { splitDocument, mergeDocument, getAnnotationCounts, findMemoAnchorLine, parseJsonWithBom } from '../index'
 import type { MemoV2 } from '../index'
 
 describe('document-writer — splitDocument and mergeDocument', () => {
@@ -432,5 +432,75 @@ More content.`
     expect(respOpenIdx).toBeGreaterThan(targetIdx)
     expect(respCloseIdx).toBeGreaterThan(respOpenIdx)
     expect(otherSectionIdx).toBeGreaterThan(respCloseIdx)
+  })
+})
+
+describe('rejectReason — roundtrip', () => {
+  it('preserves rejectReason through split/merge cycle', () => {
+    const input = `# Title
+
+Some content
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="wontfix"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Some content"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+  rejectReason="Not applicable to this scope"
+-->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].rejectReason).toBe('Not applicable to this scope')
+
+    const output = mergeDocument(parts)
+    expect(output).toContain('rejectReason="Not applicable to this scope"')
+
+    // Second cycle
+    const parts2 = splitDocument(output)
+    expect(parts2.memos[0].rejectReason).toBe('Not applicable to this scope')
+  })
+
+  it('omits rejectReason attribute when not set', () => {
+    const input = `# Title
+
+Some content
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Some content"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos[0].rejectReason).toBeUndefined()
+
+    const output = mergeDocument(parts)
+    expect(output).not.toContain('rejectReason')
+  })
+})
+
+describe('parseJsonWithBom', () => {
+  it('parses normal JSON', () => {
+    const result = parseJsonWithBom<{ a: number }>('{"a":1}')
+    expect(result).toEqual({ a: 1 })
+  })
+
+  it('strips BOM and parses JSON', () => {
+    const result = parseJsonWithBom<{ a: number }>('\uFEFF{"a":1}')
+    expect(result).toEqual({ a: 1 })
   })
 })

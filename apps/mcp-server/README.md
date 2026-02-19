@@ -66,6 +66,13 @@ Resolution order: `--workspace=` CLI arg > `MD_FEEDBACK_WORKSPACE` env > `cwd`
 | `rollback_memo` | Rollback the latest implementation for a memo |
 | `batch_apply` | Apply multiple operations in a single transaction |
 | `get_memo_changes` | Get implementation history and progress for a memo |
+| `get_policy_status` | Get current workflow enforcement mode and policy |
+| `get_workflow_status` | Get workflow phase, transitions, and pending approvals |
+| `get_severity_status` | Get memo severity overrides and unresolved blocking memos |
+| `advance_workflow_phase` | Advance to the next workflow phase (scope → root_cause → implementation → verification) |
+| `set_memo_severity` | Override a memo's severity (blocking / non_blocking) |
+| `request_approval_checkpoint` | Request human approval before a high-risk operation |
+| `approve_checkpoint` | Approve a pending approval checkpoint |
 
 ## Safety & Reliability
 

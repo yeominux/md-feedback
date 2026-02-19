@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.14] - 2026-02-20
+
+### Added
+- Reject reason — rejecting a memo now prompts for an optional reason that agents can read to avoid repeating mistakes
+- MCP tool table in README now documents all 26 tools (7 were missing)
+
+### Improved
+- BOM-tolerant JSON parsing extracted to shared `parseJsonWithBom` utility, eliminating duplication across 3 packages
+
 ## [1.3.13] - 2026-02-20
 
 ### Fixed
