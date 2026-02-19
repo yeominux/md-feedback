@@ -57,6 +57,7 @@ export async function updateMemoStatusInDocument(
   uri: vscode.Uri,
   memoId: string,
   newStatus: string,
+  rejectReason?: string,
 ): Promise<void> {
   const document = await vscode.workspace.openTextDocument(uri)
   const raw = document.getText()
@@ -67,6 +68,9 @@ export async function updateMemoStatusInDocument(
 
   memo.status = newStatus as typeof memo.status
   memo.updatedAt = new Date().toISOString()
+  if (rejectReason) {
+    memo.rejectReason = rejectReason
+  }
 
   const updated = mergeDocument(parts)
   const edit = new vscode.WorkspaceEdit()
@@ -80,7 +84,7 @@ export async function updateMemoStatusInDocument(
 }
 
 /** Find the nearest needs_review memo to the cursor and apply a status */
-export async function updateNearestMemo(newStatus: string): Promise<void> {
+export async function updateNearestMemo(newStatus: string, rejectReason?: string): Promise<void> {
   const editor = vscode.window.activeTextEditor
   if (!editor || editor.document.languageId !== 'markdown') return
 
@@ -99,6 +103,6 @@ export async function updateNearestMemo(newStatus: string): Promise<void> {
   }
 
   if (nearest) {
-    await updateMemoStatusInDocument(editor.document.uri, nearest.id, newStatus)
+    await updateMemoStatusInDocument(editor.document.uri, nearest.id, newStatus, rejectReason)
   }
 }

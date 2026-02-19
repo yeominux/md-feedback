@@ -81,6 +81,7 @@ export interface MemoV2 {
   anchor: string               // "L42:L45|a3f8c2d1" — line range + line hash
   createdAt: string
   updatedAt: string
+  rejectReason?: string        // human-provided reason when rejecting (wontfix)
 }
 
 /**

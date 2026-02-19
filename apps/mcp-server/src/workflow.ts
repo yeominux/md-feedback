@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { ensureSidecar, readMarkdownFile } from './file-ops.js'
 import { OperationValidationError } from './errors.js'
-import { isResolved, splitDocument, type MemoType } from '@md-feedback/shared'
+import { isResolved, splitDocument, parseJsonWithBom, type MemoType } from '@md-feedback/shared'
 
 export type WorkflowPhase = 'scope' | 'root_cause' | 'implementation' | 'verification'
 export type MemoSeverity = 'blocking' | 'non_blocking'
@@ -96,8 +96,7 @@ function readMemoSeverityOverrides(file: string): MemoSeverityOverrides {
     return { version: '1.0', overrides: {}, updatedAt: new Date().toISOString() }
   }
   try {
-    const raw = readFileSync(severityPath, 'utf-8').replace(/^\uFEFF/, '')
-    const parsed = JSON.parse(raw) as Partial<MemoSeverityOverrides>
+    const parsed = parseJsonWithBom<Partial<MemoSeverityOverrides>>(readFileSync(severityPath, 'utf-8'))
     return {
       version: '1.0',
       overrides: (parsed.overrides && typeof parsed.overrides === 'object' ? parsed.overrides : {}) as Record<string, MemoSeverity>,
@@ -177,8 +176,7 @@ export function readWorkflowState(file: string): WorkflowState {
   }
 
   try {
-    const raw = readFileSync(workflowPath, 'utf-8').replace(/^\uFEFF/, '')
-    const parsed = JSON.parse(raw) as Partial<WorkflowState>
+    const parsed = parseJsonWithBom<Partial<WorkflowState>>(readFileSync(workflowPath, 'utf-8'))
     const phase = parsed.phase
     const transitions = Array.isArray(parsed.transitions) ? parsed.transitions : []
     if (!phase || !WORKFLOW_PHASE_ORDER.includes(phase)) {
