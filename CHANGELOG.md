@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.4] - 2026-02-19
+
+### Fixed
+- REVIEW_RESPONSE blocks no longer drift to end-of-file after `text_replace` operations
+- Memo anchors now refresh on parse, preventing stale hash references from accumulating
+- Re-approval loop is now stable across repeated batch_apply + respond_to_memo cycles
+
+### Improved
+- `respond_to_memo` now reuses shared anchor logic instead of a duplicate implementation
+- `batch_apply` now keeps memo `anchorText` in sync after text replacements
+
 ## [1.3.3] - 2026-02-18
 
 ### Changed
