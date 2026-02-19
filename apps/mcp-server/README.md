@@ -43,7 +43,7 @@ That's it. No install, no setup — `npx` handles everything.
 
 Resolution order: `--workspace=` CLI arg > `MD_FEEDBACK_WORKSPACE` env > `cwd`
 
-## 19 MCP Tools
+## 26 MCP Tools
 
 | Tool | Description |
 |------|-------------|

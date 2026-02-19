@@ -9,6 +9,15 @@ import type { DocumentParts, MemoStatus, MemoType, MemoColor, MemoV2, MemoImpl, 
 import { existsSync, unlinkSync } from 'node:fs'
 import { withFileLock } from './file-mutex.js'
 import { AnchorNotFoundError, MemoNotFoundError, OperationValidationError } from './errors.js'
+import { assertMemoActionAllowed } from './policy.js'
+import {
+  advanceWorkflowPhase,
+  approveCheckpoint,
+  assertWorkflowToolAllowed,
+  consumeHighRiskApproval,
+  requestApprovalCheckpoint,
+  setMemoSeverityOverride,
+} from './workflow.js'
 import type { MutationToolContext } from './tools-runtime.js'
 
 export function registerMutationTools(server: McpServer, ctx: MutationToolContext): void {
@@ -23,6 +32,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       note: z.string().describe('Checkpoint note (e.g., "Phase 1 review done")'),
     },
     async ({ file, note }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'create_checkpoint')
       const markdown = safeRead(file)
       const { checkpoint, updatedMarkdown } = createCheckpoint(markdown, note)
       safeWrite(file, updatedMarkdown)
@@ -47,6 +57,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       occurrence: z.number().int().min(1).optional().describe('Which occurrence of anchorText to annotate (1-indexed, default 1). Use when the same text appears multiple times.'),
     },
     async ({ file, anchorText, type, text, occurrence }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'create_annotation')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -150,6 +161,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       response: z.string().describe('The response text (markdown supported)'),
     },
     async ({ file, memoId, response }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'respond_to_memo')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -157,6 +169,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       if (!memo) {
         throw new MemoNotFoundError(memoId)
       }
+      assertMemoActionAllowed('respond_to_memo', memoId, memo.type)
 
       // Check if a response already exists for this memo
       const existingResponse = parts.responses.find(r => r.to === memoId)
@@ -242,6 +255,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       owner: z.enum(['human', 'agent', 'tool']).optional().describe('Optionally change the owner'),
     },
     async ({ file, memoId, status, owner }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'update_memo_status')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -286,6 +300,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       nextAction: z.string().describe('Description of the next action to take'),
     },
     async ({ file, taskId, step, nextAction }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'update_cursor')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -333,6 +348,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       content: z.string().optional().describe('For file_create: the file content to write'),
     },
     async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'apply_memo')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -340,6 +356,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       if (!memo) {
         throw new MemoNotFoundError(memoId)
       }
+      assertMemoActionAllowed('apply_memo', memoId, memo.type)
 
       // Build operation record
       let operation: ImplOperation
@@ -437,6 +454,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       files: z.array(z.string()).describe('Array of relative file paths to link'),
     },
     async ({ file, memoId, files: artifactFiles }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'link_artifacts')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -477,6 +495,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       message: z.string().describe('Progress message describing what was done or what failed'),
     },
     async ({ file, memoId, status, message }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'update_memo_progress')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -525,6 +544,8 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       memoId: z.string().describe('The memo ID to rollback'),
     },
     async ({ file, memoId }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'rollback_memo')
+      consumeHighRiskApproval(file, 'rollback_memo', 'Rollback is high-risk because it can revert prior implementation state.')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -600,6 +621,8 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       })).describe('Array of operations to apply'),
     },
     async ({ file, operations }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'batch_apply')
+      consumeHighRiskApproval(file, 'batch_apply', 'Batch apply is high-risk because it can modify multiple files in one transaction.')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
 
@@ -612,6 +635,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         if (!memo) {
           throw new MemoNotFoundError(op.memoId)
         }
+        assertMemoActionAllowed('batch_apply', op.memoId, memo.type)
 
         let operation: ImplOperation
         if (op.action === 'text_replace') {
@@ -739,6 +763,101 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         content: [{
           type: 'text' as const,
           text: JSON.stringify({ results, gatesUpdated: parts.gates.length, cursor: parts.cursor }, null, 2),
+        }],
+      }
+    })),
+  )
+
+  // ─── advance_workflow_phase (v1.3 — explicit workflow phase transition) ───
+  server.tool(
+    'advance_workflow_phase',
+    'Advance workflow phase in strict sequence: scope -> root_cause -> implementation -> verification.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      toPhase: z.enum(['root_cause', 'implementation', 'verification']).describe('Next phase to move to'),
+      note: z.string().optional().describe('Optional transition note'),
+    },
+    async ({ file, toPhase, note }) => withFileLock(file, async () => wrapTool(async () => {
+      const workflow = advanceWorkflowPhase(file, toPhase, 'advance_workflow_phase', note)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ workflow }, null, 2),
+        }],
+      }
+    })),
+  )
+
+  // ─── set_memo_severity (v1.3 — set blocking/non-blocking severity override) ───
+  server.tool(
+    'set_memo_severity',
+    'Set severity override for a memo. Defaults remain: fix=blocking, question/highlight=non_blocking.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      memoId: z.string().describe('Memo ID to classify'),
+      severity: z.enum(['blocking', 'non_blocking']).describe('Severity override'),
+    },
+    async ({ file, memoId, severity }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'set_memo_severity')
+      const markdown = safeRead(file)
+      const parts = splitDocument(markdown)
+      const memo = parts.memos.find(m => m.id === memoId)
+      if (!memo) {
+        throw new MemoNotFoundError(memoId)
+      }
+
+      const severityState = setMemoSeverityOverride(file, memoId, severity)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            memoId,
+            severity,
+            severityState,
+          }, null, 2),
+        }],
+      }
+    })),
+  )
+
+  // ─── request_approval_checkpoint (v1.3 — create explicit HITL approval checkpoint) ───
+  server.tool(
+    'request_approval_checkpoint',
+    'Create an approval checkpoint for a high-risk action before execution.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      tool: z.string().describe('High-risk tool name (e.g., batch_apply, rollback_memo)'),
+      reason: z.string().describe('Reason for approval request'),
+    },
+    async ({ file, tool, reason }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'request_approval_checkpoint')
+      const workflow = requestApprovalCheckpoint(file, tool, reason)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ workflow }, null, 2),
+        }],
+      }
+    })),
+  )
+
+  // ─── approve_checkpoint (v1.3 — approve pending HITL checkpoint) ───
+  server.tool(
+    'approve_checkpoint',
+    'Approve a pending high-risk checkpoint. Grants one execution for the approved tool.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+      tool: z.string().describe('Tool name being approved'),
+      approvedBy: z.string().describe('Approver identity'),
+      reason: z.string().describe('Approval rationale'),
+    },
+    async ({ file, tool, approvedBy, reason }) => withFileLock(file, async () => wrapTool(async () => {
+      assertWorkflowToolAllowed(file, 'approve_checkpoint')
+      const workflow = approveCheckpoint(file, tool, approvedBy, reason)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ workflow }, null, 2),
         }],
       }
     })),
