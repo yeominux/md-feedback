@@ -148,4 +148,48 @@ describe('document-sync sendStatusInfo', () => {
       rmSync(workspace, { recursive: true, force: true })
     }
   })
+
+  it('uses provided source document sidecar when active editor is unavailable', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-srcdoc-'))
+    const mdFile = join(workspace, 'plan.md')
+    const sidecar = join(workspace, '.md-feedback')
+    mkdirSync(sidecar, { recursive: true })
+    writeFileSync(mdFile, '# Title\nAnchor\n', 'utf-8')
+    writeFileSync(
+      join(sidecar, 'workflow.json'),
+      JSON.stringify({
+        version: '1.0',
+        phase: 'verification',
+        pendingCheckpoint: { id: 'chk_2', tool: 'rollback_memo', reason: 'risk', requestedAt: '2026-02-19T00:00:00.000Z' },
+      }),
+      'utf-8',
+    )
+
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: ['memo-1'],
+      canProceedIf: '',
+      doneDefinition: 'All review annotations resolved',
+    }
+    const raw = buildRaw('open', gate)
+    const postMessage = vi.fn()
+    const sourceDocument = {
+      uri: { fsPath: mdFile },
+      languageId: 'markdown',
+    } as unknown as import('vscode').TextDocument
+
+    ;(vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined
+
+    try {
+      sendStatusInfo(raw, postMessage, undefined, undefined, undefined, sourceDocument)
+      const summaryMsg = postMessage.mock.calls.find(call => call[0]?.type === 'status.summary')?.[0]
+      expect(summaryMsg.summary.workflowPhase).toBe('verification')
+      expect(summaryMsg.summary.approvalRequired).toBe(true)
+      expect(summaryMsg.summary.pendingApprovalTool).toBe('rollback_memo')
+    } finally {
+      rmSync(workspace, { recursive: true, force: true })
+    }
+  })
 })
