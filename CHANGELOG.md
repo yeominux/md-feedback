@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.8] - 2026-02-19
+
+### Changed
+- Release packaging and publish scripts are now cross-shell safe (PowerShell and POSIX) for VS Code Marketplace and Open VSX publishing
+- Version sync for all workspace packages is aligned at `1.3.8`
+
+### Improved
+- Publishing reliability improved to prevent shell variable expansion mismatches during release
+
 ## [1.3.7] - 2026-02-19
 
 ### Fixed
@@ -50,6 +59,17 @@
 - Export context generation now uses a format registry (easier target extension, lower switch churn)
 - Shared type docs now align with `generateId(...)` usage for impl/artifact/dependency/checkpoint IDs
 - Shared markdown parsing no longer keeps module-level global `/g` regex state
+
+## [1.3.4] - 2026-02-19
+
+### Fixed
+- REVIEW_RESPONSE blocks no longer drift to end-of-file after `text_replace` operations
+- Memo anchors now refresh on parse, preventing stale hash references from accumulating
+- Re-approval loop is now stable across repeated batch_apply + respond_to_memo cycles
+
+### Improved
+- `respond_to_memo` now reuses shared anchor logic instead of a duplicate implementation
+- `batch_apply` now keeps memo `anchorText` in sync after text replacements
 
 ## [1.3.3] - 2026-02-18
 
