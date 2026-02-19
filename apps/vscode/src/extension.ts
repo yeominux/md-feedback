@@ -5,6 +5,8 @@ import { registerExportCommands } from './export-commands'
 import { ReviewCodeLensProvider, updateMemoStatusInDocument, updateNearestMemo } from './review-codelens'
 
 export function activate(context: vscode.ExtensionContext) {
+  const extensionVersion = String(context.extension.packageJSON.version ?? '0.0.0')
+
   // 1. WebviewViewProvider registration
   const panelProvider = new MdFeedbackPanelProvider(context)
   context.subscriptions.push(
@@ -82,6 +84,30 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('md-feedback.approveNearest', () => updateNearestMemo('done')),
     vscode.commands.registerCommand('md-feedback.rejectNearest', () => updateNearestMemo('wontfix')),
   )
+
+  // 10. One-time per version notice: extension update does not auto-update npm MCP package
+  void (async () => {
+    const noticeKey = 'md-feedback.npmUpdateNoticeVersion'
+    const lastShownVersion = context.globalState.get<string>(noticeKey)
+    if (lastShownVersion === extensionVersion) return
+
+    const action = await vscode.window.showInformationMessage(
+      `MD Feedback ${extensionVersion} installed. Note: VS Code extension updates do not auto-update the MCP npm package.`,
+      'Copy: npm update -g md-feedback',
+      'Copy: npx -y md-feedback',
+      'Dismiss',
+    )
+
+    if (action === 'Copy: npm update -g md-feedback') {
+      await vscode.env.clipboard.writeText('npm update -g md-feedback')
+      void vscode.window.showInformationMessage('Copied: npm update -g md-feedback')
+    } else if (action === 'Copy: npx -y md-feedback') {
+      await vscode.env.clipboard.writeText('npx -y md-feedback')
+      void vscode.window.showInformationMessage('Copied: npx -y md-feedback')
+    }
+
+    await context.globalState.update(noticeKey, extensionVersion)
+  })()
 }
 
 export function deactivate() {}
