@@ -206,6 +206,30 @@
             "Always use dark theme"
           ],
           "description": "Controls the MD Feedback panel theme."
+        },
+        "md-feedback.autoCheckpointIntervalMs": {
+          "type": "number",
+          "default": 600000,
+          "minimum": 1000,
+          "description": "Auto-checkpoint interval in milliseconds."
+        },
+        "md-feedback.sectionTrackDebounceMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 50,
+          "description": "Debounce delay for section tracking from cursor movement (milliseconds)."
+        },
+        "md-feedback.editorSwitchDebounceMs": {
+          "type": "number",
+          "default": 150,
+          "minimum": 10,
+          "description": "Debounce delay for active editor changes (milliseconds)."
+        },
+        "md-feedback.fileWatchDebounceMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 10,
+          "description": "Debounce delay for external file watcher updates (milliseconds)."
         }
       }
     }
@@ -214,6 +238,7 @@
     "url": "https://buymeacoffee.com/ymnseon8"
   },
   "scripts": {
+    "test": "vitest run",
     "build": "node esbuild.mjs && vite build",
     "build:ext": "node esbuild.mjs",
     "build:webview": "vite build",

@@ -118,14 +118,29 @@ export function sendStatusInfo(
     postMessage({ type: 'cursor.update', cursor: parts.cursor })
 
     // Send status summary (extended with totals for status bar)
-    const openFixes = parts.memos.filter(m => m.type === 'fix' && m.status === 'open').length
-    const openQuestions = parts.memos.filter(m => m.type === 'question' && m.status === 'open').length
+    let openFixes = 0
+    let openQuestions = 0
+    let resolvedMemos = 0
+    let needsReviewMemos = 0
+    let inProgressMemos = 0
+    let doneMemos = 0
+    let failedMemos = 0
+    for (const memo of parts.memos) {
+      if (memo.status === 'open') {
+        if (memo.type === 'fix') openFixes++
+        else if (memo.type === 'question') openQuestions++
+      } else if (memo.status === 'needs_review') {
+        needsReviewMemos++
+      } else if (memo.status === 'in_progress') {
+        inProgressMemos++
+      } else {
+        resolvedMemos++
+        if (memo.status === 'done') doneMemos++
+        else if (memo.status === 'failed') failedMemos++
+      }
+    }
+
     const totalMemos = parts.memos.length
-    const resolvedMemos = parts.memos.filter(m => m.status !== 'open' && m.status !== 'in_progress' && m.status !== 'needs_review').length
-    const needsReviewMemos = parts.memos.filter(m => m.status === 'needs_review').length
-    const inProgressMemos = parts.memos.filter(m => m.status === 'in_progress').length
-    const doneMemos = parts.memos.filter(m => m.status === 'done').length
-    const failedMemos = parts.memos.filter(m => m.status === 'failed').length
     const blockedGate = gates.find(g => g.status === 'blocked')
     const allGatesDone = gates.length > 0 && gates.every(g => g.status === 'done')
 

@@ -2,6 +2,7 @@ import * as vscode from 'vscode'
 import { MdFeedbackPanelProvider } from './panel-provider'
 import { createCheckpoint } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
+import { generateId } from '@md-feedback/shared'
 import { splitDocument, serializeGate, evaluateAllGates } from '@md-feedback/shared'
 import type { Gate } from '@md-feedback/shared'
 
@@ -10,9 +11,42 @@ type DocumentState = {
   hasChanges: boolean
 }
 
-type PanelEditVersionAccess = {
-  editVersion: number
-  lastWebviewEditVersion: number
+const DEFAULT_AUTO_CHECKPOINT_INTERVAL_MS = 600_000
+const DEFAULT_SECTION_TRACK_DEBOUNCE_MS = 3000
+const DEFAULT_EDITOR_SWITCH_DEBOUNCE_MS = 150
+const DEFAULT_FILE_WATCH_DEBOUNCE_MS = 500
+
+type TimingConfig = {
+  autoCheckpointIntervalMs: number
+  sectionTrackDebounceMs: number
+  editorSwitchDebounceMs: number
+  fileWatchDebounceMs: number
+}
+
+function positiveMsOrDefault(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback
+}
+
+function readTimingConfig(): TimingConfig {
+  const config = vscode.workspace.getConfiguration('md-feedback')
+  return {
+    autoCheckpointIntervalMs: positiveMsOrDefault(
+      config.get<number>('autoCheckpointIntervalMs'),
+      DEFAULT_AUTO_CHECKPOINT_INTERVAL_MS,
+    ),
+    sectionTrackDebounceMs: positiveMsOrDefault(
+      config.get<number>('sectionTrackDebounceMs'),
+      DEFAULT_SECTION_TRACK_DEBOUNCE_MS,
+    ),
+    editorSwitchDebounceMs: positiveMsOrDefault(
+      config.get<number>('editorSwitchDebounceMs'),
+      DEFAULT_EDITOR_SWITCH_DEBOUNCE_MS,
+    ),
+    fileWatchDebounceMs: positiveMsOrDefault(
+      config.get<number>('fileWatchDebounceMs'),
+      DEFAULT_FILE_WATCH_DEBOUNCE_MS,
+    ),
+  }
 }
 
 export class SyncController implements vscode.Disposable {
@@ -27,11 +61,13 @@ export class SyncController implements vscode.Disposable {
   private skipNextFileWatch = false
   private readonly disposables: vscode.Disposable[] = []
   private readonly docStates = new Map<string, DocumentState>()
+  private readonly timing: TimingConfig
 
   constructor(
     private readonly panelProvider: MdFeedbackPanelProvider,
     private readonly context: vscode.ExtensionContext,
   ) {
+    this.timing = readTimingConfig()
     this.context.subscriptions.push(this)
 
     const activeEditorHandler = vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -53,8 +89,7 @@ export class SyncController implements vscode.Disposable {
 
       this.markActivity(e.document.uri)
 
-      const edits = this.panelProvider as unknown as PanelEditVersionAccess
-      const isWebviewEdit = edits.lastWebviewEditVersion === edits.editVersion
+      const isWebviewEdit = this.panelProvider.isLatestEditFromWebview()
       if (isWebviewEdit) {
         this.skipNextFileWatch = true
         return
@@ -66,7 +101,7 @@ export class SyncController implements vscode.Disposable {
 
     this.checkpointTimer = setInterval(() => {
       void this.handleTimerCheckpoint()
-    }, 600_000)
+    }, this.timing.autoCheckpointIntervalMs)
 
     // Listen for first annotation AFTER the edit has been applied (no race condition)
     const firstAnnotationHandler = this.panelProvider.onFirstAnnotationApplied(() => {
@@ -123,7 +158,7 @@ export class SyncController implements vscode.Disposable {
     if (this.sectionTrackTimer) clearTimeout(this.sectionTrackTimer)
     this.sectionTrackTimer = setTimeout(() => {
       this.updateCursorFromSelection(e.textEditor)
-    }, 3000)
+    }, this.timing.sectionTrackDebounceMs)
   }
 
   private updateCursorFromSelection(editor: vscode.TextEditor): void {
@@ -203,7 +238,7 @@ export class SyncController implements vscode.Disposable {
       this.ensureState(editor.document.uri)
       this.watchFile(editor.document.uri)
       this.panelProvider.handleDocumentUpdate(editor.document)
-    }, 150)
+    }, this.timing.editorSwitchDebounceMs)
   }
 
   private async handleFirstAnnotationCheckpoint(): Promise<void> {
@@ -224,7 +259,7 @@ export class SyncController implements vscode.Disposable {
       if (parts.gates.length > 0) return // Already has gates
 
       const gate: Gate = {
-        id: `gate-${Date.now().toString(36)}`,
+        id: generateId('gate'),
         type: 'merge',
         status: 'blocked',
         blockedBy: [],            // Track ALL memos globally
@@ -344,10 +379,9 @@ export class SyncController implements vscode.Disposable {
     if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
     this.fileWatchDebounce = setTimeout(() => {
       // Skip exactly one watcher event after a webview-originated document change.
-      const edits = this.panelProvider as unknown as PanelEditVersionAccess
-      if (this.skipNextFileWatch || edits.lastWebviewEditVersion === edits.editVersion) {
+      if (this.skipNextFileWatch || this.panelProvider.isLatestEditFromWebview()) {
         this.skipNextFileWatch = false
-        edits.lastWebviewEditVersion = 0
+        this.panelProvider.clearWebviewEditMarker()
         return
       }
 
@@ -355,7 +389,7 @@ export class SyncController implements vscode.Disposable {
       if (!document) return
 
       this.panelProvider.handleDocumentUpdate(document)
-    }, 500)
+    }, this.timing.fileWatchDebounceMs)
   }
 
   private ensureState(uri: vscode.Uri): DocumentState {
