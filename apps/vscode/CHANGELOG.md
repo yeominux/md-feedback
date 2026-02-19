@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.11] - 2026-02-19
+
+### Fixed
+- `Approve Action` no longer disappears when workflow sidecar files contain UTF-8 BOM.
+- Sidecar JSON parsing is now BOM-tolerant for stable workflow and severity status rendering.
+
 ## [1.3.10] - 2026-02-19
 
 ### Fixed
