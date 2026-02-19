@@ -260,6 +260,40 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
         break
       }
 
+      case 'memo.rejectWithReason': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) break
+        const memoId = typeof msg.memoId === 'string' ? msg.memoId : ''
+        if (!memoId) break
+
+        const reason = await vscode.window.showInputBox({
+          prompt: 'Rejection reason (optional — press Enter to skip, Esc to cancel)',
+          placeHolder: 'e.g. "Not applicable to this scope"',
+        })
+        if (reason === undefined) break // ESC = cancel reject entirely
+
+        const raw = document.getText()
+        const parts = splitDocument(raw)
+        const memo = parts.memos.find(m => m.id === memoId)
+        if (!memo) break
+
+        memo.status = 'wontfix'
+        memo.updatedAt = new Date().toISOString()
+        if (reason) memo.rejectReason = reason
+
+        const updated = mergeDocument(parts)
+        const rejectEdit = new vscode.WorkspaceEdit()
+        rejectEdit.replace(
+          document.uri,
+          new vscode.Range(0, 0, document.lineCount, 0),
+          updated,
+        )
+        await vscode.workspace.applyEdit(rejectEdit)
+        try { await document.save() } catch { /* best-effort */ }
+        ctx.sendStatusInfo(updated)
+        break
+      }
+
       case 'clipboard.copy': {
         await vscode.env.clipboard.writeText(msg.text || '')
         vscode.window.showInformationMessage('Copied to clipboard!')
