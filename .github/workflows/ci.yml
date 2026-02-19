@@ -28,4 +28,6 @@ jobs:
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
       - run: pnpm check:release-gates
+      - name: Verify npm package contents
+        run: cd apps/mcp-server && npm pack --dry-run 2>&1 | grep -q "LICENSE" || (echo "LICENSE missing from npm package" && exit 1)
 
