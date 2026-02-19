@@ -161,6 +161,11 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
             // #15: Auto-save to keep disk in sync with VS Code buffer (MCP reads from disk)
             try { await document.save() } catch { /* best-effort */ }
 
+            // Refresh status bar after webview edit (memo approve/reject/status change).
+            // The sync-controller intentionally skips webview-originated edits to avoid
+            // echo loops, so we must re-send status info explicitly here.
+            ctx.sendStatusInfo(fullContent)
+
             // Fire first-annotation event AFTER the edit is applied and saved,
             // so sync-controller reads the up-to-date document content for the checkpoint.
             if (msg.firstAnnotation) {
