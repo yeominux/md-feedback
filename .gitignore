@@ -27,6 +27,8 @@ scripts/test-mcp-manual.mjs
 *HANDOFF*.md
 *RELEASING*.md
 *RELEASE-PLAN*.md
+AGENTS.md
+RELEASE_NOTES.md
 *계획*.md
 *_초안.md
 README_MCP_SETUP.md
