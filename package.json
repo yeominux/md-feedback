@@ -1,7 +1,11 @@
 {
   "name": "md-feedback-monorepo",
   "private": true,
+<<<<<<< HEAD
   "version": "1.3.7",
+=======
+  "version": "1.3.9",
+>>>>>>> main
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "pnpm -r build",
@@ -25,8 +29,8 @@
     "release:prep": "node scripts/release-prep.mjs",
     "release": "node scripts/release.mjs",
     "publish:npm": "cd apps/mcp-server && npm publish",
-    "publish:vsce": "pnpm --filter md-feedback-vscode package && cd apps/vscode && npx @vscode/vsce publish --packagePath md-feedback-vscode-${npm_package_version}.vsix",
-    "publish:ovsx": "cd apps/vscode && npx ovsx publish md-feedback-vscode-${npm_package_version}.vsix"
+    "publish:vsce": "node scripts/publish-vsce.mjs",
+    "publish:ovsx": "node scripts/publish-ovsx.mjs"
   },
   "engines": {
     "node": ">=18"
