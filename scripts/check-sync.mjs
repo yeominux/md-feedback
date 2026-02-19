@@ -12,7 +12,7 @@
  * Run: node scripts/check-sync.mjs
  * Exit 0 = all good, Exit 1 = problems found.
  */
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 
 const PASS = '\x1b[32m✓\x1b[0m'
 const FAIL = '\x1b[31m✗\x1b[0m'
@@ -59,13 +59,17 @@ if (versionMismatches.length === 0) {
 
 console.log('\n\x1b[1m[2/5] MCP tool count\x1b[0m')
 
-const toolsSrc = read('apps/mcp-server/src/tools.ts')
-const toolCount = (toolsSrc.match(/server\.tool\(/g) || []).length
+const toolFiles = readdirSync('apps/mcp-server/src')
+  .filter(name => /^tools.*\.ts$/.test(name))
+  .map(name => `apps/mcp-server/src/${name}`)
+const toolCount = toolFiles
+  .map(file => (read(file).match(/server\.tool\(/g) || []).length)
+  .reduce((sum, n) => sum + n, 0)
 
 if (toolCount === 0) {
-  fail('Could not count tools in apps/mcp-server/src/tools.ts')
+  fail(`Could not count tools in apps/mcp-server/src/tools*.ts (${toolFiles.length} files scanned)`)
 } else {
-  pass(`Source: ${toolCount} tools (server.tool() calls)`)
+  pass(`Source: ${toolCount} tools (server.tool() calls across ${toolFiles.length} files)`)
 }
 
 const readmeFiles = [
@@ -110,6 +114,7 @@ const koToEn = {
   '빠른 시작 (2분 이내)': 'Quick Start (under 2 minutes)',
   '사용 사례': 'Use Cases',
   '설계 철학': 'Design Philosophy',
+  'VS Code 설정': 'VS Code Settings',
   'MCP 서버': 'MCP Server',
   '패키지': 'Packages',
   '링크': 'Links',

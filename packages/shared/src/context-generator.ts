@@ -1,5 +1,7 @@
 import type { ReviewHighlight, ReviewMemo } from './types'
-import { HEX_TO_COLOR_NAME } from './types'
+import type { FeedbackItem } from './feedback-collector'
+import { collectFeedbackItems } from './feedback-collector'
+import { truncateText } from './utils'
 
 export type TargetFormat =
   | 'claude-code' | 'cursor' | 'codex' | 'copilot' | 'cline'
@@ -18,67 +20,6 @@ export const TARGET_LABELS: Record<TargetFormat, { label: string; file: string; 
   'antigravity': { label: 'Antigravity', file: '.agent/rules/plan-review.md', desc: 'Auto-loaded by Google Antigravity' },
   'generic':     { label: 'Generic Markdown', file: '(clipboard + file)', desc: 'Works with any AI tool (OpenCode, Aider, Lovable, etc.)' },
   'handoff':     { label: 'Handoff', file: 'HANDOFF.md', desc: 'Session handoff document for AI coding agents' },
-}
-
-interface FeedbackItem {
-  type: 'fix' | 'question' | 'important'
-  text: string
-  section: string
-  feedback: string
-}
-
-function collectFeedback(
-  highlights: ReviewHighlight[],
-  docMemos: ReviewMemo[],
-): FeedbackItem[] {
-  const items: FeedbackItem[] = []
-  const matchedHighlights = new Set<number>()
-
-  for (const memo of docMemos) {
-    const cn = memo.color.startsWith('#') ? (HEX_TO_COLOR_NAME[memo.color] || 'red') : memo.color
-    const type = cn === 'red' ? 'fix' : cn === 'blue' ? 'question' : 'important'
-
-    const hlColor = cn === 'red' ? '#fca5a5' : cn === 'blue' ? '#93c5fd' : '#fef08a'
-    const hlIdx = highlights.findIndex((hl, idx) =>
-      !matchedHighlights.has(idx) && hl.color === hlColor && memo.section.trim() === hl.section.trim(),
-    )
-
-    if (hlIdx >= 0) {
-      matchedHighlights.add(hlIdx)
-      items.push({
-        type,
-        text: highlights[hlIdx].text,
-        section: memo.section || highlights[hlIdx].section || '',
-        feedback: memo.text,
-      })
-    } else {
-      items.push({
-        type,
-        text: memo.context || '',
-        section: memo.section || '',
-        feedback: memo.text,
-      })
-    }
-  }
-
-  for (let i = 0; i < highlights.length; i++) {
-    if (matchedHighlights.has(i)) continue
-    const hl = highlights[i]
-    const cn = HEX_TO_COLOR_NAME[hl.color] || 'yellow'
-    const type = cn === 'red' ? 'fix' : cn === 'blue' ? 'question' : 'important'
-    items.push({
-      type,
-      text: hl.text,
-      section: hl.section || '',
-      feedback: '',
-    })
-  }
-
-  return items
-}
-
-function trunc(s: string, len = 120): string {
-  return s.length > len ? s.slice(0, len) + '...' : s
 }
 
 function buildChecklist(sections: string[]): string {
@@ -104,11 +45,11 @@ function generateClaudeCode(
     for (const f of fixes) {
       const where = f.section ? ` (${f.section})` : ''
       if (f.text && f.feedback) {
-        L.push(`- "${trunc(f.text, 120)}"${where} → ${f.feedback}`)
+        L.push(`- "${truncateText(f.text, 120)}"${where} → ${f.feedback}`)
       } else if (f.feedback) {
         L.push(`- ${f.feedback}${where}`)
       } else if (f.text) {
-        L.push(`- Fix: "${trunc(f.text, 80)}"${where}`)
+        L.push(`- Fix: "${truncateText(f.text, 80)}"${where}`)
       }
     }
     L.push('')
@@ -119,11 +60,11 @@ function generateClaudeCode(
     for (const q of questions) {
       const where = q.section ? ` (${q.section})` : ''
       if (q.text && q.feedback) {
-        L.push(`- "${trunc(q.text, 120)}"${where} — ${q.feedback}`)
+        L.push(`- "${truncateText(q.text, 120)}"${where} — ${q.feedback}`)
       } else if (q.feedback) {
         L.push(`- ${q.feedback}${where}`)
       } else if (q.text) {
-        L.push(`- Question about: "${trunc(q.text, 80)}"${where}`)
+        L.push(`- Question about: "${truncateText(q.text, 80)}"${where}`)
       }
     }
     L.push('')
@@ -132,7 +73,7 @@ function generateClaudeCode(
   if (importants.length > 0) {
     L.push('### Key Points (preserve these)')
     for (const imp of importants) {
-      if (imp.text) L.push(`- "${trunc(imp.text, 80)}"${imp.section ? ` (${imp.section})` : ''}`)
+      if (imp.text) L.push(`- "${truncateText(imp.text, 80)}"${imp.section ? ` (${imp.section})` : ''}`)
       if (imp.feedback) L.push(`- ${imp.feedback}`)
     }
     L.push('')
@@ -170,7 +111,7 @@ function generateCursor(
     L.push('Required changes:')
     for (const f of fixes) {
       if (f.text && f.feedback) {
-        L.push(`- "${trunc(f.text, 50)}" → ${f.feedback}`)
+        L.push(`- "${truncateText(f.text, 50)}" → ${f.feedback}`)
       } else if (f.feedback) {
         L.push(`- ${f.feedback}`)
       }
@@ -181,7 +122,7 @@ function generateCursor(
   if (questions.length > 0) {
     L.push('Open questions (resolve before coding):')
     for (const q of questions) {
-      L.push(`- ${q.feedback || trunc(q.text, 80)}`)
+      L.push(`- ${q.feedback || truncateText(q.text, 80)}`)
     }
     L.push('')
   }
@@ -218,11 +159,11 @@ function generateGeneric(
     for (const f of fixes) {
       const where = f.section ? ` [${f.section}]` : ''
       if (f.text && f.feedback) {
-        L.push(`- "${trunc(f.text, 120)}"${where} → ${f.feedback}`)
+        L.push(`- "${truncateText(f.text, 120)}"${where} → ${f.feedback}`)
       } else if (f.feedback) {
         L.push(`- ${f.feedback}${where}`)
       } else if (f.text) {
-        L.push(`- "${trunc(f.text, 80)}"${where}`)
+        L.push(`- "${truncateText(f.text, 80)}"${where}`)
       }
     }
     L.push('')
@@ -233,7 +174,7 @@ function generateGeneric(
     for (const q of questions) {
       const where = q.section ? ` [${q.section}]` : ''
       if (q.text && q.feedback) {
-        L.push(`- "${trunc(q.text, 120)}"${where} — ${q.feedback}`)
+        L.push(`- "${truncateText(q.text, 120)}"${where} — ${q.feedback}`)
       } else if (q.feedback) {
         L.push(`- ${q.feedback}${where}`)
       }
@@ -244,7 +185,7 @@ function generateGeneric(
   if (importants.length > 0) {
     L.push('## Key Points')
     for (const imp of importants) {
-      if (imp.text) L.push(`- "${trunc(imp.text, 80)}"`)
+      if (imp.text) L.push(`- "${truncateText(imp.text, 80)}"`)
       if (imp.feedback) L.push(`- ${imp.feedback}`)
     }
     L.push('')
@@ -262,6 +203,28 @@ function generateGeneric(
   return L.join('\n')
 }
 
+type ContextGenerator = (
+  title: string,
+  filePath: string,
+  sections: string[],
+  fixes: FeedbackItem[],
+  questions: FeedbackItem[],
+  importants: FeedbackItem[],
+) => string
+
+const CONTEXT_GENERATORS: Record<Exclude<TargetFormat, 'handoff'>, ContextGenerator> = {
+  cursor: generateCursor,
+  generic: generateGeneric,
+  'claude-code': generateClaudeCode,
+  codex: generateClaudeCode,
+  copilot: generateClaudeCode,
+  cline: generateClaudeCode,
+  windsurf: generateClaudeCode,
+  'roo-code': generateClaudeCode,
+  gemini: generateClaudeCode,
+  antigravity: generateClaudeCode,
+}
+
 // ─── Public API ───
 
 export function generateContext(
@@ -272,7 +235,7 @@ export function generateContext(
   docMemos: ReviewMemo[],
   target: TargetFormat,
 ): string {
-  const items = collectFeedback(highlights, docMemos)
+  const items = collectFeedbackItems(highlights, docMemos)
 
   if (items.length === 0 && sections.length === 0) {
     return [
@@ -287,22 +250,11 @@ export function generateContext(
   const questions = items.filter(i => i.type === 'question')
   const importants = items.filter(i => i.type === 'important')
 
-  switch (target) {
-    case 'claude-code':
-    case 'codex':
-    case 'copilot':
-    case 'cline':
-    case 'windsurf':
-    case 'roo-code':
-    case 'gemini':
-    case 'antigravity':
-      return generateClaudeCode(title, filePath, sections, fixes, questions, importants)
-    case 'cursor':
-      return generateCursor(title, filePath, sections, fixes, questions, importants)
-    case 'generic':
-      return generateGeneric(title, filePath, sections, fixes, questions, importants)
-    case 'handoff':
-      // Handoff is generated via handoff-generator.ts, not here
-      return '(Use Export > Handoff to generate handoff document)'
+  if (target === 'handoff') {
+    // Handoff is generated via handoff-generator.ts, not here
+    return '(Use Export > Handoff to generate handoff document)'
   }
+
+  const generator = CONTEXT_GENERATORS[target]
+  return generator(title, filePath, sections, fixes, questions, importants)
 }

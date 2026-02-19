@@ -12,9 +12,9 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 **You review. The agent builds. Gates track completion. Handoffs preserve context.**
 
-![MD Feedback Demo](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
+![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.3.1): highlight persistence, needs-review sync, and approve/reject UI flow are now stable in real extension usage.
+> Latest (v1.3.6): license and privacy documentation, Marketplace changelog tab, and improved accessibility for screen readers.
 
 ## How It Works
 
@@ -111,6 +111,17 @@ Set conditions that must be met before the agent proceeds. Gates auto-evaluate b
 - **Zero cognitive load.** Status bar shows progress passively. No extra decisions required.
 - **Portable and git-friendly.** Annotations are HTML comments — they survive any markdown renderer and version control.
 
+## VS Code Settings
+
+You can tune timing behavior from **Settings** (`md-feedback.*`):
+
+- `md-feedback.autoCheckpointIntervalMs` (default: `600000`)
+- `md-feedback.sectionTrackDebounceMs` (default: `3000`)
+- `md-feedback.editorSwitchDebounceMs` (default: `150`)
+- `md-feedback.fileWatchDebounceMs` (default: `500`)
+
+Use larger values if your workspace is very large or you want fewer background updates.
+
 ## MCP Server
 
 MD Feedback includes an MCP server with 19 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
@@ -130,6 +141,12 @@ npx md-feedback
 Or via environment variable: `MD_FEEDBACK_WORKSPACE=/path/to/project`
 
 For full details, see [MCP Server documentation](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme).
+
+## Shared API Policy
+
+- New integrations should use `MemoV2`-based APIs (`splitDocument`, `extractMemosV2`).
+- Legacy helpers are compatibility-only and exposed under `legacy.*`.
+- Avoid adding new dependencies on deprecated `Memo`-typed flows.
 
 ## Packages
 
@@ -184,3 +201,4 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 
 **Who is this for?**
 Developers using AI coding assistants who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
+
