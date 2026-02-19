@@ -387,7 +387,7 @@ export function splitDocument(markdown: string): DocumentParts {
   const existingMemoKeys = new Set(
     memos
       .filter(m => m.color === 'red' || m.color === 'blue')
-      .map(m => `${m.color}|${m.anchorText.trim().slice(0, 32)}`),
+      .map(m => `${m.color}|${m.anchorText.trim()}`),
   )
   HIGHLIGHT_MARK_RE.lastIndex = 0
   let markMatch: RegExpExecArray | null
@@ -400,7 +400,7 @@ export function splitDocument(markdown: string): DocumentParts {
     const anchorText = markAnchor || markText
     if (!anchorText) continue
 
-    const dedupeKey = `${memoColor}|${anchorText.slice(0, 32)}`
+    const dedupeKey = `${memoColor}|${anchorText}`
     if (existingMemoKeys.has(dedupeKey)) continue
 
     const searchNeedle = anchorText.slice(0, 40)
