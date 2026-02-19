@@ -25,7 +25,7 @@
  *   → These are manual. Run: pnpm publish:npm / publish:vsce / publish:ovsx
  */
 
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync } from 'fs'
 import { execSync } from 'child_process'
 
 // ── Helpers ──
@@ -176,6 +176,14 @@ if (!changelog.includes(`[${nextVersion}]`)) {
   process.exit(1)
 }
 console.log(`  ✓ Found [${nextVersion}] in CHANGELOG.md`)
+
+// Step 3.5: Copy shared files to sub-packages
+console.log('\n── Step 3.5: Sync shared files ──')
+copyFileSync('LICENSE', 'apps/mcp-server/LICENSE')
+copyFileSync('CHANGELOG.md', 'apps/vscode/CHANGELOG.md')
+console.log('  ✓ LICENSE → apps/mcp-server/')
+console.log('  ✓ CHANGELOG.md → apps/vscode/')
+
 run('node scripts/check-public-docs.mjs')
 run('node scripts/check-changelog-user-facing.mjs')
 
