@@ -1,6 +1,9 @@
 import type { Memo, MemoV2, ReviewHighlight, ReviewMemo, Checkpoint, HighlightMark } from './types'
 import { HEX_TO_COLOR_NAME } from './types'
 import { splitDocument } from './document-writer'
+import { collectFeedbackItems } from './feedback-collector'
+import type { FloatingMemoInput } from './feedback-collector'
+import { truncateText } from './utils'
 
 const HEX_TO_COLOR = HEX_TO_COLOR_NAME
 
@@ -237,12 +240,12 @@ function decAttr(s: string): string {
   return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
 }
 
-const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
+const HIGHLIGHT_MARK_PATTERN = '<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->'
 
 /** Extract persisted highlight marks from markdown (HTML comment format) */
 export function extractHighlightMarks(markdown: string): HighlightMark[] {
   const marks: HighlightMark[] = []
-  const re = new RegExp(HIGHLIGHT_MARK_RE.source, HIGHLIGHT_MARK_RE.flags)
+  const re = new RegExp(HIGHLIGHT_MARK_PATTERN, 'g')
   let match: RegExpExecArray | null
   while ((match = re.exec(markdown)) !== null) {
     marks.push({
@@ -259,6 +262,7 @@ export function stripHighlightMarks(markdown: string): string {
   return markdown.replace(/\n*<!-- HIGHLIGHT_MARK color="[^"]*" text="[^"]*" anchor="[^"]*" -->/g, '')
 }
 
+/** @deprecated Use `splitDocument(...).memos` (MemoV2) or `extractMemosV2`. */
 export function extractMemos(annotatedMarkdown: string): { markdown: string; memos: Memo[] } {
   const memos: Memo[] = []
   const lines = annotatedMarkdown.split('\n')
@@ -393,87 +397,15 @@ export function extractMemosV2(annotatedMarkdown: string): { markdown: string; m
 
 /* ── Share to AI: compact review protocol for agent consumption ── */
 
-interface FeedbackItem {
-  type: 'fix' | 'question' | 'important'
-  text: string
-  section: string
-  context: string
-  feedback: string
-}
-
-function collectItems(
-  highlights: ReviewHighlight[],
-  docMemos: ReviewMemo[],
-  floatingMemos: Memo[],
-): FeedbackItem[] {
-  const items: FeedbackItem[] = []
-  const matchedHighlights = new Set<number>()
-
-  for (const memo of docMemos) {
-    const cn = memo.color.startsWith('#') ? (HEX_TO_COLOR[memo.color] || 'red') : memo.color
-    const type = cn === 'red' ? 'fix' : cn === 'blue' ? 'question' : 'important'
-
-    const hlColor = cn === 'red' ? '#fca5a5' : cn === 'blue' ? '#93c5fd' : '#fef08a'
-    const hlIdx = highlights.findIndex((hl, idx) =>
-      !matchedHighlights.has(idx) && hl.color === hlColor && memo.section === hl.section,
-    )
-
-    if (hlIdx >= 0) {
-      matchedHighlights.add(hlIdx)
-      items.push({
-        type,
-        text: highlights[hlIdx].text,
-        section: memo.section || highlights[hlIdx].section || '',
-        context: highlights[hlIdx].context || '',
-        feedback: memo.text,
-      })
-    } else {
-      items.push({
-        type,
-        text: memo.context || '',
-        section: memo.section || '',
-        context: '',
-        feedback: memo.text,
-      })
-    }
-  }
-
-  for (let i = 0; i < highlights.length; i++) {
-    if (matchedHighlights.has(i)) continue
-    const hl = highlights[i]
-    const cn = HEX_TO_COLOR[hl.color] || 'yellow'
-    const type = cn === 'red' ? 'fix' : cn === 'blue' ? 'question' : 'important'
-    items.push({
-      type,
-      text: hl.text,
-      section: hl.section || '',
-      context: hl.context || '',
-      feedback: '',
-    })
-  }
-
-  for (const memo of floatingMemos.filter(m => m.text.trim())) {
-    const type = memo.color === 'red' ? 'fix' : memo.color === 'blue' ? 'question' : 'important'
-    items.push({
-      type,
-      text: '',
-      section: '',
-      context: '',
-      feedback: memo.text,
-    })
-  }
-
-  return items
-}
-
+/** @deprecated Use MemoV2-based export/context helpers instead of v0.3 floating memo summary. */
 export function generateReviewSummary(
   title: string,
   highlights: ReviewHighlight[],
   docMemos: ReviewMemo[],
-  floatingMemos: Memo[],
+  floatingMemos: FloatingMemoInput[],
   filePath: string = '',
 ): string {
-  const items = collectItems(highlights, docMemos, floatingMemos)
+  const items = collectFeedbackItems(highlights, docMemos, { floatingMemos })
   const fp = filePath || '(file path not set)'
   const docTitle = title || 'Untitled'
 
@@ -507,7 +439,7 @@ export function generateReviewSummary(
       const section = f.section ? `**${f.section}**` : '**General**'
 
       if (f.text) {
-        L.push(`${prefix} ${section} — "${truncate(f.text, 80)}"`)
+        L.push(`${prefix} ${section} — "${truncateText(f.text, 80)}"`)
       } else {
         L.push(`${prefix} ${section}`)
       }
@@ -528,7 +460,7 @@ export function generateReviewSummary(
       const section = q.section ? `**${q.section}**` : '**General**'
 
       if (q.text) {
-        L.push(`${prefix} ${section} — "${truncate(q.text, 80)}"`)
+        L.push(`${prefix} ${section} — "${truncateText(q.text, 80)}"`)
       } else {
         L.push(`${prefix} ${section}`)
       }
@@ -546,7 +478,7 @@ export function generateReviewSummary(
     for (const imp of importants) {
       const section = imp.section ? `**${imp.section}**` : '**General**'
       if (imp.text) {
-        L.push(`- ${section} — "${truncate(imp.text, 80)}"`)
+        L.push(`- ${section} — "${truncateText(imp.text, 80)}"`)
       }
       if (imp.feedback) {
         L.push(`- ${section} — ${imp.feedback}`)
@@ -558,17 +490,13 @@ export function generateReviewSummary(
   return L.join('\n').trimEnd()
 }
 
-function truncate(s: string, len: number): string {
-  return s.length > len ? s.slice(0, len) + '...' : s
-}
-
 // ─── Checkpoint roundtrip ───
 
-const CHECKPOINT_PATTERN = /<!-- CHECKPOINT id="([^"]+)" time="([^"]+)" note="([^"]*)" fixes=(\d+) questions=(\d+) highlights=(\d+) sections="([^"]*)" -->/g
+const CHECKPOINT_PATTERN = '<!-- CHECKPOINT id="([^"]+)" time="([^"]+)" note="([^"]*)" fixes=(\\d+) questions=(\\d+) highlights=(\\d+) sections="([^"]*)" -->'
 
 export function extractCheckpoints(markdown: string): Checkpoint[] {
   const checkpoints: Checkpoint[] = []
-  const re = new RegExp(CHECKPOINT_PATTERN.source, CHECKPOINT_PATTERN.flags)
+  const re = new RegExp(CHECKPOINT_PATTERN, 'g')
   let match: RegExpExecArray | null
   while ((match = re.exec(markdown)) !== null) {
     checkpoints.push({

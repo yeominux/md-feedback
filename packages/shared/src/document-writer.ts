@@ -9,6 +9,8 @@
 
 import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
 import { colorToType, isResolved } from './types'
+import { generateId } from './id'
+import { parseJsonStrict } from './errors'
 
 // ─── Attribute escape/unescape (unified, handles &, ", newline, -->) ───
 
@@ -21,7 +23,7 @@ export function unescAttrValue(s: string): string {
 
 // ─── Hash utility (simple djb2, no crypto needed) ───
 
-function hashLine(line: string): string {
+export function computeLineHash(line: string): string {
   let hash = 5381
   for (let i = 0; i < line.length; i++) {
     hash = ((hash << 5) + hash + line.charCodeAt(i)) >>> 0
@@ -77,6 +79,7 @@ const ARTIFACT_END_RE = /^-->$/
 
 // MEMO_DEPENDENCY: <!-- MEMO_DEPENDENCY id="..." from="..." to="..." type="..." -->
 const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
+const ANCHOR_HASH_SEARCH_RADIUS = 10
 
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
@@ -156,7 +159,7 @@ export function splitDocument(markdown: string): DocumentParts {
         color: memoColor,
         text: v3Match[4].replace(/--\u200B>/g, '-->'),
         anchorText: anchorText || '',
-        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${hashLine(bodyLines[anchorLine] || '')}` : '',
+        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${computeLineHash(bodyLines[anchorLine] || '')}` : '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
@@ -178,10 +181,10 @@ export function splitDocument(markdown: string): DocumentParts {
       // Refresh anchor from current body position to prevent stale references
       const anchorLineIdx = findAnchorLineIdx(bodyLines)
       const freshAnchor = anchorLineIdx >= 0
-        ? `L${anchorLineIdx + 1}|${hashLine(bodyLines[anchorLineIdx])}`
+        ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx])}`
         : (a.anchor || '')
       memos.push({
-        id: a.id || `memo_${Date.now()}`,
+        id: a.id || generateId('memo'),
         type: (a.type as MemoV2['type']) || colorToType((a.color || 'red') as MemoColor),
         status: (a.status as MemoV2['status']) || 'open',
         owner: (a.owner as MemoV2['owner']) || 'human',
@@ -208,7 +211,7 @@ export function splitDocument(markdown: string): DocumentParts {
       const a = parseAttrs(attrLines)
       const override = a.override as Gate['override'] | undefined
       gates.push({
-        id: a.id || `gate_${Date.now()}`,
+        id: a.id || generateId('gate'),
         type: (a.type as Gate['type']) || 'custom',
         status: (a.status as Gate['status']) || 'blocked',
         blockedBy: a.blockedBy ? a.blockedBy.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -250,9 +253,9 @@ export function splitDocument(markdown: string): DocumentParts {
       i++ // skip -->
       const a = parseAttrs(attrLines)
       let operations: ImplOperation[] = []
-      try { operations = JSON.parse(a.operations || '[]') } catch { /* best effort */ }
+      try { operations = parseJsonStrict<ImplOperation[]>(a.operations || '[]', 'MEMO_IMPL.operations') } catch { /* best effort */ }
       impls.push({
-        id: a.id || `impl_${Date.now().toString(36)}`,
+        id: a.id || generateId('impl', { separator: '_' }),
         memoId: a.memoId || '',
         status: (a.status as MemoImpl['status']) || 'applied',
         operations,
@@ -273,7 +276,7 @@ export function splitDocument(markdown: string): DocumentParts {
       i++ // skip -->
       const a = parseAttrs(attrLines)
       artifacts.push({
-        id: a.id || `art_${Date.now().toString(36)}`,
+        id: a.id || generateId('art', { separator: '_' }),
         memoId: a.memoId || '',
         files: a.files ? a.files.split(',').map(s => s.trim()).filter(Boolean) : [],
         linkedAt: a.linkedAt || new Date().toISOString(),
@@ -334,7 +337,7 @@ export function splitDocument(markdown: string): DocumentParts {
         color: (legacyMatch[2] || 'red') as MemoColor,
         text,
         anchorText: anchorText || '',
-        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${hashLine(bodyLines[anchorLine] || '')}` : '',
+        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${computeLineHash(bodyLines[anchorLine] || '')}` : '',
         createdAt: legacyMatch[3] || new Date().toISOString(),
         updatedAt: legacyMatch[3] || new Date().toISOString(),
       })
@@ -536,7 +539,7 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
     const lineIdx = findMemoAnchorLine(lines, memo)
     if (lineIdx >= 0) {
       // Update anchor to actual position — prevents drift on repeated save cycles
-      memo.anchor = `L${lineIdx + 1}|${hashLine(lines[lineIdx])}`
+      memo.anchor = `L${lineIdx + 1}|${computeLineHash(lines[lineIdx])}`
       const existing = memoMap.get(lineIdx) || []
       existing.push(memo)
       memoMap.set(lineIdx, existing)
@@ -593,14 +596,14 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
       const expectedHash = anchorMatch[2]
 
       // Exact line match
-      if (lineNum >= 0 && lineNum < lines.length && hashLine(lines[lineNum]) === expectedHash) {
+      if (lineNum >= 0 && lineNum < lines.length && computeLineHash(lines[lineNum]) === expectedHash) {
         return lineNum
       }
 
-      // Search nearby (within 10 lines) for the hash
-      for (let delta = 1; delta <= 10; delta++) {
+      // Search nearby for hash match to tolerate local edits around anchors
+      for (let delta = 1; delta <= ANCHOR_HASH_SEARCH_RADIUS; delta++) {
         for (const d of [lineNum - delta, lineNum + delta]) {
-          if (d >= 0 && d < lines.length && hashLine(lines[d]) === expectedHash) {
+          if (d >= 0 && d < lines.length && computeLineHash(lines[d]) === expectedHash) {
             return d
           }
         }
@@ -649,5 +652,5 @@ function findAnchorLineIdx(bodyLines: string[]): number {
 
 /** Generate body hash (djb2, 8 hex chars) for Plan Cursor */
 export function generateBodyHash(body: string): string {
-  return hashLine(body)
+  return computeLineHash(body)
 }
