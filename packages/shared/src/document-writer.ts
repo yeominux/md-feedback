@@ -385,10 +385,13 @@ export function splitDocument(markdown: string): DocumentParts {
 
   // Recover missing fix/question memos from persisted highlight marks.
   // If memo blocks are accidentally missing, MCP agents would otherwise see no actionable memos.
+  // Normalize dedup keys: strip leading markdown heading markers (### ) so
+  // "### Step 3: foo" and "Step 3: foo" match as the same anchor.
+  const stripHeadingPrefix = (s: string) => s.replace(/^#+\s*/, '').trim()
   const existingMemoKeys = new Set(
     memos
       .filter(m => m.color === 'red' || m.color === 'blue')
-      .map(m => `${m.color}|${m.anchorText.trim()}`),
+      .map(m => `${m.color}|${stripHeadingPrefix(m.anchorText)}`),
   )
   HIGHLIGHT_MARK_RE.lastIndex = 0
   let markMatch: RegExpExecArray | null
@@ -401,7 +404,7 @@ export function splitDocument(markdown: string): DocumentParts {
     const anchorText = markAnchor || markText
     if (!anchorText) continue
 
-    const dedupeKey = `${memoColor}|${anchorText}`
+    const dedupeKey = `${memoColor}|${stripHeadingPrefix(anchorText)}`
     if (existingMemoKeys.has(dedupeKey)) continue
 
     const searchNeedle = anchorText.slice(0, 40)
