@@ -14,7 +14,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "node esbuild.mjs"
+    "build": "node esbuild.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
