@@ -35,6 +35,7 @@ README_MCP_SETUP.md
 mcp-config*.json
 run_mcp.bat
 
+smoke/
 *.bak
 *.log
 .env*

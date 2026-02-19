@@ -82,7 +82,8 @@ export function getWorkflowState(file: string): WorkflowState {
     return buildDefaultWorkflowState()
   }
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<WorkflowState>
+    const raw = readFileSync(path, 'utf-8').replace(/^\uFEFF/, '')
+    const parsed = JSON.parse(raw) as Partial<WorkflowState>
     const phase = parsed.phase
     if (!phase || !WORKFLOW_PHASE_ORDER.includes(phase)) {
       return buildDefaultWorkflowState()
