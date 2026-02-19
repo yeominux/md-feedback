@@ -3,11 +3,13 @@
 ## [1.3.8] - 2026-02-19
 
 ### Changed
-- Release packaging and publish scripts are now cross-shell safe (PowerShell and POSIX) for VS Code Marketplace and Open VSX publishing
-- Version sync for all workspace packages is aligned at `1.3.8`
+- Approval flow UX is clarified: checkpoint approval and memo approval are shown as separate actions
+- Conflicting duplicate approve CTA in the panel is removed to prevent action ambiguity
+- Demo GIF is refreshed to match the current approval flow in the editor
 
 ### Improved
-- Publishing reliability improved to prevent shell variable expansion mismatches during release
+- MCP workflow policy handling is more predictable for agent-driven review operations
+- Publishing commands are now cross-shell safe (PowerShell and POSIX) for VS Code Marketplace and Open VSX
 
 ## [1.3.7] - 2026-02-19
 
