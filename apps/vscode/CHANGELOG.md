@@ -7,6 +7,7 @@
 - `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files
 - MCP server workflow and severity sidecar reads are now BOM-tolerant
 
+
 ## [1.3.12] - 2026-02-20
 
 ### Fixed
