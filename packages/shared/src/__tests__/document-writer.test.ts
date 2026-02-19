@@ -47,6 +47,35 @@ More content.`
     expect(parts.cursor).toBeNull()
   })
 
+  it('recovers missing fix/question memos from HIGHLIGHT_MARK metadata', () => {
+    const input = `# Title
+
+Anchor line
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="wrong word" anchor="Anchor line" -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="why this?" anchor="Anchor line" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    expect(recovered).toHaveLength(2)
+    expect(recovered.some(m => m.color === 'red' && m.type === 'fix')).toBe(true)
+    expect(recovered.some(m => m.color === 'blue' && m.type === 'question')).toBe(true)
+  })
+
+  it('does not create duplicate recovered memos when explicit memo exists', () => {
+    const input = `# Title
+
+Anchor line
+<!-- USER_MEMO id="m1" color="red" status="open" : Existing memo -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="wrong word" anchor="Anchor line" -->`
+
+    const parts = splitDocument(input)
+    const redMemos = parts.memos.filter(m => m.color === 'red')
+
+    expect(redMemos).toHaveLength(1)
+    expect(redMemos[0].id).toBe('m1')
+  })
+
   it('anchor drift: repeated split/merge cycles do not shift memo position', () => {
     // Create a document with a memo anchored to "Line B"
     const input = `# Title
