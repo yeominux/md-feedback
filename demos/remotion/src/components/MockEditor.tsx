@@ -9,8 +9,8 @@ import { colors, editorPanel } from "../styles";
  *   frame 95:  content fades in
  *   frame 130: fix annotation highlight appears
  *   frame 220: inline diff slides in
- *   frame 310: CodeLens Approve/Reject appears
- *   frame 400: cursor clicks Approve in editor
+ *   frame 310: CodeLens Approve Memo/Reject appears
+ *   frame 400: cursor clicks Approve Memo in editor
  */
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
@@ -204,7 +204,7 @@ export const MockEditor: React.FC = () => {
                 fontWeight: 600,
               }}
             >
-              $(check) Approve
+              $(check) Approve Memo
             </span>
             <span style={{ color: "rgba(212,212,212,0.45)" }}>|</span>
             <span style={{ color: "rgba(252,165,165,0.95)" }}>$(x) Reject</span>

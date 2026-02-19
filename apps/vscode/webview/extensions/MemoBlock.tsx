@@ -407,9 +407,9 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
               <button
                 onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
                 className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors"
-                title="Approve"
+                title="Approve Memo"
               >
-                <Check size={12} /> Approve
+                <Check size={12} /> Approve Memo
               </button>
               <button
                 onClick={() => { updateAttributes({ status: 'open' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
