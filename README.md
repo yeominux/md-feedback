@@ -45,7 +45,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 ## Features
 
 - **3 annotation types**: Highlight (reading mark), Fix (needs change), Question (needs clarification)
-- **19 MCP tools** for direct agent integration
+- **26 MCP tools** for direct agent integration
 - **Export to 11 AI tools**: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - **Quality gates** with automatic pass/fail evaluation
 - **Session handoffs** preserve context across AI agent sessions
@@ -113,14 +113,8 @@ Set conditions that must be met before the agent proceeds. Gates auto-evaluate b
 
 ## VS Code Settings
 
-You can tune timing behavior from **Settings** (`md-feedback.*`):
-
-- `md-feedback.autoCheckpointIntervalMs` (default: `600000`)
-- `md-feedback.sectionTrackDebounceMs` (default: `3000`)
-- `md-feedback.editorSwitchDebounceMs` (default: `150`)
-- `md-feedback.fileWatchDebounceMs` (default: `500`)
-
-Use larger values if your workspace is very large or you want fewer background updates.
+You can customize MD Feedback from VS Code Settings via `md-feedback.*`.
+Advanced timing and performance tuning options are available for large workspaces.
 
 ## MCP Server
 
@@ -142,20 +136,6 @@ Or via environment variable: `MD_FEEDBACK_WORKSPACE=/path/to/project`
 
 For full details, see [MCP Server documentation](./apps/mcp-server/README.md).
 
-## Shared API Policy
-
-- New integrations should use `MemoV2`-based APIs (`splitDocument`, `extractMemosV2`).
-- Legacy helpers are compatibility-only and exposed under `legacy.*`.
-- Avoid adding new dependencies on deprecated `Memo`-typed flows.
-
-## Packages
-
-| Package | Description | Published |
-| --- | --- | --- |
-| [apps/vscode](./apps/vscode) | VS Code Extension | [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode) |
-| [apps/mcp-server](./apps/mcp-server) | MCP Server | [npm](https://www.npmjs.com/package/md-feedback) |
-| [packages/shared](./packages/shared) | Shared types & utils | Private |
-
 ## Links
 
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
@@ -175,23 +155,11 @@ For full details, see [MCP Server documentation](./apps/mcp-server/README.md).
 **What is MD Feedback?**
 MD Feedback is a VS Code extension and MCP server for reviewing markdown plans before AI agents implement them. Select text, press 1 (highlight), 2 (fix), or 3 (question) — annotations are stored as portable HTML comments in the markdown file itself. AI agents read annotations directly via MCP, or you can export to 11 AI tools.
 
-**What is plan review?**
-Plan review means reviewing designs and plans before implementation. Unlike code review (after code is written), plan review catches architecture mistakes and missing requirements at the design stage — before any code is produced.
-
 **Does it work with Claude Code / Cursor / Copilot?**
 Yes. MD Feedback exports to Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules/`), GitHub Copilot (`.github/copilot-instructions.md`), and 8 more tools. With MCP, agents read annotations directly — no export step needed.
 
 **What is MCP and why does it matter?**
 MCP (Model Context Protocol) lets AI agents interact with external tools. MD Feedback's MCP server gives agents direct access to your annotations, so they can read feedback, mark tasks done, evaluate gates, and generate handoffs automatically. For example, when you mark a section as "Fix: use retry logic here," the agent reads that annotation via MCP, implements the fix, and marks it done — all without you switching tabs.
-
-**What is vibe coding?**
-Vibe coding is a workflow where you describe what you want in natural language, and an AI agent writes the implementation. MD Feedback adds a structured review step: you review the plan first, annotate problems, and the agent acts on your specific feedback rather than vague instructions.
-
-**How do I preserve context between AI sessions?**
-Use the handoff feature. The agent generates a structured handoff document that captures all decisions made, questions answered, fixes applied, and remaining open items. The next session picks up this handoff to continue where you left off.
-
-**What are quality gates?**
-Gates are checkpoints that block or allow the agent to proceed based on annotation status. If a gate's required memos are all resolved, it switches to "proceed" or "done." This prevents the agent from moving forward while critical fixes remain unaddressed.
 
 **Can multiple people review the same plan?**
 Yes. Annotations are HTML comments embedded in the markdown file. They travel with the file through git — commits, branches, pull requests, and merges all preserve annotations intact.
@@ -201,4 +169,6 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 
 **Who is this for?**
 Developers using AI coding assistants who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
+
+More questions and advanced guidance: [MCP Server docs](./apps/mcp-server/README.md) and [GitHub Issues](https://github.com/yeominux/md-feedback/issues).
 
