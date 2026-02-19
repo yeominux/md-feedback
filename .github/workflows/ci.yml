@@ -27,5 +27,5 @@ jobs:
       - run: pnpm guard:public-surface
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
-      - run: pnpm -r build
-      - run: pnpm test
+      - run: pnpm check:release-gates
+
