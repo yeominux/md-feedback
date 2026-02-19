@@ -21,6 +21,7 @@ interface StatusSummary {
   inProgressMemos: number
   doneMemos: number
   failedMemos: number
+  needsReviewMemos?: number
   workflowPhase?: 'scope' | 'root_cause' | 'implementation' | 'verification' | null
   unresolvedBlockingCount?: number
   approvalRequired?: boolean
@@ -356,11 +357,14 @@ export default function App() {
     setShowApprovalForm(true)
   }
 
+  const hasNeedsReviewMemos = (statusSummary?.needsReviewMemos ?? 0) > 0
+  const showActionApproval = approvalRequired && pendingApprovalTool && !hasNeedsReviewMemos
+
   useEffect(() => {
-    if (!approvalRequired || !pendingApprovalTool) {
+    if (!approvalRequired || !pendingApprovalTool || hasNeedsReviewMemos) {
       setShowApprovalForm(false)
     }
-  }, [approvalRequired, pendingApprovalTool])
+  }, [approvalRequired, pendingApprovalTool, hasNeedsReviewMemos])
 
   return (
     <div className="md-feedback-root">
@@ -499,19 +503,25 @@ export default function App() {
             {/* Approval required */}
             {approvalRequired && (
               <span className="status-badge status-badge-blocked" title="High-risk action requires approval">
-                approval required
+                action approval required
+              </span>
+            )}
+
+            {approvalRequired && hasNeedsReviewMemos && (
+              <span className="status-detail" title="Resolve memo reviews first">
+                review memos first
               </span>
             )}
 
             {/* Action CTA */}
-            {approvalRequired && pendingApprovalTool && (
+            {showActionApproval && (
               <>
                 <button
                   className="floating-btn-secondary"
                   onClick={openApprovalForm}
                   title={`Approve pending checkpoint for ${pendingApprovalTool}`}
                 >
-                  Approve
+                  Approve Action
                 </button>
                 {showApprovalForm && (
                   <div className="approval-form" role="group" aria-label="Approval details">
