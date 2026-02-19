@@ -2,6 +2,7 @@ import type { Checkpoint, HandoffDocument, HandoffItem, SessionMetadata } from '
 import { HEX_TO_COLOR_NAME } from './types'
 import { extractCheckpoints, extractMemos } from './markdown-roundtrip'
 import { getAnnotationCounts, getSectionsWithAnnotations, getAllSections } from './checkpoint'
+import { truncateText } from './utils'
 
 // ─── Build HandoffDocument from annotated markdown ───
 
@@ -155,10 +156,6 @@ function collectAnnotatedItems(
 
 // ─── Format handoff as markdown ───
 
-function trunc(s: string, len: number): string {
-  return s.length > len ? s.slice(0, len) + '...' : s
-}
-
 export function formatHandoffMarkdown(
   doc: HandoffDocument,
   target: 'standalone' | 'claude-md' | 'cursor-rules' = 'standalone',
@@ -198,11 +195,11 @@ export function formatHandoffMarkdown(
       const d = doc.decisions[i]
       const section = d.section ? `[${d.section}]` : '[General]'
       if (d.text && d.feedback) {
-        L.push(`${i + 1}. **${section}** "${trunc(d.text, 60)}" → ${d.feedback}`)
+        L.push(`${i + 1}. **${section}** "${truncateText(d.text, 60)}" → ${d.feedback}`)
       } else if (d.feedback) {
         L.push(`${i + 1}. **${section}** ${d.feedback}`)
       } else if (d.text) {
-        L.push(`${i + 1}. **${section}** "${trunc(d.text, 80)}"`)
+        L.push(`${i + 1}. **${section}** "${truncateText(d.text, 80)}"`)
       }
     }
     L.push('')
@@ -216,11 +213,11 @@ export function formatHandoffMarkdown(
       const q = doc.openQuestions[i]
       const section = q.section ? `[${q.section}]` : '[General]'
       if (q.text && q.feedback) {
-        L.push(`${i + 1}. **${section}** "${trunc(q.text, 60)}" — ${q.feedback}`)
+        L.push(`${i + 1}. **${section}** "${truncateText(q.text, 60)}" — ${q.feedback}`)
       } else if (q.feedback) {
         L.push(`${i + 1}. **${section}** ${q.feedback}`)
       } else if (q.text) {
-        L.push(`${i + 1}. **${section}** "${trunc(q.text, 80)}"`)
+        L.push(`${i + 1}. **${section}** "${truncateText(q.text, 80)}"`)
       }
     }
     L.push('')
@@ -234,7 +231,7 @@ export function formatHandoffMarkdown(
       const k = doc.keyPoints[i]
       const section = k.section ? `[${k.section}]` : '[General]'
       if (k.text) {
-        L.push(`${i + 1}. **${section}** "${trunc(k.text, 80)}"`)
+        L.push(`${i + 1}. **${section}** "${truncateText(k.text, 80)}"`)
       }
       if (k.feedback) {
         L.push(`   ${k.feedback}`)
