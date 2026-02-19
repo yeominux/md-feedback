@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.4] - 2026-02-19
+## [1.3.5] - 2026-02-19
 
 ### Fixed
 - REVIEW_RESPONSE blocks no longer drift to end-of-file after `text_replace` operations
