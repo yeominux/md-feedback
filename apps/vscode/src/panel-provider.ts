@@ -37,6 +37,14 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
     return this._view
   }
 
+  public isLatestEditFromWebview(): boolean {
+    return this.lastWebviewEditVersion === this.editVersion
+  }
+
+  public clearWebviewEditMarker(): void {
+    this.lastWebviewEditVersion = 0
+  }
+
   public postMessage(msg: Record<string, unknown>): void {
     if (!this._view) return
     const documentUri = this.currentDocument?.uri.toString() ?? ''
