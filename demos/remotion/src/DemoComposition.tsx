@@ -7,18 +7,17 @@ import { GateBadge } from "./components/GateBadge";
 import { colors, container, sidebarPanel } from "./styles";
 
 /**
- * MD Feedback v1.3.2 Demo — 15s at 30 FPS (450 frames)
+ * MD Feedback v1.3.7 Demo — 20s at 30 FPS (600 frames)
  *
  * Story: Human annotates → AI implements → Human reviews in editor (CodeLens) → Approved → Gate passes
  *
- * Timeline (generous pacing — each step breathes):
- *   0-2s    (0-60):    Title card
- *   2-4s    (60-120):  Editor content + Fix annotation appears
- *   4-6s    (120-180): AI working → diff slides in
- *   6-8s    (180-240): Status → Review, CodeLens Approve/Reject appears
- *   8-10s   (240-300): Human clicks Approve → Done
- *   10-12s  (300-360): Gate: Blocked → Approved
- *   12-15s  (360-450): End card with install CTA
+ * Timeline (slower pacing for readability):
+ *   0-3s    (0-90):     Title card
+ *   3-7s    (90-210):   Editor content + Fix annotation appears
+ *   7-10s   (210-300):  AI working → diff slides in
+ *   10-14s  (300-420):  Review + approval required + approval form shown
+ *   14-17s  (420-510):  Approved and memo done
+ *   17-20s  (510-600):  Gate approved + end CTA
  */
 export const DemoComposition: React.FC = () => {
   const frame = useCurrentFrame();
@@ -26,29 +25,29 @@ export const DemoComposition: React.FC = () => {
 
   /* ─── Title overlay ─── */
   const titleIn = spring({ frame, fps, config: { damping: 20, stiffness: 60, mass: 1.2 } });
-  const titleHold = frame > 50
-    ? spring({ frame: frame - 50, fps, config: { damping: 22, stiffness: 100 } })
+  const titleHold = frame > 80
+    ? spring({ frame: frame - 80, fps, config: { damping: 22, stiffness: 100 } })
     : 0;
-  const titleOpacity = frame < 50 ? titleIn : Math.max(0, 1 - titleHold);
-  const titleY = frame < 50
+  const titleOpacity = frame < 80 ? titleIn : Math.max(0, 1 - titleHold);
+  const titleY = frame < 80
     ? interpolate(titleIn, [0, 1], [16, 0])
     : interpolate(titleHold, [0, 1], [0, -10]);
 
-  /* ─── AI activity indicator (frame 125-185) ─── */
-  const aiIn = frame >= 125
-    ? spring({ frame: frame - 125, fps, config: { damping: 18, stiffness: 90 } })
+  /* ─── AI activity indicator (frame 210-305) ─── */
+  const aiIn = frame >= 210
+    ? spring({ frame: frame - 210, fps, config: { damping: 18, stiffness: 90 } })
     : 0;
-  const aiOut = frame >= 178
-    ? spring({ frame: frame - 178, fps, config: { damping: 22, stiffness: 120 } })
+  const aiOut = frame >= 300
+    ? spring({ frame: frame - 300, fps, config: { damping: 22, stiffness: 120 } })
     : 0;
   const aiOpacity = Math.max(0, aiIn - aiOut);
-  const aiDotScale = frame >= 125 && frame < 185
-    ? 1 + 0.25 * Math.sin((frame - 125) * 0.12)
+  const aiDotScale = frame >= 210 && frame < 305
+    ? 1 + 0.25 * Math.sin((frame - 210) * 0.1)
     : 1;
 
-  /* ─── End card (frame 370) ─── */
-  const endIn = frame >= 370
-    ? spring({ frame: frame - 370, fps, config: { damping: 16, stiffness: 60, mass: 1 } })
+  /* ─── End card (frame 540) ─── */
+  const endIn = frame >= 540
+    ? spring({ frame: frame - 540, fps, config: { damping: 16, stiffness: 60, mass: 1 } })
     : 0;
   const endY = interpolate(endIn, [0, 1], [24, 0]);
 
@@ -96,7 +95,7 @@ export const DemoComposition: React.FC = () => {
                 borderRadius: 4,
               }}
             >
-              v1.3.2
+              v1.3.7
             </span>
           </div>
 

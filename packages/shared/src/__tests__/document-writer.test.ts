@@ -76,6 +76,24 @@ Anchor line
     expect(redMemos[0].id).toBe('m1')
   })
 
+  it('recovers distinct memos when anchors share long prefix', () => {
+    const shared = 'A'.repeat(40)
+    const input = `# Title
+
+${shared} one
+${shared} two
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="first question" anchor="${shared} one" -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="second question" anchor="${shared} two" -->`
+
+    const parts = splitDocument(input)
+    const recoveredBlue = parts.memos.filter(
+      m => m.source === 'recovered-highlight' && m.color === 'blue',
+    )
+
+    expect(recoveredBlue).toHaveLength(2)
+    expect(new Set(recoveredBlue.map(m => m.anchorText)).size).toBe(2)
+  })
+
   it('anchor drift: repeated split/merge cycles do not shift memo position', () => {
     // Create a document with a memo anchored to "Line B"
     const input = `# Title

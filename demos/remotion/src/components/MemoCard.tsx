@@ -7,25 +7,25 @@ import { colors } from "../styles";
  *   Open → Working → Review → Done
  *
  * Timeline:
- *   frame 65:  card slides in
- *   frame 125: status → Working
- *   frame 180: status → Review
- *   frame 250: editor approval completed → Done
+ *   frame 105: card slides in
+ *   frame 220: status → Working
+ *   frame 310: status → Review
+ *   frame 430: editor approval completed → Done
  */
 export const MemoCard: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   /* ─── Card entrance ─── */
-  const cardIn = frame >= 65
-    ? spring({ frame: frame - 65, fps, config: { damping: 16, stiffness: 80, mass: 0.8 } })
+  const cardIn = frame >= 105
+    ? spring({ frame: frame - 105, fps, config: { damping: 16, stiffness: 80, mass: 0.8 } })
     : 0;
   const cardY = interpolate(cardIn, [0, 1], [14, 0]);
 
   /* ─── Status transitions ─── */
-  const isWorking = frame >= 125 && frame < 180;
-  const isReview = frame >= 180 && frame < 250;
-  const isDone = frame >= 250;
+  const isWorking = frame >= 220 && frame < 310;
+  const isReview = frame >= 310 && frame < 430;
+  const isDone = frame >= 430;
 
   const badgeLabel = isDone ? "Done" : isReview ? "Review" : isWorking ? "Working" : "Open";
   const badgeColor = isDone
@@ -44,11 +44,11 @@ export const MemoCard: React.FC = () => {
     }
     return 1;
   };
-  const badgeScale = pulseAt(125) * pulseAt(180) * pulseAt(250);
+  const badgeScale = pulseAt(220) * pulseAt(310) * pulseAt(430);
 
-  /* ─── Diff section (frame 155) ─── */
-  const diffIn = frame >= 155
-    ? spring({ frame: frame - 155, fps, config: { damping: 18, stiffness: 70 } })
+  /* ─── Diff section (frame 260) ─── */
+  const diffIn = frame >= 260
+    ? spring({ frame: frame - 260, fps, config: { damping: 18, stiffness: 70 } })
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [10, 0]);
 

@@ -6,51 +6,51 @@ import { colors, editorPanel } from "../styles";
  * VS Code editor panel — markdown content with annotation + inline diff
  *
  * Timeline:
- *   frame 55:  content fades in
- *   frame 75:  fix annotation highlight appears
- *   frame 130: inline diff slides in
- *   frame 190: CodeLens Approve/Reject appears
- *   frame 230: cursor clicks Approve in editor
+ *   frame 95:  content fades in
+ *   frame 130: fix annotation highlight appears
+ *   frame 220: inline diff slides in
+ *   frame 310: CodeLens Approve/Reject appears
+ *   frame 400: cursor clicks Approve in editor
  */
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   /* ─── Content entrance ─── */
-  const contentIn = frame >= 55
-    ? spring({ frame: frame - 55, fps, config: { damping: 20, stiffness: 60 } })
+  const contentIn = frame >= 95
+    ? spring({ frame: frame - 95, fps, config: { damping: 20, stiffness: 60 } })
     : 0;
 
-  /* ─── Fix annotation highlight (frame 75) ─── */
-  const highlightIn = frame >= 75
-    ? spring({ frame: frame - 75, fps, config: { damping: 14, stiffness: 100, mass: 0.7 } })
+  /* ─── Fix annotation highlight (frame 130) ─── */
+  const highlightIn = frame >= 130
+    ? spring({ frame: frame - 130, fps, config: { damping: 14, stiffness: 100, mass: 0.7 } })
     : 0;
 
-  /* ─── Diff section (frame 130) ─── */
-  const diffIn = frame >= 130
-    ? spring({ frame: frame - 130, fps, config: { damping: 16, stiffness: 70 } })
+  /* ─── Diff section (frame 220) ─── */
+  const diffIn = frame >= 220
+    ? spring({ frame: frame - 220, fps, config: { damping: 16, stiffness: 70 } })
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [12, 0]);
 
-  /* ─── CodeLens actions (frame 190) ─── */
-  const lensIn = frame >= 190
-    ? spring({ frame: frame - 190, fps, config: { damping: 14, stiffness: 90 } })
+  /* ─── CodeLens actions (frame 310) ─── */
+  const lensIn = frame >= 310
+    ? spring({ frame: frame - 310, fps, config: { damping: 14, stiffness: 90 } })
     : 0;
-  const lensOut = frame >= 250
-    ? spring({ frame: frame - 250, fps, config: { damping: 20, stiffness: 140 } })
+  const lensOut = frame >= 455
+    ? spring({ frame: frame - 455, fps, config: { damping: 20, stiffness: 140 } })
     : 0;
   const lensOpacity = Math.max(0, lensIn - lensOut);
   const lensY = interpolate(lensIn, [0, 1], [8, 0]);
-  const approveHover = frame >= 228 && frame < 250;
-  const cursorIn = frame >= 222
-    ? spring({ frame: frame - 222, fps, config: { damping: 15, stiffness: 100 } })
+  const approveHover = frame >= 398 && frame < 430;
+  const cursorIn = frame >= 388
+    ? spring({ frame: frame - 388, fps, config: { damping: 15, stiffness: 100 } })
     : 0;
-  const cursorOut = frame >= 252
-    ? spring({ frame: frame - 252, fps, config: { damping: 18, stiffness: 130 } })
+  const cursorOut = frame >= 432
+    ? spring({ frame: frame - 432, fps, config: { damping: 18, stiffness: 130 } })
     : 0;
   const cursorOpacity = Math.max(0, cursorIn - cursorOut);
-  const clickPulse = frame >= 236 && frame < 252
-    ? interpolate(frame, [236, 241, 252], [0, 0.65, 0], {
+  const clickPulse = frame >= 404 && frame < 430
+    ? interpolate(frame, [404, 412, 430], [0, 0.65, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       })

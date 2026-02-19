@@ -15,9 +15,66 @@ import type { ReviewDocument } from '@md-feedback/shared'
 import { computeMetrics } from './metrics.js'
 import type { QueryToolContext } from './tools-runtime.js'
 import { InvalidHandoffError } from './errors.js'
+import { getPolicySnapshot } from './policy.js'
+import { getMemoSeverityStatus, getWorkflowState } from './workflow.js'
 
 export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolContext): void {
   const { safeRead, wrapTool } = ctx
+
+  // ─── get_policy_status ───
+  server.tool(
+    'get_policy_status',
+    'Return current runtime policy profile and memo-action routing rules.',
+    {},
+    async () => wrapTool(async () => {
+      const policy = getPolicySnapshot()
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ policy }, null, 2),
+        }],
+      }
+    }),
+  )
+
+  // ─── get_workflow_status ───
+  server.tool(
+    'get_workflow_status',
+    'Return current workflow phase and transition history for a document.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+    },
+    async ({ file }) => wrapTool(async () => {
+      // Ensure file is in safe workspace before reading sidecar workflow state.
+      safeRead(file)
+      const workflow = getWorkflowState(file)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ workflow }, null, 2),
+        }],
+      }
+    }),
+  )
+
+  // ─── get_severity_status ───
+  server.tool(
+    'get_severity_status',
+    'Return memo severity overrides and unresolved blocking memo IDs for the document.',
+    {
+      file: z.string().describe('Path to the annotated markdown file'),
+    },
+    async ({ file }) => wrapTool(async () => {
+      safeRead(file)
+      const severity = getMemoSeverityStatus(file)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ severity }, null, 2),
+        }],
+      }
+    }),
+  )
 
   // ─── get_checkpoints ───
   server.tool(

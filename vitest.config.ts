@@ -7,4 +7,7 @@ export default defineConfig({
       '@md-feedback/shared': resolve(__dirname, 'packages/shared/src/index.ts'),
     },
   },
+  test: {
+    include: ['apps/**/*.test.ts', 'packages/**/*.test.ts'],
+  },
 })
