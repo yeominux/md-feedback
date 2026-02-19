@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.15] - 2026-02-20
+
+### Fixed
+- Highlight mark recovery no longer creates phantom duplicate memos when the memo anchorText includes a heading prefix (`### `) that the highlight mark omits
+
 ## [1.3.14] - 2026-02-20
 
 ### Added
