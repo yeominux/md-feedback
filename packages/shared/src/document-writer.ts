@@ -8,7 +8,7 @@
  */
 
 import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
-import { colorToType, isResolved } from './types'
+import { colorToType, isResolved, HEX_TO_COLOR_NAME } from './types'
 import { generateId } from './id'
 import { parseJsonStrict } from './errors'
 
@@ -79,6 +79,7 @@ const ARTIFACT_END_RE = /^-->$/
 
 // MEMO_DEPENDENCY: <!-- MEMO_DEPENDENCY id="..." from="..." to="..." type="..." -->
 const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
+const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
 const ANCHOR_HASH_SEARCH_RADIUS = 10
 
 /** Parse attribute key="value" pairs from multi-line comment body */
@@ -381,6 +382,51 @@ export function splitDocument(markdown: string): DocumentParts {
     }
   }
 
+  // Recover missing fix/question memos from persisted highlight marks.
+  // If memo blocks are accidentally missing, MCP agents would otherwise see no actionable memos.
+  const existingMemoKeys = new Set(
+    memos
+      .filter(m => m.color === 'red' || m.color === 'blue')
+      .map(m => `${m.color}|${m.anchorText.trim()}`),
+  )
+  HIGHLIGHT_MARK_RE.lastIndex = 0
+  let markMatch: RegExpExecArray | null
+  while ((markMatch = HIGHLIGHT_MARK_RE.exec(body)) !== null) {
+    const memoColor = normalizeMemoColorFromHighlight(markMatch[1])
+    if (memoColor !== 'red' && memoColor !== 'blue') continue
+
+    const markText = decodeHighlightAttr(markMatch[2]).trim()
+    const markAnchor = decodeHighlightAttr(markMatch[3]).trim()
+    const anchorText = markAnchor || markText
+    if (!anchorText) continue
+
+    const dedupeKey = `${memoColor}|${anchorText}`
+    if (existingMemoKeys.has(dedupeKey)) continue
+
+    const searchNeedle = anchorText.slice(0, 40)
+    const anchorLineIdx = searchNeedle ? bodyLines.findIndex(l => l.includes(searchNeedle)) : -1
+    const anchor = anchorLineIdx >= 0
+      ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
+      : ''
+    const now = new Date().toISOString()
+
+    const recoveredId = `memo_recovered_${computeLineHash(`${memoColor}|${anchorText}|${markText}`)}`
+    memos.push({
+      id: recoveredId,
+      type: colorToType(memoColor),
+      status: 'open',
+      owner: 'human',
+      source: 'recovered-highlight',
+      color: memoColor,
+      text: markText,
+      anchorText,
+      anchor,
+      createdAt: now,
+      updatedAt: now,
+    })
+    existingMemoKeys.add(dedupeKey)
+  }
+
   return {
     frontmatter,
     body: bodyLines.join('\n'),
@@ -653,4 +699,19 @@ function findAnchorLineIdx(bodyLines: string[]): number {
 /** Generate body hash (djb2, 8 hex chars) for Plan Cursor */
 export function generateBodyHash(body: string): string {
   return computeLineHash(body)
+}
+
+function decodeHighlightAttr(s: string): string {
+  return unescAttrValue(s)
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function normalizeMemoColorFromHighlight(rawColor: string): MemoColor | null {
+  const c = rawColor.toLowerCase()
+  if (c === 'red' || c === 'blue' || c === 'yellow') return c
+  const normalized = HEX_TO_COLOR_NAME[c]
+  if (normalized === 'red' || normalized === 'blue' || normalized === 'yellow') return normalized
+  return null
 }

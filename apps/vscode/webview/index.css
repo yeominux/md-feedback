@@ -689,6 +689,7 @@
 .status-indicator {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px 6px;
   border-radius: 6px;
@@ -814,6 +815,37 @@
   color: var(--mf-text-muted);
   background: var(--mf-bg);
   border-color: var(--mf-border);
+}
+
+.approval-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  padding: 4px;
+  border: 1px solid var(--mf-border-subtle);
+  border-radius: 8px;
+  background: var(--mf-surface);
+}
+
+.approval-input {
+  min-width: 120px;
+  height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--mf-border-subtle);
+  border-radius: 6px;
+  background: var(--mf-bg);
+  color: var(--mf-text);
+  font-size: 12px;
+}
+
+.approval-input:focus {
+  outline: 1px solid var(--mf-link);
+  border-color: var(--mf-link);
+}
+
+.approval-input-reason {
+  min-width: 200px;
 }
 
 /* ── Hover utility ── */
