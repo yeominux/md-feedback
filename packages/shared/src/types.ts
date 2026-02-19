@@ -1,3 +1,4 @@
+/** @deprecated Use `MemoV2` from the split/merge document pipeline. */
 export interface Memo {
   id: string
   text: string
@@ -149,7 +150,7 @@ export interface FileCreateOp {
 export type ImplOperation = TextReplaceOp | FilePatchOp | FileCreateOp
 
 export interface MemoImpl {
-  id: string           // "impl_" + nanoid(6)
+  id: string           // generateId('impl', { separator: '_' })
   memoId: string       // links to MemoV2.id
   status: ImplStatus
   operations: ImplOperation[]
@@ -160,7 +161,7 @@ export interface MemoImpl {
 // ─── v1.2.0 Code Execution Bridge ───
 
 export interface MemoArtifact {
-  id: string           // "art_" + nanoid(6)
+  id: string           // generateId('art', { separator: '_' })
   memoId: string       // links to MemoV2.id
   files: string[]      // relative file paths linked to this memo
   linkedAt: string     // ISO 8601
@@ -169,7 +170,7 @@ export interface MemoArtifact {
 // ─── v1.3.0 Dependencies ───
 
 export interface MemoDependency {
-  id: string           // "dep_" + nanoid(6)
+  id: string           // generateId('dep', { separator: '_' })
   from: string         // memo ID
   to: string           // memo ID (from depends on to)
   type: 'blocks' | 'related'
@@ -230,7 +231,7 @@ export function colorToType(color: MemoColor | string): MemoType {
 // ─── Checkpoint & Handoff types ───
 
 export interface Checkpoint {
-  id: string                    // "ckpt_" + nanoid(6)
+  id: string                    // generateId('ckpt', { separator: '_' })
   timestamp: string             // ISO 8601
   note: string
   fixes: number
