@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.16] - 2026-02-20
+
+### Added
+- New `list_documents` MCP tool to discover markdown files in workspace (including annotated-only mode)
+- VS Code walkthrough and editor-level `1/2/3` annotation commands for faster first-use onboarding
+
+### Changed
+- Onboarding flow now starts with annotation first; MCP setup is optional and non-blocking
+- MCP/README/package metadata now consistently documents 27 tools and current version
+
+### Fixed
+- `apply_memo` / `batch_apply` text replacement now supports safe single-occurrence replacement by default
+- `batch_apply` rollback errors are now surfaced instead of being silently swallowed
+- File mutex now includes cross-process lock with timeout to reduce race conditions
+- Release guard now tolerates missing/transient filesystem entries during scan
+
 ## [1.3.15] - 2026-02-20
 
 ### Fixed
