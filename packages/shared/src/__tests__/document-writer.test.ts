@@ -355,6 +355,25 @@ Line C`)
 
     expect(findMemoAnchorLine(lines, memo)).toBe(3)
   })
+
+  it('pins to first body line when anchor and anchorText are both missing', () => {
+    const lines = ['Line A', 'Line B', 'Line C']
+    const memo: MemoV2 = {
+      id: 'm_missing',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix missing anchor metadata',
+      anchorText: '',
+      anchor: '',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    expect(findMemoAnchorLine(lines, memo)).toBe(0)
+  })
 })
 
 describe('splitDocument — v0.4 anchor refresh', () => {
@@ -634,6 +653,43 @@ Anchor line
 
     expect(parts2.memos[0].text).toBe('Path C:\\todo\\report-clean.md and network \\\\server\\share and marker -->')
     expect(output2).toContain('Path C:\\todo\\report-clean.md and network \\\\server\\share and marker --&#62;')
+  })
+})
+
+describe('mergeDocument — unanchored safety fallback', () => {
+  it('keeps malformed memo metadata inside body start instead of drifting to body end', () => {
+    const input = `# Title
+
+Line A
+Line B
+Line C
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Line B"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    parts.memos[0].anchor = ''
+    parts.memos[0].anchorText = ''
+    const output = mergeDocument(parts)
+    const lines = output.split('\n')
+    const titleIdx = lines.findIndex(l => l.trim() === '# Title')
+    const lineAIdx = lines.findIndex(l => l.trim() === 'Line A')
+    const memoIdx = lines.findIndex(l => l.includes('id="m1"'))
+
+    expect(titleIdx).toBeGreaterThanOrEqual(0)
+    expect(lineAIdx).toBeGreaterThanOrEqual(0)
+    expect(memoIdx).toBeGreaterThan(titleIdx)
+    expect(memoIdx).toBeLessThan(lineAIdx)
   })
 })
 
