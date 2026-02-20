@@ -170,6 +170,7 @@ export function sendStatusInfo(
     // Send status summary (extended with totals for status bar)
     let openFixes = 0
     let openQuestions = 0
+    let openHighlights = 0
     let resolvedMemos = 0
     let needsReviewMemos = 0
     let inProgressMemos = 0
@@ -179,6 +180,7 @@ export function sendStatusInfo(
       if (memo.status === 'open') {
         if (memo.type === 'fix') openFixes++
         else if (memo.type === 'question') openQuestions++
+        else openHighlights++
       } else if (memo.status === 'needs_review') {
         needsReviewMemos++
       } else if (memo.status === 'in_progress') {
@@ -210,6 +212,7 @@ export function sendStatusInfo(
         summary: {
           openFixes,
           openQuestions,
+          openHighlights,
           gateStatus,
           totalMemos,
           resolvedMemos,
@@ -231,9 +234,9 @@ export function sendStatusInfo(
     }
 
     // Build memoMap for humanized display in MetadataDrawer
-    const memoMap: Record<string, { text: string; color: string; type: string }> = {}
+    const memoMap: Record<string, { text: string; color: string; type: string; status: string }> = {}
     for (const memo of parts.memos) {
-      memoMap[memo.id] = { text: memo.text, color: memo.color, type: memo.type }
+      memoMap[memo.id] = { text: memo.text, color: memo.color, type: memo.type, status: memo.status }
     }
 
     // Send metadata for drawer (gates, cursor, checkpoints, impls, artifacts, dependencies)

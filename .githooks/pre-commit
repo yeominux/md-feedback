@@ -2,6 +2,9 @@
 # Pre-commit hook: run tests before every commit.
 # Skip with: git commit --no-verify (only when you know what you're doing)
 
+echo "📋 Syncing agent instruction files..."
+pnpm sync:agents
+
 echo "🔍 Running sync check..."
 pnpm check-sync
 if [ $? -ne 0 ]; then
