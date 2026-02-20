@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.20] - 2026-02-20
+
+### Added
+- Details drawer now shows a progress bar under the resolved memo count for quick visual status
+- Clicking the current task in the Details drawer scrolls to the memo and highlights it with a flash
+- MCP project config (`.mcp.json`) included for one-step agent setup on Windows
+
+### Changed
+- "Plan Cursor" section renamed to "Current Task" with human-readable memo text instead of raw IDs
+- Memo references in task descriptions now display quoted memo text instead of technical IDs
+- Auto-checkpoints are collapsed behind a toggle — only named checkpoints shown by default
+- Checkpoint stats now show only non-zero counts (e.g. "2 fix" instead of "2 fix · 0 Q · 0 HL")
+- Gate override controls hidden behind a "More…" disclosure button to reduce visual noise
+
+### Improved
+- Annotation anchoring now matches correctly even when document text contains markdown formatting like bold, blockquotes, or backslash escapes
+- Added accessibility attributes (`aria-expanded`, `aria-label`) to drawer toggle buttons
+
+### Fixed
+- Workflow phase names with underscores (e.g. `root_cause`) now display correctly with spaces in all cases
+
 ## [1.3.19] - 2026-02-20
 
 ### Added
