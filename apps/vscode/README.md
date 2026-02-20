@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.3.20): redesigned review cards, always-visible progress, click-to-navigate details drawer, and design refinements across the board.
+> Latest (v1.4.0): memo type switching, clean copy and workflow prompt buttons, redesigned details drawer with progress tracking, and updated demo.
 
 ## How It Works
 
