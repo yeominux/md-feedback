@@ -56,6 +56,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **7 status badges**: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
+- **Ambiguity-safe text replacement**: when the same text appears multiple times, agents must specify `occurrence` or `replaceAll` (prevents silent wrong-line edits)
 - **File safety**: blocks writes to .env, credentials, node_modules
 - **Approve / Reject buttons** — accept or dismiss annotations inline, always visible when review needed
 - **CodeLens in editor** — approve or reject directly in the markdown file, no sidebar needed
