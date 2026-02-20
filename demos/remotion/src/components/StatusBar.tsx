@@ -5,16 +5,15 @@ import { colors, radii } from "../styles";
 /**
  * Status bar — shows real-time progress with gate pills
  *
- * v1.3.20 redesign:
- *   - Colored dot → gate pill (inner dot + label: "blocked"/"done")
- *   - Always-visible breakdown: "1 fix"
- *   - Fraction display: "0/1" → "1/1"
- *   - Gate pill transition at frame 430: blocked(red) → done(green)
+ * v1.4.0 redesign:
+ *   - Right section: Wand2 icon + ClipboardCopy icon + CTA button + Settings gear
+ *   - Approval uses simple CTA button (not dark red banner)
+ *   - Approval dialog is a separate modal (shown briefly)
  *
  * Timeline:
  *   frame 220: Open → Working
- *   frame 310: Working → Review
- *   frame 330: approval-required banner + mini input appears
+ *   frame 310: Working → Review (CTA shows "Approve")
+ *   frame 340: Approval dialog slides in
  *   frame 430: Review → Done
  */
 export const StatusBar: React.FC = () => {
@@ -25,9 +24,15 @@ export const StatusBar: React.FC = () => {
   const isReview = frame >= 310 && !isDone;
   const isWorking = frame >= 220 && !isReview && !isDone;
   const approvalRequired = frame >= 330 && frame < 430;
-  const approvalFormIn = frame >= 338
-    ? spring({ frame: frame - 338, fps, config: { damping: 18, stiffness: 90 } })
+  const showApprovalDialog = frame >= 340 && frame < 410;
+
+  const dialogIn = frame >= 340
+    ? spring({ frame: frame - 340, fps, config: { damping: 18, stiffness: 90 } })
     : 0;
+  const dialogOut = frame >= 400
+    ? spring({ frame: frame - 400, fps, config: { damping: 20, stiffness: 100 } })
+    : 0;
+  const dialogOpacity = Math.max(0, dialogIn - dialogOut);
 
   const doneCount = isDone ? 1 : 0;
 
@@ -51,16 +56,16 @@ export const StatusBar: React.FC = () => {
       )
     : 1;
 
-  // Status text
+  // Status text — action-oriented
   const statusText = isDone
-    ? "1/1 resolved"
+    ? "All done"
     : approvalRequired
-    ? "review required"
+    ? "1 to review"
     : isReview
-    ? "0/1 resolved"
+    ? "1 to review"
     : isWorking
-    ? "applying..."
-    : "ready";
+    ? "1 in progress"
+    : "1 to do";
 
   return (
     <div
@@ -84,26 +89,32 @@ export const StatusBar: React.FC = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 10,
-          padding: "0 12px",
-          fontSize: 11,
+          gap: 12,
+          padding: "0 16px",
+          fontSize: 12,
           color: colors.text,
         }}
       >
+        {/* Left: progress bar + hint + detail + gate pill */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-          <div style={{ width: 160, height: 4, borderRadius: 2, backgroundColor: colors.progressTrack, overflow: "hidden" }}>
+          <div style={{ flex: 1, maxWidth: 160, height: 4, borderRadius: 4, backgroundColor: colors.progressTrack, overflow: "hidden" }}>
             <div
               style={{
                 width: `${progressWidth}%`,
                 height: "100%",
                 backgroundColor: colors.progressFill,
-                borderRadius: 2,
+                borderRadius: 4,
               }}
             />
           </div>
-          <span style={{ fontSize: 10, color: colors.textMuted, opacity: 0.75 }}>{statusText}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: colors.textMuted, whiteSpace: "nowrap" }}>
+            {doneCount}/1
+          </span>
+          <span style={{ fontSize: 12, color: colors.textFaint, whiteSpace: "nowrap" }}>
+            {statusText}
+          </span>
 
-          {/* Gate pill (replaces simple dot) */}
+          {/* Gate pill */}
           <span
             style={{
               display: "inline-flex",
@@ -111,20 +122,21 @@ export const StatusBar: React.FC = () => {
               gap: 4,
               backgroundColor: gateBg,
               color: gateText,
-              fontSize: 10,
-              fontWeight: 600,
+              fontSize: 12,
+              fontWeight: 500,
               padding: "2px 8px",
               borderRadius: radii.sm,
               transform: `scale(${gatePulse})`,
               textTransform: "uppercase",
-              letterSpacing: 0.3,
+              letterSpacing: 0.03,
+              flexShrink: 0,
             }}
           >
             <span
               style={{
                 display: "inline-block",
-                width: 6,
-                height: 6,
+                width: 8,
+                height: 8,
                 borderRadius: "50%",
                 backgroundColor: gateDotColor,
                 boxShadow: isDone ? "0 0 6px rgba(5,150,105,0.4)" : "none",
@@ -132,87 +144,137 @@ export const StatusBar: React.FC = () => {
             />
             {gateLabel}
           </span>
-
-          {/* Breakdown text */}
-          <span style={{ fontSize: 10, color: colors.textMuted }}>
-            {doneCount}/1 fix
-          </span>
         </div>
 
+        {/* Right: icon buttons + CTA + gear */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isReview && (
+          {/* Wand2 icon — workflow prompt (v1.4.0) */}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
+              borderRadius: radii.sm,
+              color: colors.textFaint,
+              fontSize: 13,
+            }}
+          >
+            &#x2726;
+          </span>
+
+          {/* ClipboardCopy icon — clean copy (v1.4.0) */}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
+              borderRadius: radii.sm,
+              color: colors.textFaint,
+              fontSize: 13,
+            }}
+          >
+            &#x2398;
+          </span>
+
+          {/* CTA button */}
+          {approvalRequired && (
             <span
               style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              color: colors.surface,
-              backgroundColor: colors.link,
-              borderRadius: radii.sm,
-              padding: "4px 10px",
-            }}
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "4px 12px",
+                borderRadius: radii.sm,
+                fontSize: 12,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: 0.04,
+                color: colors.surface,
+                backgroundColor: colors.link,
+              }}
             >
-              Review First
+              Approve
             </span>
           )}
-          {!isReview && (
+          {!approvalRequired && !isReview && (
             <span
               style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              color: colors.surface,
-              backgroundColor: colors.link,
-              borderRadius: radii.sm,
-              padding: "4px 10px",
-            }}
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "4px 12px",
+                borderRadius: radii.sm,
+                fontSize: 12,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: 0.04,
+                color: colors.surface,
+                backgroundColor: colors.link,
+              }}
             >
               Next Step
             </span>
           )}
-          <span style={{ fontSize: 12, color: colors.textMuted }}>&#x2699;</span>
+
+          {/* Settings gear */}
+          <span style={{ fontSize: 14, color: colors.textFaint, padding: 4 }}>&#x2699;</span>
         </div>
       </div>
 
-      {approvalRequired && (
+      {/* Approval dialog overlay (v1.4.0 — focused modal, not inline banner) */}
+      {showApprovalDialog && dialogOpacity > 0.01 && (
         <div
           style={{
             position: "absolute",
-            bottom: 46,
-            right: 20,
+            inset: 0,
+            bottom: 40,
+            top: -460,
             display: "flex",
             alignItems: "center",
-            gap: 6,
-            opacity: approvalFormIn,
-            transform: `translateY(${interpolate(approvalFormIn, [0, 1], [6, 0])}px)`,
+            justifyContent: "center",
+            backgroundColor: `rgba(0,0,0,${0.35 * dialogOpacity})`,
           }}
         >
-          <span
+          <div
             style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: "#fef2f2",
-              backgroundColor: "rgba(127,29,29,0.9)",
-              border: "1px solid rgba(248,113,113,0.55)",
-              borderRadius: 10,
-              padding: "2px 6px",
-              textTransform: "uppercase",
-              letterSpacing: 0.3,
+              width: 280,
+              padding: 20,
+              borderRadius: radii.md,
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.border}`,
+              boxShadow: colors.shadowMd,
+              opacity: dialogOpacity,
+              transform: `translateY(${interpolate(dialogOpacity, [0, 1], [8, 0])}px)`,
             }}
           >
-            action approval required
-          </span>
-          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 4 }}>
-            approver: vscode-user
-          </span>
-          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 4 }}>
-            reason: approve checkpoint
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 700, backgroundColor: "rgba(34,197,94,0.9)", color: "#052e16", padding: "2px 8px", borderRadius: 4 }}>
-            Approve Action
-          </span>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 12 }}>
+              Approve: apply_memo
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.04, color: colors.textFaint, marginBottom: 4 }}>
+                Approver
+              </div>
+              <div style={{ height: 28, borderRadius: radii.sm, border: `1px solid ${colors.border}`, backgroundColor: colors.bg, padding: "4px 8px", fontSize: 13, color: colors.text, display: "flex", alignItems: "center" }}>
+                vscode-user
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.04, color: colors.textFaint, marginBottom: 4 }}>
+                Reason
+              </div>
+              <div style={{ height: 28, borderRadius: radii.sm, border: `1px solid ${colors.border}`, backgroundColor: colors.bg, padding: "4px 8px", fontSize: 13, color: colors.textMuted, display: "flex", alignItems: "center" }}>
+                Approved via VS Code
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <span style={{ flex: 1, padding: "6px 14px", borderRadius: radii.sm, fontSize: 12, fontWeight: 600, color: "#fff", backgroundColor: colors.link, textAlign: "center" }}>
+                Confirm
+              </span>
+              <span style={{ padding: "6px 14px", borderRadius: radii.sm, fontSize: 12, fontWeight: 500, color: colors.textMuted, border: `1px solid ${colors.border}` }}>
+                Cancel
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
