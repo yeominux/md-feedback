@@ -299,6 +299,41 @@ Anchor line
     })
   })
 
+  it('apply_memo text_replace with scope=section updates only memo section', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\n\n## Section A\nAnchor line\nShared phrase\n\n## Section B\nShared phrase\n',
+      'utf-8',
+    )
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Update only section A',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Shared phrase',
+      newText: 'Updated phrase',
+      replaceAll: true,
+      scope: 'section',
+    })
+
+    expect(result.isError).toBeUndefined()
+    const updated = splitDocument(readFileSync(file, 'utf-8'))
+    expect(updated.body).toContain('## Section A')
+    expect(updated.body).toContain('## Section B')
+    expect(updated.body.match(/Updated phrase/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Shared phrase/g)?.length ?? 0).toBe(1)
+  })
+
   it('apply_memo returns OPERATION_INVALID when required params are missing', async () => {
     const file = join(workspace, 'review.md')
     writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
@@ -931,6 +966,43 @@ Anchor line
       details: { memoId: fixMemo.memo.id, action: 'text_replace', matchCount: 2 },
     })
     expect(readFileSync(file, 'utf-8')).toBe(before)
+  })
+
+  it('batch_apply text_replace with scope=section updates only anchored section', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\n\n## Section A\nAnchor line\nShared phrase\n\n## Section B\nShared phrase\n',
+      'utf-8',
+    )
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const fixMemo = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Update section only',
+    })) as { memo: { id: string } }
+
+    const batchApply = server.handlers.get('batch_apply')!
+    const result = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: fixMemo.memo.id,
+          action: 'text_replace',
+          oldText: 'Shared phrase',
+          newText: 'Updated phrase',
+          replaceAll: true,
+          scope: 'section',
+        },
+      ],
+    })
+
+    expect(result.isError).toBeUndefined()
+    const updated = splitDocument(readFileSync(file, 'utf-8'))
+    expect(updated.body.match(/Updated phrase/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Shared phrase/g)?.length ?? 0).toBe(1)
   })
 
   it('list_documents returns markdown files and supports annotatedOnly filter', async () => {
