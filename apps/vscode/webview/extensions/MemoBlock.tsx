@@ -2,17 +2,16 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
-import { Pencil, X, ChevronDown, Check, XCircle, RotateCcw } from 'lucide-react'
-import { vscode } from '../lib/vscode-api'
+import { Pencil, X, ChevronDown, Check, Undo2 } from 'lucide-react'
 
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
-  open:         { label: 'Open',      color: 'text-mf-status-open',        bg: 'bg-mf-status-open' },
-  in_progress:  { label: 'Working',   color: 'text-mf-status-in-progress', bg: 'bg-mf-status-in-progress' },
-  needs_review: { label: 'Review',    color: 'text-indigo-400',            bg: 'bg-indigo-400/10' },
-  answered:     { label: 'Answered',  color: 'text-mf-status-answered',    bg: 'bg-mf-status-answered' },
-  done:         { label: 'Done',      color: 'text-mf-status-done',        bg: 'bg-mf-status-done' },
-  failed:       { label: 'Failed',    color: 'text-mf-status-failed',      bg: 'bg-mf-status-failed' },
-  wontfix:      { label: "Won't fix", color: 'text-mf-muted',             bg: 'bg-mf-border-subtle' },
+  open:         { label: 'Open',      color: 'text-mf-status-open',           bg: 'bg-mf-status-open' },
+  in_progress:  { label: 'Working',   color: 'text-mf-status-in-progress',    bg: 'bg-mf-status-in-progress' },
+  needs_review: { label: 'Review',    color: 'text-mf-status-needs-review',   bg: 'bg-mf-status-needs-review' },
+  answered:     { label: 'Answered',  color: 'text-mf-status-answered',       bg: 'bg-mf-status-answered' },
+  done:         { label: 'Done',      color: 'text-mf-status-done',           bg: 'bg-mf-status-done' },
+  failed:       { label: 'Failed',    color: 'text-mf-status-failed',         bg: 'bg-mf-status-failed' },
+  wontfix:      { label: "Won't fix", color: 'text-mf-muted',                bg: 'bg-mf-border-subtle' },
 }
 
 export function shouldDeleteEmptyMemoOnSave(text: string, source: 'enter' | 'blur'): boolean {
@@ -176,12 +175,25 @@ function MemoDiffSection({ memoId }: { memoId: string }) {
   )
 }
 
+const STATUS_TRANSITIONS: Record<MemoStatus, MemoStatus[]> = {
+  open:         ['open', 'done', 'wontfix'],
+  in_progress:  ['in_progress', 'open', 'done', 'failed'],
+  needs_review: ['needs_review', 'open', 'done', 'wontfix'],
+  answered:     ['answered', 'open', 'done'],
+  done:         ['done', 'open'],
+  failed:       ['failed', 'open'],
+  wontfix:      ['wontfix', 'open'],
+}
+
 function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }: any) {
   const [editing, setEditing] = useState(!node.attrs.text)
   const [text, setText] = useState(node.attrs.text || '')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(false)
+  const [focusedStatusIdx, setFocusedStatusIdx] = useState(-1)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
+  const deleteTimerRef = useRef<number>()
   const color = normalizeMemoColor(node.attrs.color || 'red')
   const status = (node.attrs.status || 'open') as MemoStatus
   const accent = MEMO_ACCENT[color]
@@ -204,6 +216,9 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [editing])
+
+  // Cleanup delete confirmation timer
+  useEffect(() => () => clearTimeout(deleteTimerRef.current), [])
 
   // Sync text to TipTap node attrs on every change (prevents data loss on scroll/unmount)
   useEffect(() => {
@@ -320,159 +335,51 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
     editor.view.dispatch(tr)
   }, [node.attrs, node.nodeSize, editor, deleteNode])
 
+  // Scroll-to-highlight handler (preserved)
+  const handleScrollToHighlight = useCallback(() => {
+    if (!editor) return
+    const { anchorText, color: memoColor } = node.attrs
+    const highlightColor = HIGHLIGHT_COLORS[memoColor as HighlightColor]
+    if (!highlightColor) return
+    const markType = editor.schema.marks.highlight
+
+    let targetPos = -1
+    editor.state.doc.descendants((textNode: any, nodePos: number) => {
+      if (targetPos >= 0) return false
+      if (!textNode.isText || !textNode.text) return
+      const hasMark = textNode.marks.some((m: any) =>
+        m.type === markType && m.attrs.color === highlightColor,
+      )
+      if (hasMark && anchorText) {
+        const text20 = anchorText.slice(0, 20)
+        if (textNode.text.includes(text20) || text20.includes(textNode.text.slice(0, 20))) {
+          targetPos = nodePos
+        }
+      }
+    })
+
+    if (targetPos >= 0) {
+      const domAtPos = editor.view.domAtPos(targetPos)
+      const el = domAtPos.node instanceof Element ? domAtPos.node : domAtPos.node.parentElement
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('memo-highlight-flash')
+        setTimeout(() => el.classList.remove('memo-highlight-flash'), 1500)
+      }
+    }
+  }, [editor, node.attrs])
+
   return (
     <NodeViewWrapper className="my-2.5" data-drag-handle>
       <div
         className={`memo-card group ${selected ? 'ring-1 ring-indigo-300 ring-offset-1' : ''}`}
         style={{ '--memo-accent': accent.bar } as React.CSSProperties}
       >
-        {/* Header */}
-        <div className="flex items-center gap-1.5 px-3 py-2">
-          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider ${accent.labelColor}`}
-            style={{ backgroundColor: `${accent.bar}0a` }}
-          >
-            {accent.label}
-          </span>
-
-          {/* Status badge with dropdown */}
-          <div className="relative" ref={statusMenuRef}>
-            <button
-              onClick={() => setShowStatusMenu(!showStatusMenu)}
-              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:opacity-80 transition-opacity ${statusInfo.color} ${statusInfo.bg}`}
-              title="Change status"
-            >
-              {statusInfo.label}
-              <ChevronDown size={10} />
-            </button>
-            {showStatusMenu && (
-              <div className="absolute top-full left-0 mt-1 z-50 bg-mf-surface border border-mf-border rounded-md shadow-lg py-0.5 min-w-[100px]">
-                {(Object.keys(STATUS_LABELS) as MemoStatus[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => { updateAttributes({ status: s }); setShowStatusMenu(false); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
-                    className={`block w-full text-left px-3 py-1 text-[11px] hover-bg-mf-bg ${s === status ? 'font-bold' : ''} ${STATUS_LABELS[s].color}`}
-                  >
-                    {STATUS_LABELS[s].label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {node.attrs.anchorText && (
-            <span
-              className="text-[12px] text-mf-faint truncate max-w-[180px] italic cursor-pointer hover:text-mf-muted transition-colors"
-              title="Click to scroll to highlight"
-              onClick={() => {
-                if (!editor) return
-                const { anchorText, color: memoColor } = node.attrs
-                const highlightColor = HIGHLIGHT_COLORS[memoColor as HighlightColor]
-                if (!highlightColor) return
-                const markType = editor.schema.marks.highlight
-
-                // Find the highlight mark matching this memo
-                let targetPos = -1
-                editor.state.doc.descendants((textNode: any, nodePos: number) => {
-                  if (targetPos >= 0) return false
-                  if (!textNode.isText || !textNode.text) return
-                  const hasMark = textNode.marks.some((m: any) =>
-                    m.type === markType && m.attrs.color === highlightColor,
-                  )
-                  if (hasMark && anchorText) {
-                    const text20 = anchorText.slice(0, 20)
-                    if (textNode.text.includes(text20) || text20.includes(textNode.text.slice(0, 20))) {
-                      targetPos = nodePos
-                    }
-                  }
-                })
-
-                if (targetPos >= 0) {
-                  // Scroll to the highlight position
-                  const domAtPos = editor.view.domAtPos(targetPos)
-                  const el = domAtPos.node instanceof Element ? domAtPos.node : domAtPos.node.parentElement
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    // Flash effect
-                    el.classList.add('memo-highlight-flash')
-                    setTimeout(() => el.classList.remove('memo-highlight-flash'), 1500)
-                  }
-                }
-              }}
-            >
-              {node.attrs.anchorText.slice(0, 35)}{node.attrs.anchorText.length > 35 ? '...' : ''}
-            </span>
-          )}
-          <div className="flex-1" />
-          {/* needs_review: always-visible approve/reject — this is the primary action */}
-          {status === 'needs_review' && (
-            <div className="flex items-center gap-1 mr-1">
-              <button
-                onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
-                className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors"
-                title="Approve Memo"
-              >
-                <Check size={12} /> Approve Memo
-              </button>
-              <button
-                onClick={() => { updateAttributes({ status: 'open' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
-                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
-                title="Request Changes"
-              >
-                <RotateCcw size={12} />
-              </button>
-              <button
-                onClick={() => { vscode.postMessage({ type: 'memo.rejectWithReason', memoId: node.attrs.memoId }) }}
-                className="p-1 rounded text-mf-faint hover:text-rose-400 hover:bg-mf-bg transition-colors"
-                title="Reject"
-              >
-                <XCircle size={12} />
-              </button>
-            </div>
-          )}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            {/* open: human can dismiss their own annotation */}
-            {status === 'open' && (
-              <button
-                onClick={() => { vscode.postMessage({ type: 'memo.rejectWithReason', memoId: node.attrs.memoId }) }}
-                className="p-1 rounded text-mf-faint hover:text-amber-400 hover:bg-mf-bg transition-colors"
-                title="Dismiss"
-              >
-                <XCircle size={13} />
-              </button>
-            )}
-            {/* answered: human confirms the AI answer is satisfactory */}
-            {status === 'answered' && (
-              <button
-                onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
-                className="p-1 rounded text-mf-faint hover:text-emerald-400 hover:bg-mf-bg transition-colors"
-                title="Acknowledge"
-              >
-                <Check size={13} />
-              </button>
-            )}
-            {!editing && (
-              <button
-                onClick={() => setEditing(true)}
-                className="p-1 rounded text-mf-faint hover:text-mf-muted hover-bg-mf-bg transition-colors"
-                title="Edit"
-              >
-                <Pencil size={13} />
-              </button>
-            )}
-            <button
-              onClick={handleDelete}
-              className="p-1 rounded text-mf-faint hover:text-rose-400 hover-bg-mf-danger transition-colors"
-              title="Delete"
-            >
-              <X size={13} />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-3 pb-2.5">
+        {/* Row 1: type dot + memo text */}
+        <div className="memo-card__row1">
+          <span className="memo-card__type-dot" style={{ background: accent.bar }} />
           {editing ? (
-            <div>
+            <div className="flex-1 min-w-0">
               <textarea
                 ref={inputRef}
                 value={text}
@@ -480,31 +387,136 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
                 onKeyDown={handleKeyDown}
                 onBlur={() => handleSave('blur')}
                 placeholder="Write your feedback..."
-                className="w-full text-[14px] leading-relaxed bg-transparent border-none resize-none focus:outline-none min-h-[36px] text-mf-text placeholder-mf-faint"
+                className="memo-card__textarea"
                 rows={2}
               />
               <div className="text-right">
-                <span className="text-[11px] text-mf-faint">Enter to save · Shift+Enter for newline · Esc to cancel</span>
+                <span className="text-[11px] text-mf-faint">Enter · Shift+Enter · Esc</span>
               </div>
             </div>
           ) : (
-            <p
-              className="text-[14px] text-mf-muted leading-relaxed whitespace-pre-wrap cursor-pointer hover:text-mf-text transition-colors"
-              onClick={() => setEditing(true)}
-            >
+            <p className="memo-card__text" onClick={() => setEditing(true)}>
               {node.attrs.text || 'Click to add feedback...'}
             </p>
           )}
         </div>
 
-        {/* Reject reason — shown on wontfix memos */}
+        {/* Row 2: status + anchor + actions */}
+        <div className="memo-card__row2">
+          {/* Status dropdown */}
+          <div className="relative" ref={statusMenuRef}>
+            <button
+              onClick={() => setShowStatusMenu(!showStatusMenu)}
+              className={`memo-card__status ${statusInfo.color}`}
+              title="Change status"
+            >
+              {statusInfo.label}
+              <ChevronDown size={10} />
+            </button>
+            {showStatusMenu && (() => {
+              const options = STATUS_TRANSITIONS[status] || [status]
+              return (
+                <div
+                  className="absolute top-full left-0 mt-1 z-[45] bg-mf-surface border border-mf-border rounded-md shadow-lg py-0.5 min-w-[100px]"
+                  role="listbox"
+                  aria-label="Status"
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedStatusIdx(i => Math.min(i + 1, options.length - 1)) }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusedStatusIdx(i => Math.max(i - 1, 0)) }
+                    else if (e.key === 'Enter' && focusedStatusIdx >= 0) { e.preventDefault(); updateAttributes({ status: options[focusedStatusIdx] }); setShowStatusMenu(false); setFocusedStatusIdx(-1); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }
+                    else if (e.key === 'Escape') { setShowStatusMenu(false); setFocusedStatusIdx(-1) }
+                  }}
+                  tabIndex={0}
+                  ref={(el) => el?.focus()}
+                >
+                  {options.map((s, i) => (
+                    <button
+                      key={s}
+                      role="option"
+                      aria-selected={s === status}
+                      onClick={() => { updateAttributes({ status: s }); setShowStatusMenu(false); setFocusedStatusIdx(-1); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+                      className={`block w-full text-left px-3 py-1 text-[11px] hover-bg-mf-bg ${s === status ? 'font-bold' : ''} ${i === focusedStatusIdx ? 'bg-mf-bg' : ''} ${STATUS_LABELS[s].color}`}
+                    >
+                      {STATUS_LABELS[s].label}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Anchor text */}
+          {node.attrs.anchorText && (
+            <span
+              className="memo-card__anchor"
+              title="Scroll to highlight"
+              onClick={handleScrollToHighlight}
+            >
+              {node.attrs.anchorText.slice(0, 35)}{node.attrs.anchorText.length > 35 ? '...' : ''}
+            </span>
+          )}
+
+          <div className="flex-1" />
+
+          {/* needs_review: approve + request changes */}
+          {status === 'needs_review' && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+                className="memo-card__approve-btn"
+                title="Approve"
+              >
+                <Check size={12} /> Approve
+              </button>
+              <button
+                onClick={() => { updateAttributes({ status: 'open' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+                className="memo-card__icon-btn"
+                title="Request Changes"
+              >
+                <Undo2 size={12} />
+              </button>
+            </div>
+          )}
+
+          {/* answered: acknowledge */}
+          {status === 'answered' && (
+            <button
+              onClick={() => { updateAttributes({ status: 'done' }); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
+              className="memo-card__icon-btn memo-card__icon-btn--approve"
+              title="Acknowledge"
+            >
+              <Check size={12} />
+            </button>
+          )}
+
+          {/* Hover actions: edit + delete */}
+          <div className="memo-card__hover-actions">
+            {!editing && (
+              <button onClick={() => setEditing(true)} className="memo-card__icon-btn" title="Edit">
+                <Pencil size={12} />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (pendingDelete) { clearTimeout(deleteTimerRef.current); setPendingDelete(false); handleDelete() }
+                else { setPendingDelete(true); deleteTimerRef.current = window.setTimeout(() => setPendingDelete(false), 3000) }
+              }}
+              className={`memo-card__icon-btn memo-card__icon-btn--danger ${pendingDelete ? 'memo-card__icon-btn--confirming' : ''}`}
+              title={pendingDelete ? 'Click again to confirm' : 'Delete'}
+            >
+              {pendingDelete ? <span className="text-[10px] font-medium">Delete?</span> : <X size={12} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Reject reason */}
         {status === 'wontfix' && node.attrs.rejectReason && (
           <div className="px-3 pb-2 text-[12px] text-mf-faint italic">
             Reason: {node.attrs.rejectReason}
           </div>
         )}
 
-        {/* Inline diff section — shown when impls exist for this memo */}
+        {/* Inline diff */}
         <MemoDiffSection memoId={node.attrs.memoId} />
       </div>
     </NodeViewWrapper>

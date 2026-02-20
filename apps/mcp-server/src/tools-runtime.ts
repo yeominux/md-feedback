@@ -3,6 +3,7 @@ import { generateBodyHash, type DocumentParts, isResolved } from '@md-feedback/s
 import { generateId } from '@md-feedback/shared'
 import { createFileSafety, validateFilePath } from './file-safety.js'
 import { FileSafetyError, PatchApplyError, serializeToolError } from './errors.js'
+import { listWorkspaceDocuments } from './workspace.js'
 
 export type ToolText = { type: 'text'; text: string }
 export type ToolResult = { content: ToolText[]; isError?: boolean }
@@ -11,13 +12,14 @@ export type ToolErrorResult = { content: ToolText[]; isError: true }
 export interface ToolRuntime {
   safeRead: (file: string) => string
   safeWrite: (file: string, content: string) => void
+  listDocuments: (options?: { annotatedOnly?: boolean; maxFiles?: number }) => string[]
   wrapTool: <T extends ToolResult>(fn: () => Promise<T>) => Promise<T | ToolErrorResult>
   ensureDefaultGate: (parts: DocumentParts) => void
   updateCursorFromMemos: (parts: DocumentParts, taskId: string, nextAction?: string) => void
   applyUnifiedDiff: (original: string, patch: string, fileLabel: string) => string
 }
 
-export type QueryToolContext = Pick<ToolRuntime, 'safeRead' | 'wrapTool'>
+export type QueryToolContext = Pick<ToolRuntime, 'safeRead' | 'wrapTool' | 'listDocuments'>
 export type MutationToolContext = Pick<
   ToolRuntime,
   'safeRead' | 'safeWrite' | 'wrapTool' | 'ensureDefaultGate' | 'updateCursorFromMemos' | 'applyUnifiedDiff'
@@ -42,6 +44,10 @@ export function createToolRuntime(options: ToolRuntimeOptions = {}): ToolRuntime
     const check = validateFilePath(safety, file)
     if (!check.safe) throw new FileSafetyError(check.reason!, { file })
     writeMarkdownFile(file, content)
+  }
+
+  function listDocuments(options?: { annotatedOnly?: boolean; maxFiles?: number }): string[] {
+    return listWorkspaceDocuments(safety.workspaceRoot, options)
   }
 
   function toToolError(err: unknown): ToolErrorResult {
@@ -160,6 +166,7 @@ export function createToolRuntime(options: ToolRuntimeOptions = {}): ToolRuntime
   return {
     safeRead,
     safeWrite,
+    listDocuments,
     wrapTool,
     ensureDefaultGate,
     updateCursorFromMemos,

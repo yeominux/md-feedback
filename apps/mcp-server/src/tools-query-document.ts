@@ -19,7 +19,26 @@ import { getPolicySnapshot } from './policy.js'
 import { getMemoSeverityStatus, getWorkflowState } from './workflow.js'
 
 export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolContext): void {
-  const { safeRead, wrapTool } = ctx
+  const { safeRead, wrapTool, listDocuments } = ctx
+
+  // ─── list_documents ───
+  server.tool(
+    'list_documents',
+    'List markdown files in the workspace. Optionally filter to only files that already contain annotations.',
+    {
+      annotatedOnly: z.boolean().optional().default(false).describe('If true, return only files containing USER_MEMO/HIGHLIGHT_MARK annotations'),
+      maxFiles: z.number().int().min(1).max(5000).optional().default(500).describe('Maximum number of files to return'),
+    },
+    async ({ annotatedOnly, maxFiles }) => wrapTool(async () => {
+      const files = listDocuments({ annotatedOnly, maxFiles })
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ files, total: files.length }, null, 2),
+        }],
+      }
+    }),
+  )
 
   // ─── get_policy_status ───
   server.tool(
@@ -202,11 +221,12 @@ export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolCont
   // ─── get_document_structure ───
   server.tool(
     'get_document_structure',
-    'Parse an annotated markdown file and return the full v0.4.0 ReviewDocument: { bodyMd, memos[] (with status/owner), checkpoints[], gates[], cursor, sections, summary }. Most comprehensive tool — use this when you need the complete document state. Use list_annotations for just memos, or get_review_status for just counts.',
+    'Parse an annotated markdown file and return v0.4.0 ReviewDocument metadata. By default bodyMd is omitted to reduce context size; set includeBody=true only when full body is required.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
+      includeBody: z.boolean().optional().default(false).describe('Include full bodyMd content (larger payload)'),
     },
-    async ({ file }) => wrapTool(async () => {
+    async ({ file, includeBody }) => wrapTool(async () => {
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
       const allSections = getAllSections(markdown)
@@ -246,7 +266,7 @@ export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolCont
       const structure: ReviewDocument = {
         version: '0.4.0',
         file,
-        bodyMd: parts.body,
+        bodyMd: includeBody ? parts.body : '',
         memos: parts.memos,
         checkpoints: parts.checkpoints,
         gates,

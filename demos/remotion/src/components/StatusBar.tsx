@@ -25,29 +25,24 @@ export const StatusBar: React.FC = () => {
 
   const doneCount = isDone ? 1 : 0;
   const reviewCount = isReview ? 1 : 0;
-  const workingCount = isWorking ? 1 : 0;
-  const openCount = 3 - doneCount - reviewCount - workingCount;
 
-  // Progress bar with spring
-  const progressTarget = isDone ? 33.3 : 0;
-  const progressWidth = isDone
-    ? interpolate(
-        spring({ frame: frame - 430, fps, config: { damping: 18, stiffness: 60 } }),
-        [0, 1],
-        [0, progressTarget]
-      )
-    : 0;
+  const progressTarget = isDone ? 100 : isReview ? 66 : isWorking ? 34 : 12;
+  const progressWidth = interpolate(
+    spring({ frame: Math.max(0, frame - 210), fps, config: { damping: 20, stiffness: 80 } }),
+    [0, 1],
+    [8, progressTarget]
+  );
 
   // Status text
   const statusText = isDone
-    ? "1 fix approved"
+    ? "1/1 resolved"
     : approvalRequired
-    ? "Approval required before high-risk action"
+    ? "review required"
     : isReview
-    ? "Waiting for human review..."
+    ? "needs review"
     : isWorking
-    ? "AI applying fix..."
-    : "Ready";
+    ? "applying..."
+    : "ready";
 
   // Subtle indicator dot for review state
   const reviewDotScale = isReview
@@ -61,79 +56,98 @@ export const StatusBar: React.FC = () => {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 28,
-        backgroundColor: colors.accent,
+        height: 40,
+        backgroundColor: colors.surface,
         display: "flex",
         alignItems: "center",
-        padding: "0 14px",
-        fontSize: 11,
-        color: "white",
-        gap: 14,
+        justifyContent: "center",
+        borderTop: `1px solid ${colors.border}`,
+        boxShadow: "0 -4px 24px rgba(0,0,0,0.06)",
       }}
     >
-      <span style={{ fontWeight: 600, letterSpacing: 0.2 }}>MD Feedback</span>
-
-      {/* Counts */}
-      <span style={{ opacity: 0.9 }}>
-        {doneCount}/3 done
-        {reviewCount > 0 && ` · ${reviewCount} review`}
-        {workingCount > 0 && ` · ${workingCount} working`}
-        {openCount > 0 && ` · ${openCount} open`}
-      </span>
-
-      {/* Mini progress bar */}
       <div
         style={{
-          width: 80,
-          height: 3,
-          backgroundColor: "rgba(255,255,255,0.2)",
-          borderRadius: 2,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${progressWidth}%`,
-            height: "100%",
-            backgroundColor: "white",
-            borderRadius: 2,
-          }}
-        />
-      </div>
-
-      {/* Status text */}
-      <span
-        style={{
-          marginLeft: "auto",
-          fontSize: 10,
-          opacity: 0.85,
+          width: 760,
           display: "flex",
           alignItems: "center",
-          gap: 5,
+          justifyContent: "space-between",
+          gap: 10,
+          padding: "0 12px",
+          fontSize: 11,
+          color: colors.text,
         }}
       >
-        {isReview && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+          <div style={{ width: 160, height: 4, borderRadius: 2, backgroundColor: colors.progressTrack, overflow: "hidden" }}>
+            <div
+              style={{
+                width: `${progressWidth}%`,
+                height: "100%",
+                backgroundColor: colors.progressFill,
+                borderRadius: 2,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 10, color: colors.textMuted, opacity: 0.75 }}>{statusText}</span>
           <span
             style={{
               display: "inline-block",
-              width: 5,
-              height: 5,
+              width: 8,
+              height: 8,
               borderRadius: "50%",
-              backgroundColor: colors.statusReview,
+              backgroundColor: isDone ? "#059669" : isReview ? "#6366f1" : "#d97706",
+              boxShadow: isDone ? "0 0 6px rgba(5,150,105,0.4)" : "none",
               transform: `scale(${reviewDotScale})`,
             }}
           />
-        )}
-        {statusText}
-      </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {reviewCount > 0 && (
+            <span
+              style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: colors.surface,
+              backgroundColor: colors.link,
+              borderRadius: 4,
+              padding: "4px 10px",
+            }}
+            >
+              Review First
+            </span>
+          )}
+          {!reviewCount && (
+            <span
+              style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: colors.surface,
+              backgroundColor: colors.link,
+              borderRadius: 4,
+              padding: "4px 10px",
+            }}
+            >
+              Next Step
+            </span>
+          )}
+          <span style={{ fontSize: 12, color: colors.textMuted }}>⚙</span>
+        </div>
+      </div>
 
       {approvalRequired && (
         <div
           style={{
+            position: "absolute",
+            bottom: 46,
+            right: 20,
             display: "flex",
             alignItems: "center",
             gap: 6,
-            marginLeft: 8,
             opacity: approvalFormIn,
             transform: `translateY(${interpolate(approvalFormIn, [0, 1], [6, 0])}px)`,
           }}
@@ -142,9 +156,9 @@ export const StatusBar: React.FC = () => {
             style={{
               fontSize: 9,
               fontWeight: 700,
-              color: "#fecaca",
-              backgroundColor: "rgba(127,29,29,0.8)",
-              border: "1px solid rgba(248,113,113,0.5)",
+              color: "#fef2f2",
+              backgroundColor: "rgba(127,29,29,0.9)",
+              border: "1px solid rgba(248,113,113,0.55)",
               borderRadius: 10,
               padding: "2px 6px",
               textTransform: "uppercase",
@@ -153,11 +167,11 @@ export const StatusBar: React.FC = () => {
           >
             action approval required
           </span>
-          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(255,255,255,0.12)", padding: "2px 6px", borderRadius: 4 }}>
+          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 4 }}>
             approver: vscode-user
           </span>
-          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(255,255,255,0.12)", padding: "2px 6px", borderRadius: 4 }}>
-            reason: approve batch_apply
+          <span style={{ fontSize: 9, opacity: 0.9, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", padding: "2px 6px", borderRadius: 4 }}>
+            reason: approve checkpoint
           </span>
           <span style={{ fontSize: 9, fontWeight: 700, backgroundColor: "rgba(34,197,94,0.9)", color: "#052e16", padding: "2px 8px", borderRadius: 4 }}>
             Approve Action
