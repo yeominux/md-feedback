@@ -179,10 +179,23 @@ export function splitDocument(markdown: string): DocumentParts {
       i++ // skip -->
       const a = parseAttrs(attrLines)
       const anchorText = a.anchorText || findAnchorAbove(bodyLines) || ''
-      // Refresh anchor from current body position to prevent stale references
-      const anchorLineIdx = findAnchorLineIdx(bodyLines)
+      // Refresh anchor using persisted anchor/hash/anchorText (not last seen body line).
+      // This avoids collapsing all EOF metadata memos onto the same trailing body line.
+      const anchorLineIdx = findMemoAnchorLine(bodyLines, {
+        id: a.id || 'memo_parse_tmp',
+        type: (a.type as MemoV2['type']) || 'fix',
+        status: (a.status as MemoV2['status']) || 'open',
+        owner: (a.owner as MemoV2['owner']) || 'human',
+        source: a.source || 'generic',
+        color: (a.color || 'red') as MemoColor,
+        text: a.text || '',
+        anchorText,
+        anchor: a.anchor || '',
+        createdAt: a.createdAt || new Date().toISOString(),
+        updatedAt: a.updatedAt || new Date().toISOString(),
+      })
       const freshAnchor = anchorLineIdx >= 0
-        ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx])}`
+        ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
         : (a.anchor || '')
       memos.push({
         id: a.id || generateId('memo'),
@@ -668,8 +681,28 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
   // Fallback: search by anchorText content match
   if (memo.anchorText) {
     const needle = memo.anchorText.trim()
+    const matches: number[] = []
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(needle)) return i
+      if (lines[i].includes(needle)) matches.push(i)
+    }
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
+      // If line number is available, keep the closest matching occurrence.
+      const lineMatch = memo.anchor.match(/^L(\d+)/)
+      if (lineMatch) {
+        const lineNum = parseInt(lineMatch[1], 10) - 1
+        let best = matches[0]
+        let bestDist = Math.abs(matches[0] - lineNum)
+        for (const idx of matches.slice(1)) {
+          const dist = Math.abs(idx - lineNum)
+          if (dist < bestDist) {
+            best = idx
+            bestDist = dist
+          }
+        }
+        return best
+      }
+      return matches[0]
     }
   }
 
