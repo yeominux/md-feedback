@@ -1,6 +1,6 @@
 import { CSSProperties } from "react";
 
-// MD Feedback v1.3.20 light theme tokens (aligned with webview/theme/tokens.css)
+// MD Feedback v1.4.0 light theme tokens (aligned with webview/theme/tokens.css)
 export const colors = {
   bg: "#f7f7f5",
   surface: "#ffffff",
