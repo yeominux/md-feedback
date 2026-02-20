@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.0] - 2026-02-21
+
+### Added
+- **Type switch on memo cards**: Click the type badge (Fix/Question/Highlight) to convert between annotation types — the highlight style updates automatically to match
+- **Clean Copy button** in the status bar strips all review annotations, AI responses, and metadata, then copies plain markdown to clipboard
+- **Workflow Prompt button** in the status bar generates and copies a context-aware instruction block for your AI agent based on current memo state (open fixes, pending questions, items needing review)
+- Bubble menu annotations now show descriptive tooltips explaining each type's purpose
+- `open` status memos can now transition to `in_progress` directly from the status dropdown
+- Updated demo GIF to reflect the redesigned review cards, progress bar, and gate pills
+
+### Changed
+- Details drawer redesigned with a large percentage indicator, color-coded progress bar, inline phase and gate pills, and grouped memo list with click-to-navigate
+- Memo card header now uses a clickable pill badge with dropdown instead of a static colored dot
+- Demo composition updated to version 1.4.0 with new tagline "Annotate. Review. Ship." and a metadata drawer preview scene
+- README version tags updated across all three public-facing READMEs
+
+### Improved
+- Clipboard no longer leaks CSS class names (e.g. "left") when copying memo card text
+- Agent instruction files (AGENTS.md, copilot-instructions.md, .cursorrules) are now kept in sync automatically via pre-commit check
+
+### Fixed
+- Double-counting of resolved memo percentages in the status summary display
+
 ## [1.3.20] - 2026-02-20
 
 ### Added

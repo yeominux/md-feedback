@@ -120,6 +120,68 @@ ${shared} two
     expect(new Set(recoveredBlue.map(m => m.anchorText)).size).toBe(2)
   })
 
+  it('does not create false recovery when AI edits surrounding text (anchor drift)', () => {
+    // Scenario: User creates memo on "Original text here", AI edits the block
+    // to "Modified text here". HIGHLIGHT_MARK anchor drifts but markText matches.
+    const input = `# Title
+
+Modified text here
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Original text here"
+  anchor="L3|stale_hash"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="Fix this" anchor="Modified text here" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    // markText "Fix this" matches memo text "Fix this" → no false recovery
+    expect(recovered).toHaveLength(0)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].id).toBe('m1')
+  })
+
+  it('refreshes anchorText on parse when anchor line is found', () => {
+    const input = `# Title
+
+Current line content
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Current line content"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    // anchorText should be refreshed to current body line content
+    expect(parts.memos[0].anchorText).toBe('Current line content')
+
+    // Now simulate AI editing the line — anchorText should update on next parse
+    const merged = mergeDocument(parts)
+    const edited = merged.replace('Current line content', 'AI edited this line')
+    const parts2 = splitDocument(edited)
+
+    // findMemoAnchorLine should find the line via anchorText substring match
+    // and refresh anchorText to the new content
+    expect(parts2.memos[0].anchorText).toBe('AI edited this line')
+  })
+
   it('anchor drift: repeated split/merge cycles do not shift memo position', () => {
     // Create a document with a memo anchored to "Line B"
     const input = `# Title
@@ -988,6 +1050,246 @@ Other content.
     const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
     expect(memoIdx).toBeGreaterThan(calloutIdx)
     expect(memoIdx).toBeLessThan(calloutIdx + 5)
+  })
+})
+
+describe('block-structure preservation — memos in blockquotes/tables/callouts', () => {
+  it('memo anchored inside blockquote is placed after blockquote ends', () => {
+    const input = `# Title
+
+> First quote line
+> Second quote line
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix quote content"
+  anchorText="First quote line"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Other content.`
+
+    const parts = splitDocument(input)
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    // Blockquote lines should be contiguous (no memo between them)
+    const q1 = lines.findIndex(l => l.includes('> First quote line'))
+    const q2 = lines.findIndex(l => l.includes('> Second quote line'))
+    expect(q2).toBe(q1 + 1) // consecutive, no gap
+
+    // Memo should come after the entire blockquote
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+    expect(memoIdx).toBeGreaterThan(q2)
+  })
+
+  it('memo anchored inside table is placed after table ends', () => {
+    const input = `# Title
+
+| Header 1 | Header 2 |
+|----------|----------|
+| cell A | data A |
+| cell B | data B |
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix table data"
+  anchorText="cell A"
+  anchor="L5|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Other content.`
+
+    const parts = splitDocument(input)
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    // Table rows should be contiguous
+    const headerIdx = lines.findIndex(l => l.includes('| Header 1'))
+    const lastRowIdx = lines.findIndex(l => l.includes('| cell B'))
+    // All table lines should be consecutive
+    for (let i = headerIdx; i <= lastRowIdx; i++) {
+      expect(lines[i]).toMatch(/^\s*\|/)
+    }
+
+    // Memo should come after the entire table
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+    expect(memoIdx).toBeGreaterThan(lastRowIdx)
+  })
+
+  it('memo anchored inside callout is placed after callout ends', () => {
+    const input = `# Title
+
+> [!NOTE]
+> This is important
+> More details here
+
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix callout"
+  anchorText="This is important"
+  anchor="L4|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Other content.`
+
+    const parts = splitDocument(input)
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    // All callout lines should be contiguous
+    const noteIdx = lines.findIndex(l => l.includes('> [!NOTE]'))
+    const detailsIdx = lines.findIndex(l => l.includes('> More details here'))
+    for (let i = noteIdx; i <= detailsIdx; i++) {
+      expect(lines[i]).toMatch(/^\s*>/)
+    }
+
+    // Memo should come after callout
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+    expect(memoIdx).toBeGreaterThan(detailsIdx)
+  })
+
+  it('roundtrip preserves blockquote structure with memo', () => {
+    const input = `# Title
+
+> Line A
+> Line B
+> Line C
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix B"
+  anchorText="Line B"
+  anchor="L4|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Tail.`
+
+    // Multiple roundtrips should keep blockquote intact
+    const parts1 = splitDocument(input)
+    const output1 = mergeDocument(parts1)
+    const parts2 = splitDocument(output1)
+    const output2 = mergeDocument(parts2)
+
+    const lines = output2.split('\n')
+    const lineA = lines.findIndex(l => l.includes('> Line A'))
+    const lineC = lines.findIndex(l => l.includes('> Line C'))
+
+    // Blockquote should be contiguous (3 lines: A, B, C)
+    expect(lineC - lineA).toBe(2)
+
+    // Memo should appear after Line C
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+    expect(memoIdx).toBeGreaterThan(lineC)
+  })
+
+  it('multiple memos in same blockquote are both placed after block end', () => {
+    const input = `# Title
+
+> Line A
+> Line B
+> Line C
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix A"
+  anchorText="Line A"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- USER_MEMO
+  id="m2"
+  type="question"
+  status="open"
+  owner="human"
+  source="generic"
+  color="blue"
+  text="Ask B"
+  anchorText="Line B"
+  anchor="L4|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Tail.`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(2)
+
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    // Blockquote lines should be contiguous
+    const lineA = lines.findIndex(l => l.includes('> Line A'))
+    const lineC = lines.findIndex(l => l.includes('> Line C'))
+    expect(lineC - lineA).toBe(2)
+
+    // Both memos should be after the blockquote
+    const memo1Idx = lines.findIndex(l => l.includes('id="m1"'))
+    const memo2Idx = lines.findIndex(l => l.includes('id="m2"'))
+    expect(memo1Idx).toBeGreaterThan(lineC)
+    expect(memo2Idx).toBeGreaterThan(lineC)
+  })
+
+  it('memo on normal line (not in block) still inserts right after anchor', () => {
+    const input = `# Title
+
+Normal line here.
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix it"
+  anchorText="Normal line here."
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Other content.`
+
+    const parts = splitDocument(input)
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    const anchorIdx = lines.findIndex(l => l.includes('Normal line here.'))
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+
+    // Memo should be right after its anchor (next line, allowing for the comment start)
+    expect(memoIdx).toBe(anchorIdx + 1)
   })
 })
 
