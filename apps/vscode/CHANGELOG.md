@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.19] - 2026-02-20
+
+### Added
+- `apply_memo` and `batch_apply` now support `scope="section"` for `text_replace`, allowing automatic propagation only inside the heading section around a memo anchor
+
+### Improved
+- Memo anchor safety fallback was hardened to keep malformed or missing anchor metadata pinned inside the document body instead of drifting toward EOF metadata blocks
+- Added regression coverage for missing-anchor memo reinsertion to guarantee stable in-body placement across split/merge cycles
+- Added regression coverage for section-scoped text replacement to prevent cross-section over-application
+
 ## [1.3.18] - 2026-02-20
 
 ### Changed
