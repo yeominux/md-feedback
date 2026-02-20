@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.4.0): memo type switching, clean copy and workflow prompt buttons, redesigned details drawer with progress tracking, and updated demo.
+> Latest (v1.4.1): memo type switching, clean copy and workflow prompt buttons, redesigned details drawer with progress tracking, and updated demo.
 
 ## How It Works
 
@@ -56,7 +56,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **7 status badges**: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
-- **Ambiguity-safe text replacement**: when the same text appears multiple times, agents must specify `occurrence` or `replaceAll` (prevents silent wrong-line edits)
+- **Safe text replacement**: when the same text appears multiple times, agents must specify which one to change (prevents accidental wrong-line edits)
 - **File safety**: blocks writes to .env, credentials, node_modules
 - **Approve / Reject buttons** — accept or dismiss annotations inline, always visible when review needed
 - **CodeLens in editor** — approve or reject directly in the markdown file, no sidebar needed
@@ -66,7 +66,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **Gate override** — manually control gate status when auto-evaluation isn't enough
 - **External file diffs inline** — see exactly what AI will change before applying
 - **Gate transition notifications** — know when gates unblock or complete
-- **File mutex** — prevents data corruption from concurrent MCP tool calls
+- **Concurrent safety** — prevents data corruption when multiple AI operations run at the same time
 - **Auto-refresh**: document updates in real-time when AI writes changes
 - **Portable format**: annotations stored as HTML comments — works in any markdown renderer, survives git
 - **Rich rendering**: Mermaid diagrams, callout blocks, syntax-highlighted code
