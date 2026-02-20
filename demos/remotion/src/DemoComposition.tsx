@@ -6,11 +6,11 @@ import { DrawerPreview } from "./components/DrawerPreview";
 import { colors, container } from "./styles";
 
 /**
- * MD Feedback v1.3.20 Demo — aligned to current webview structure
+ * MD Feedback v1.4.0 Demo — aligned to current webview structure
  * Story: annotate in editor first -> AI applies -> human review -> done -> drawer
  *
- * Added in v1.3.20:
- *   - Title: "MD Feedback v1.3.20"
+ * v1.4.0 changes:
+ *   - Title: "MD Feedback v1.4.0"
  *   - Tagline: "Annotate. Review. Ship."
  *   - DrawerPreview scene: frame ~440 slide-in, frame ~510 fade-out
  *   - Total frames: 660 (~22s at 30fps)
@@ -82,7 +82,7 @@ export const DemoComposition: React.FC = () => {
         >
           <div style={{ textAlign: "center", opacity: titleOpacity }}>
             <div style={{ fontSize: 34, color: "#fff", fontWeight: 700, marginBottom: 12 }}>
-              MD Feedback v1.3.20
+              MD Feedback v1.4.0
             </div>
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.8)" }}>
               Annotate. Review. Ship.
