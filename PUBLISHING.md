@@ -37,3 +37,13 @@ Controlled by `apps/vscode/.vscodeignore`:
 - `README.md` — Marketplace page
 - `CHANGELOG.md` — Marketplace changelog tab
 - `package.json` — Extension manifest
+
+## Marketplace Publish Commands
+
+- VS Code Marketplace only: `pnpm publish:vsce`
+- Open VSX only: `pnpm publish:ovsx`
+- Both in sequence: `pnpm publish:marketplaces`
+
+Required environment tokens:
+- `VSCE_PAT` for VS Code Marketplace (`vsce publish`)
+- `OVSX_PAT` for Open VSX (`ovsx publish`)

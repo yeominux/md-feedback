@@ -18,7 +18,7 @@ export function registerExportQueryTools(server: McpServer, ctx: QueryToolContex
   // ─── export_review ───
   server.tool(
     'export_review',
-    'Export review feedback in a format optimized for a specific AI coding tool. Targets: claude-code, cursor, codex, copilot, cline, windsurf, roo-code, gemini, generic, handoff. Returns formatted markdown ready to save to the appropriate file.',
+    'Export review feedback in a format optimized for a specific AI coding tool. Targets: claude-code, cursor, codex, copilot, cline, windsurf, roo-code, gemini, antigravity, generic, handoff. Returns formatted markdown ready to save to the appropriate file.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       target: z.enum(['claude-code', 'cursor', 'codex', 'copilot', 'cline', 'windsurf', 'roo-code', 'gemini', 'antigravity', 'generic', 'handoff']).describe('Target AI tool format'),
