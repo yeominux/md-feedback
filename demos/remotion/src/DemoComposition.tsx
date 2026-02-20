@@ -2,11 +2,18 @@ import React from "react";
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { MockEditor } from "./components/MockEditor";
 import { StatusBar } from "./components/StatusBar";
+import { DrawerPreview } from "./components/DrawerPreview";
 import { colors, container } from "./styles";
 
 /**
- * MD Feedback v1.3.16 Demo — aligned to current webview structure
- * Story: annotate in editor first -> AI applies -> human review -> done
+ * MD Feedback v1.3.20 Demo — aligned to current webview structure
+ * Story: annotate in editor first -> AI applies -> human review -> done -> drawer
+ *
+ * Added in v1.3.20:
+ *   - Title: "MD Feedback v1.3.20"
+ *   - Tagline: "Annotate. Review. Ship."
+ *   - DrawerPreview scene: frame ~440 slide-in, frame ~510 fade-out
+ *   - Total frames: 660 (~22s at 30fps)
  */
 export const DemoComposition: React.FC = () => {
   const frame = useCurrentFrame();
@@ -27,6 +34,9 @@ export const DemoComposition: React.FC = () => {
       <div style={container}>
         <MockEditor />
         <StatusBar />
+
+        {/* Drawer preview — slides in after Done state */}
+        <DrawerPreview startFrame={440} />
 
         {mcpReminderIn > 0.01 && (
           <div
@@ -52,7 +62,7 @@ export const DemoComposition: React.FC = () => {
                 color: colors.textFaint,
               }}
             >
-              <span>🔌</span>
+              <span>&#x1F50C;</span>
               <span>Connect AI</span>
             </button>
           </div>
@@ -72,10 +82,10 @@ export const DemoComposition: React.FC = () => {
         >
           <div style={{ textAlign: "center", opacity: titleOpacity }}>
             <div style={{ fontSize: 34, color: "#fff", fontWeight: 700, marginBottom: 12 }}>
-              MD Feedback v1.3.16
+              MD Feedback v1.3.20
             </div>
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.8)" }}>
-              Annotate first. MCP is optional.
+              Annotate. Review. Ship.
             </div>
           </div>
         </div>

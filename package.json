@@ -19,6 +19,7 @@
     "guard:public-surface": "node scripts/guard-public-surface.mjs",
     "release:preflight": "pnpm check:user-facing && pnpm check:release-gates",
     "release:ready": "pnpm release:preflight && pnpm check:release-state",
+    "sync:agents": "node scripts/sync-agent-instructions.mjs",
     "sync-version": "node scripts/sync-version.mjs",
     "verify-release": "node scripts/verify-release.mjs",
     "release:notes": "node scripts/release-notes.mjs",

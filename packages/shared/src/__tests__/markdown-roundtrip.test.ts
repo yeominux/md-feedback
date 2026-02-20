@@ -62,6 +62,34 @@ Paragraph.
     expect(html).toContain('data-memo-color="red"')
   })
 
+  it('B-2: extracts v0.3 memo on a blockquote line', () => {
+    const markdown = `> Some quote text
+> <!-- USER_MEMO id="bq1" color="red" status="open" : fix blockquote -->
+> More quote text`
+
+    const html = convertMemosToHtml(markdown)
+
+    expect(html).toContain('data-memo-id="bq1"')
+    expect(html).toContain('data-memo-color="red"')
+  })
+
+  it('B-2: extracts v0.4 multi-line memo with blockquote prefixes', () => {
+    const markdown = `> Some quote text
+> <!-- USER_MEMO
+>   id="bq2"
+>   color="blue"
+>   status="open"
+>   text="question in blockquote"
+> -->
+> More quote text`
+
+    const html = convertMemosToHtml(markdown)
+
+    // The memo should be extracted despite > prefixes on every line
+    expect(html).toContain('data-memo-id="bq2"')
+    expect(html).toContain('data-memo-color="blue"')
+  })
+
   it('B-1: extracts memo embedded inside a markdown table row', () => {
     const markdown = `| Header 1 | Header 2 |
 |----------|----------|
