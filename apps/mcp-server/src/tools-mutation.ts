@@ -22,6 +22,28 @@ import type { MutationToolContext } from './tools-runtime.js'
 
 export function registerMutationTools(server: McpServer, ctx: MutationToolContext): void {
   const { safeRead, safeWrite, wrapTool, ensureDefaultGate, updateCursorFromMemos, applyUnifiedDiff } = ctx
+  const replaceOccurrence = (
+    source: string,
+    target: string,
+    replacement: string,
+    occurrence: number,
+  ): { replaced: boolean; output: string } => {
+    if (occurrence < 1) return { replaced: false, output: source }
+    let fromIndex = 0
+    let seen = 0
+    while (true) {
+      const idx = source.indexOf(target, fromIndex)
+      if (idx === -1) return { replaced: false, output: source }
+      seen++
+      if (seen === occurrence) {
+        return {
+          replaced: true,
+          output: `${source.slice(0, idx)}${replacement}${source.slice(idx + target.length)}`,
+        }
+      }
+      fromIndex = idx + target.length
+    }
+  }
 
   // ─── create_checkpoint ───
   server.tool(
@@ -335,7 +357,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
   // ─── apply_memo (v1.1 — apply an implementation to a memo) ───
   server.tool(
     'apply_memo',
-    'Apply an implementation action to a memo. Supports text_replace (replaces all occurrences in current document), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
+    'Apply an implementation action to a memo. Supports text_replace (replaces first occurrence by default), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to apply implementation to'),
@@ -343,11 +365,13 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       dryRun: z.boolean().optional().default(false).describe('If true, return preview without writing'),
       oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
       newText: z.string().optional().describe('For text_replace: the replacement text'),
+      occurrence: z.number().int().min(1).optional().default(1).describe('For text_replace: which occurrence to replace (1-indexed)'),
+      replaceAll: z.boolean().optional().default(false).describe('For text_replace: replace all occurrences instead of one'),
       targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
       patch: z.string().optional().describe('For file_patch: unified diff patch content'),
       content: z.string().optional().describe('For file_create: the file content to write'),
     },
-    async ({ file, memoId, action, dryRun, oldText, newText, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
+    async ({ file, memoId, action, dryRun, oldText, newText, occurrence, replaceAll, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'apply_memo')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
@@ -403,7 +427,19 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         if (!parts.body.includes(oldText!)) {
           throw new OperationValidationError('oldText not found in document body', { memoId, action })
         }
-        parts.body = parts.body.split(oldText!).join(newText!)
+        if (replaceAll) {
+          parts.body = parts.body.split(oldText!).join(newText!)
+        } else {
+          const replaced = replaceOccurrence(parts.body, oldText!, newText!, occurrence ?? 1)
+          if (!replaced.replaced) {
+            throw new OperationValidationError('Requested occurrence not found in document body', {
+              memoId,
+              action,
+              occurrence: occurrence ?? 1,
+            })
+          }
+          parts.body = replaced.output
+        }
       } else if (action === 'file_patch') {
         if (!existsSync(targetFile!)) {
           throw new OperationValidationError(
@@ -615,6 +651,8 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         action: z.enum(['text_replace', 'file_patch', 'file_create']).describe('Type of implementation action'),
         oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
         newText: z.string().optional().describe('For text_replace: the replacement text'),
+        occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed, default 1)'),
+        replaceAll: z.boolean().optional().describe('For text_replace: replace all occurrences instead of one'),
         targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
         patch: z.string().optional().describe('For file_patch: unified diff patch content'),
         content: z.string().optional().describe('For file_create: the file content to write'),
@@ -652,11 +690,24 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
               { memoId: op.memoId, action: op.action },
             )
           }
-          parts.body = parts.body.split(op.oldText).join(op.newText)
+          if (op.replaceAll) {
+            parts.body = parts.body.split(op.oldText).join(op.newText)
+          } else {
+            const replaced = replaceOccurrence(parts.body, op.oldText, op.newText, op.occurrence ?? 1)
+            if (!replaced.replaced) {
+              throw new OperationValidationError(
+                `Operation failed (${op.memoId}): requested occurrence not found in body`,
+                { memoId: op.memoId, action: op.action, occurrence: op.occurrence ?? 1 },
+              )
+            }
+            parts.body = replaced.output
+          }
           // Sync anchorText for affected memos to prevent stale references
-          for (const m of parts.memos) {
-            if (m.anchorText && m.anchorText.includes(op.oldText)) {
-              m.anchorText = m.anchorText.split(op.oldText).join(op.newText)
+          if (op.replaceAll) {
+            for (const m of parts.memos) {
+              if (m.anchorText && m.anchorText.includes(op.oldText)) {
+                m.anchorText = m.anchorText.split(op.oldText).join(op.newText)
+              }
             }
           }
         } else if (op.action === 'file_patch') {
@@ -744,14 +795,25 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         safeWrite(file, updated)
         writtenFiles.push(file)
       } catch (commitErr) {
+        const rollbackErrors: string[] = []
         for (let idx = writtenFiles.length - 1; idx >= 0; idx--) {
           const writtenFile = writtenFiles[idx]
           const original = originalFiles.get(writtenFile)
           if (original !== undefined) {
-            try { safeWrite(writtenFile, original) } catch { /* best effort rollback */ }
+            try { safeWrite(writtenFile, original) } catch (rollbackErr) {
+              rollbackErrors.push(`${writtenFile}: ${String(rollbackErr)}`)
+            }
           } else {
-            try { unlinkSync(writtenFile) } catch { /* best effort rollback */ }
+            try { unlinkSync(writtenFile) } catch (rollbackErr) {
+              rollbackErrors.push(`${writtenFile}: ${String(rollbackErr)}`)
+            }
           }
+        }
+        if (rollbackErrors.length > 0) {
+          throw new OperationValidationError(
+            `Batch apply failed and rollback had errors: ${rollbackErrors.join(' | ')}`,
+            { rollbackErrors },
+          )
         }
         throw commitErr
       }

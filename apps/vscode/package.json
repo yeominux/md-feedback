@@ -44,7 +44,9 @@
     "approve-reject",
     "visual-review"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -160,9 +162,44 @@
         "command": "md-feedback.rejectNearest",
         "title": "Reject Nearest Annotation",
         "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.annotateHighlight",
+        "title": "Add Highlight Annotation from Selection",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.annotateFix",
+        "title": "Add Fix Annotation from Selection",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.annotateQuestion",
+        "title": "Add Question Annotation from Selection",
+        "category": "MD Feedback"
+      },
+      {
+        "command": "md-feedback.panel.focus",
+        "title": "Open MD Feedback Sidebar",
+        "category": "MD Feedback"
       }
     ],
     "keybindings": [
+      {
+        "command": "md-feedback.annotateHighlight",
+        "key": "1",
+        "when": "editorTextFocus && editorLangId == markdown && editorHasSelection"
+      },
+      {
+        "command": "md-feedback.annotateFix",
+        "key": "2",
+        "when": "editorTextFocus && editorLangId == markdown && editorHasSelection"
+      },
+      {
+        "command": "md-feedback.annotateQuestion",
+        "key": "3",
+        "when": "editorTextFocus && editorLangId == markdown && editorHasSelection"
+      },
       {
         "command": "md-feedback.approveNearest",
         "key": "ctrl+shift+a",
@@ -174,6 +211,36 @@
         "key": "ctrl+shift+x",
         "mac": "cmd+shift+x",
         "when": "editorLangId == markdown"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "md-feedback.getting-started",
+        "title": "Get Started with MD Feedback",
+        "description": "Start annotating in under 2 minutes.",
+        "steps": [
+          {
+            "id": "open-sidebar",
+            "title": "1) Open MD Feedback sidebar",
+            "description": "Run `MD Feedback: Open MD Feedback Sidebar`.",
+            "completionEvents": [
+              "onCommand:md-feedback.panel.focus"
+            ]
+          },
+          {
+            "id": "create-annotation",
+            "title": "2) Create your first annotation",
+            "description": "Select text in a markdown file, then press `2` for a Fix annotation.",
+            "completionEvents": [
+              "onCommand:md-feedback.annotateFix"
+            ]
+          },
+          {
+            "id": "optional-mcp",
+            "title": "3) (Optional) Connect MCP",
+            "description": "In the sidebar, click `Connect AI` after your first annotation to see MCP setup."
+          }
+        ]
       }
     ],
     "configuration": {
@@ -276,6 +343,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.8.10",
     "typescript": "^5.7.0",
