@@ -2,8 +2,9 @@
  * E2E Live Demo — shows file content at each step
  */
 import { describe, beforeEach, afterEach, expect, it } from 'vitest'
-import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync, mkdtempSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { splitDocument } from '@md-feedback/shared'
 import { registerTools } from './tools'
@@ -43,21 +44,22 @@ function showStatus(file: string) {
 }
 
 describe('E2E Live Demo', () => {
-  const smokeDir = resolve(__dirname, '../../../smoke')
-  const origFile = join(smokeDir, 'e2e-review-cycle.md')
-  const testFile = join(smokeDir, 'e2e-live-demo.md')
+  const fixtureDir = resolve(__dirname, '__fixtures__')
+  const origFile = join(fixtureDir, 'e2e-review-cycle.md')
+  let workspace: string
+  let testFile: string
   let server: MockServer
 
   beforeEach(() => {
+    workspace = mkdtempSync(join(tmpdir(), 'md-feedback-e2e-live-'))
+    testFile = join(workspace, 'e2e-live-demo.md')
     copyFileSync(origFile, testFile)
     server = new MockServer()
-    registerTools(server as unknown as McpServer, smokeDir)
+    registerTools(server as unknown as McpServer, workspace)
   })
 
   afterEach(() => {
-    if (existsSync(testFile)) rmSync(testFile)
-    const sidecar = join(smokeDir, '.md-feedback')
-    if (existsSync(sidecar)) rmSync(sidecar, { recursive: true, force: true })
+    if (existsSync(workspace)) rmSync(workspace, { recursive: true, force: true })
   })
 
   async function call(toolName: string, args: Record<string, unknown>) {

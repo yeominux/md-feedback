@@ -3,6 +3,14 @@ import { MdFeedbackPanelProvider } from './panel-provider'
 import type { TargetFormat } from '@md-feedback/shared'
 
 export function registerExportCommands(context: vscode.ExtensionContext) {
+  const resolvePanel = async (): Promise<MdFeedbackPanelProvider | null> => {
+    let panel = MdFeedbackPanelProvider.activePanel
+    if (panel?.view) return panel
+    await vscode.commands.executeCommand('workbench.view.extension.md-feedback')
+    panel = MdFeedbackPanelProvider.activePanel
+    return panel?.view ? panel : null
+  }
+
   const targets: { command: string; target: TargetFormat }[] = [
     { command: 'md-feedback.exportClaude', target: 'claude-code' },
     { command: 'md-feedback.exportCursor', target: 'cursor' },
@@ -19,8 +27,8 @@ export function registerExportCommands(context: vscode.ExtensionContext) {
 
   for (const { command, target } of targets) {
     context.subscriptions.push(
-      vscode.commands.registerCommand(command, () => {
-        const panel = MdFeedbackPanelProvider.activePanel
+      vscode.commands.registerCommand(command, async () => {
+        const panel = await resolvePanel()
         if (!panel?.view) {
           vscode.window.showErrorMessage('MD Feedback panel not found. Open it from the sidebar.')
           return
@@ -32,8 +40,8 @@ export function registerExportCommands(context: vscode.ExtensionContext) {
 
   // Export All — writes all tool-specific context files at once
   context.subscriptions.push(
-    vscode.commands.registerCommand('md-feedback.exportAll', () => {
-      const panel = MdFeedbackPanelProvider.activePanel
+    vscode.commands.registerCommand('md-feedback.exportAll', async () => {
+      const panel = await resolvePanel()
       if (!panel?.view) {
         vscode.window.showErrorMessage('MD Feedback panel not found. Open it from the sidebar.')
         return

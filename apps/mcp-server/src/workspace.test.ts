@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { resolveWorkspaceFrom } from './workspace'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { listWorkspaceDocuments, resolveWorkspaceFrom } from './workspace'
 
 describe('resolveWorkspaceFrom', () => {
   it('parses --workspace= with additional "=" in path', () => {
@@ -40,5 +43,27 @@ describe('resolveWorkspaceFrom', () => {
       { MD_FEEDBACK_WORKSPACE: 'C:\\env\\repo' },
     )
     expect(value).toBe('C:\\second')
+  })
+})
+
+describe('listWorkspaceDocuments', () => {
+  it('lists markdown files in workspace and can filter annotated-only', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-workspace-test-'))
+    try {
+      writeFileSync(join(workspace, 'a.md'), '# A\n', 'utf-8')
+      writeFileSync(join(workspace, 'b.md'), '# B\n<!-- USER_MEMO id="m1" color="red" status="open" : fix -->\n', 'utf-8')
+      writeFileSync(join(workspace, 'c.txt'), 'not markdown', 'utf-8')
+      mkdirSync(join(workspace, 'node_modules'), { recursive: true })
+      writeFileSync(join(workspace, 'node_modules', 'ignored.md'), '# ignored\n', 'utf-8')
+
+      const all = listWorkspaceDocuments(workspace, { annotatedOnly: false })
+      const annotated = listWorkspaceDocuments(workspace, { annotatedOnly: true })
+
+      expect(all).toEqual(expect.arrayContaining(['a.md', 'b.md']))
+      expect(all).not.toContain('node_modules/ignored.md')
+      expect(annotated).toEqual(['b.md'])
+    } finally {
+      rmSync(workspace, { recursive: true, force: true })
+    }
   })
 })
