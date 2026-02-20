@@ -3,7 +3,7 @@ import Editor, { type EditorHandle } from './components/Editor'
 import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
 import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
-import { FileText, X, Unplug, Settings2 } from 'lucide-react'
+import { FileText, X, Unplug, Settings2, ClipboardCopy, Wand2 } from 'lucide-react'
 import type { StatusSummary, MemoMap } from './types'
 
 // Global impls store for MemoBlock (TipTap nodes lack React context access)
@@ -41,6 +41,8 @@ export default function App() {
   const [showCheckpointPrompt, setShowCheckpointPrompt] = useState(false)
   const [checkpointNote, setCheckpointNote] = useState('')
   const [memoMap, setMemoMap] = useState<MemoMap>({})
+  const [cleanCopied, setCleanCopied] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
 
   const isLoadingRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
@@ -194,6 +196,16 @@ export default function App() {
         case 'mcp.state':
           setMcpSetupDone(!!msg.done)
           setShowMcpSetup(false)
+          break
+
+        case 'action.clean-copy.done':
+          setCleanCopied(true)
+          setTimeout(() => setCleanCopied(false), 2000)
+          break
+
+        case 'action.workflow-prompt.done':
+          setPromptCopied(true)
+          setTimeout(() => setPromptCopied(false), 2000)
           break
 
       }
@@ -467,39 +479,78 @@ export default function App() {
       {/* Floating Status Bar — minimal progress */}
       {docLoaded && statusSummary && (statusSummary.totalMemos > 0 || statusSummary.gateStatus) && (
         <div className="status-bar">
-          {/* Progress bar + hover label */}
-          <div className="status-bar__left group">
-            {statusSummary.totalMemos > 0 && (
+          {/* Progress bar + action-oriented label */}
+          <div className="status-bar__left">
+            {statusSummary.totalMemos > 0 && (() => {
+              const pct = Math.round((statusSummary.resolvedMemos / statusSummary.totalMemos) * 100)
+              const allDone = pct === 100
+              const nr = statusSummary.needsReviewMemos ?? 0
+              const openTotal = statusSummary.openFixes + statusSummary.openQuestions + (statusSummary.openHighlights ?? 0)
+              const detail = allDone ? 'All done'
+                : nr > 0 ? `${nr} to review`
+                : statusSummary.inProgressMemos > 0 ? `${statusSummary.inProgressMemos} in progress`
+                : openTotal > 0 ? `${openTotal} to do`
+                : null
+              return (
               <>
-                <div className="status-bar__progress" title={`${statusSummary.resolvedMemos}/${statusSummary.totalMemos} resolved`}>
+                <div className="status-bar__progress" title={`${statusSummary.resolvedMemos} of ${statusSummary.totalMemos} done`}>
                   <div
                     className="status-bar__progress-fill"
-                    style={{ width: `${Math.round((statusSummary.resolvedMemos / statusSummary.totalMemos) * 100)}%` }}
+                    style={{ width: `${pct}%` }}
                   />
                 </div>
                 <span className="status-bar__hint">
                   {statusSummary.resolvedMemos}/{statusSummary.totalMemos}
                 </span>
+                {detail && (
+                  <span className="status-bar__detail">
+                    {detail}
+                  </span>
+                )}
               </>
-            )}
+              )
+            })()}
 
-            {/* Gate dot */}
+            {/* Gate dot with label */}
             {statusSummary.gateStatus && (
               <span
-                className={`status-bar__gate-dot ${
-                  statusSummary.gateStatus === 'done' ? 'status-bar__gate-dot--done' :
-                  statusSummary.gateStatus === 'blocked' ? 'status-bar__gate-dot--blocked' :
-                  'status-bar__gate-dot--proceed'
+                className={`status-bar__gate-pill ${
+                  statusSummary.gateStatus === 'done' ? 'status-bar__gate-pill--done' :
+                  statusSummary.gateStatus === 'blocked' ? 'status-bar__gate-pill--blocked' :
+                  'status-bar__gate-pill--proceed'
                 }`}
                 title={`Gate: ${statusSummary.gateStatus}`}
                 role="status"
                 aria-label={`Gate: ${statusSummary.gateStatus}`}
-              />
+              >
+                <span className="status-bar__gate-dot-inner" />
+                {statusSummary.gateStatus}
+              </span>
             )}
           </div>
 
-          {/* Right: CTA + gear */}
+          {/* Right: Actions + CTA + gear */}
           <div className="status-bar__right">
+            {/* Workflow prompt — contextual copy */}
+            <button
+              className={`status-bar__icon-btn ${promptCopied ? 'status-bar__icon-btn--copied' : ''}`}
+              onClick={() => vscode.postMessage({ type: 'action.workflow-prompt' })}
+              title={promptCopied ? 'Copied!' : 'Copy workflow prompt for AI agent'}
+              aria-label="Copy workflow prompt"
+            >
+              {promptCopied ? <span className="status-bar__copied-check">&#10003;</span> : <Wand2 size={14} />}
+            </button>
+
+            {/* Clean copy — strip all metadata */}
+            <button
+              className={`status-bar__icon-btn ${cleanCopied ? 'status-bar__icon-btn--copied' : ''}`}
+              onClick={() => vscode.postMessage({ type: 'action.clean-copy' })}
+              title={cleanCopied ? 'Copied!' : 'Copy clean markdown (no annotations)'}
+              aria-label="Copy clean markdown"
+            >
+              {cleanCopied ? <span className="status-bar__copied-check">&#10003;</span> : <ClipboardCopy size={14} />}
+            </button>
+
             {/* Approve CTA */}
             {showActionApproval && (
               <button

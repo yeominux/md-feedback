@@ -332,6 +332,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyAnnotation('yellow')}
             className="bubble-btn bubble-btn-primary"
+            title="Personal reading mark"
           >
             <span className="bubble-icon">
               <Highlighter size={18} style={{ color: 'var(--mf-accent-highlight)' }} />
@@ -342,11 +343,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
 
           <div className="bubble-sep" />
 
-          {/* Secondary: Fix */}
+          {/* Secondary: Fix — AI will change the document */}
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyAnnotation('red')}
             className="bubble-btn"
+            title="AI will change your document"
           >
             <span className="bubble-icon">
               <Strikethrough size={18} style={{ color: 'var(--mf-accent-fix)' }} />
@@ -357,11 +359,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
 
           <div className="bubble-sep" />
 
-          {/* Secondary: Question */}
+          {/* Secondary: Question — AI will write a response */}
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyAnnotation('blue')}
             className="bubble-btn"
+            title="AI will write a response"
           >
             <span className="bubble-icon">
               <CircleHelp size={18} style={{ color: 'var(--mf-accent-question)' }} />
