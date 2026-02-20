@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "md-feedback": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "md-feedback"]
+    }
+  }
+}
