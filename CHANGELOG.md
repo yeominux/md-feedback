@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-02-21
+
+### Changed
+- Rewrote all release notes and documentation in clearer, customer-focused language
+- Updated demo video to accurately reflect the latest review card design, approval flow, and progress tracking
+
 ## [1.4.0] - 2026-02-21
 
 ### Added
