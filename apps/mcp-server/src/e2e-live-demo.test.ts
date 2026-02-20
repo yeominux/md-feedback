@@ -44,8 +44,8 @@ function showStatus(file: string) {
 }
 
 describe('E2E Live Demo', () => {
-  const smokeFixtureDir = resolve(__dirname, '../../../smoke')
-  const origFile = join(smokeFixtureDir, 'e2e-review-cycle.md')
+  const fixtureDir = resolve(__dirname, '__fixtures__')
+  const origFile = join(fixtureDir, 'e2e-review-cycle.md')
   let workspace: string
   let testFile: string
   let server: MockServer

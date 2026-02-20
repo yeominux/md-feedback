@@ -33,8 +33,8 @@ function parseJson(result: { content: Array<{ text: string }> }): unknown {
 }
 
 describe('E2E review cycle', () => {
-  const smokeFixtureDir = resolve(__dirname, '../../../smoke')
-  const origFile = join(smokeFixtureDir, 'e2e-review-cycle.md')
+  const fixtureDir = resolve(__dirname, '__fixtures__')
+  const origFile = join(fixtureDir, 'e2e-review-cycle.md')
   let workspace: string
   let testFile: string
   let server: MockServer
