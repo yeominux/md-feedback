@@ -6,13 +6,12 @@ import { colors, radii } from "../styles";
  * Memo card — shows lifecycle status mirrored from editor review:
  *   Open → Working → Review → Done
  *
- * v1.3.20 redesign:
- *   - Header: 12px pill badge (colored background) instead of 6px dot
- *   - Status: 12px pill button instead of 9px text
- *   - Body: fontSize 14, lineHeight 1.5
- *   - Footer: anchor text + approve/reject buttons (Review state)
+ * v1.4.0 redesign:
+ *   - Header: clickable type pill with dropdown chevron (type switching)
+ *   - Status: pill button with dropdown
+ *   - Footer: approve/reject use subtle icon-style buttons (theme tokens)
  *   - Done: opacity 0.6, text line-through
- *   - Card borderRadius: 0 8 8 0 (left border-left preserved)
+ *   - Card borderRadius: 0 8 8 0 (left border preserved)
  *
  * Timeline:
  *   frame 105: card slides in
@@ -74,7 +73,6 @@ export const MemoCard: React.FC = () => {
         borderRadius: `0 ${radii.md}px ${radii.md}px 0`,
         border: `1px solid ${colors.cardBorder}`,
         borderLeft: `3px solid ${colors.fixRed}`,
-        padding: 12,
         marginBottom: 12,
         position: "relative",
       }}
@@ -84,41 +82,46 @@ export const MemoCard: React.FC = () => {
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 8,
+          gap: 8,
+          padding: "8px 12px 4px",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {/* Pill badge for type */}
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: colors.fixRed,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              backgroundColor: colors.fixPillBg,
-              padding: "2px 8px",
-              borderRadius: radii.sm,
-            }}
-          >
-            Fix
-          </span>
-          <span style={{ fontSize: 10, color: colors.textMuted }}>
-            #m1
-          </span>
-        </div>
+        {/* Clickable type pill with dropdown chevron (v1.4.0 type switching) */}
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 3,
+            fontSize: 12,
+            fontWeight: 600,
+            color: colors.fixRed,
+            textTransform: "uppercase",
+            letterSpacing: 0.04,
+            backgroundColor: colors.fixPillBg,
+            padding: "2px 8px",
+            borderRadius: radii.sm,
+            cursor: "pointer",
+          }}
+        >
+          Fix
+          <span style={{ fontSize: 9, opacity: 0.7 }}>&#x25BE;</span>
+        </span>
+
+        <span style={{ flex: 1 }} />
 
         {/* Status pill */}
         <span
           style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
             fontSize: 12,
-            fontWeight: 600,
-            color: "white",
-            backgroundColor: badgeColor,
+            fontWeight: 500,
+            color: badgeColor,
             padding: "2px 8px",
             borderRadius: radii.sm,
             transform: `scale(${badgeScale})`,
+            cursor: "pointer",
           }}
         >
           {badgeLabel}
@@ -126,30 +129,44 @@ export const MemoCard: React.FC = () => {
       </div>
 
       {/* Memo text */}
-      <p
-        style={{
-          fontSize: 14,
-          color: colors.text,
-          margin: 0,
-          lineHeight: 1.5,
-          textDecoration: isDone ? "line-through" : "none",
-        }}
-      >
-        Use httpOnly cookies instead of localStorage for session tokens
-      </p>
+      <div style={{ padding: "0 12px 8px 12px" }}>
+        <p
+          style={{
+            fontSize: 14,
+            color: colors.text,
+            margin: 0,
+            lineHeight: 1.5,
+            textDecoration: isDone ? "line-through" : "none",
+            ...(isDone ? { color: colors.textFaint } : {}),
+          }}
+        >
+          Use httpOnly cookies instead of localStorage for session tokens
+        </p>
+      </div>
 
-      {/* Anchor text */}
-      <p
+      {/* Footer: anchor + actions */}
+      <div
         style={{
-          fontSize: 12,
-          fontStyle: "italic",
-          color: colors.textFaint,
-          margin: "4px 0 0",
-          lineHeight: 1.4,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0 12px 8px 12px",
         }}
       >
-        line 6 &middot; implementation-plan.md
-      </p>
+        <span
+          style={{
+            fontSize: 12,
+            fontStyle: "italic",
+            color: colors.textFaint,
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          line 6 &middot; implementation-plan.md
+        </span>
+      </div>
 
       {/* Inline diff section */}
       {diffIn > 0.01 && (
@@ -157,7 +174,7 @@ export const MemoCard: React.FC = () => {
           style={{
             opacity: diffIn,
             transform: `translateY(${diffY}px)`,
-            marginTop: 10,
+            margin: "0 12px 8px",
             fontSize: 10,
             fontFamily: "'Fira Code', 'Cascadia Code', monospace",
             borderRadius: 6,
@@ -173,7 +190,7 @@ export const MemoCard: React.FC = () => {
               borderBottom: `1px solid rgba(255,255,255,0.04)`,
             }}
           >
-            − localStorage
+            &minus; localStorage
           </div>
           <div
             style={{
@@ -187,39 +204,45 @@ export const MemoCard: React.FC = () => {
         </div>
       )}
 
-      {/* Approve / Reject footer (Review state only) */}
+      {/* Approve / Reject footer — subtle icon-style buttons (v1.4.0) */}
       {isReview && buttonsIn > 0.01 && (
         <div
           style={{
-            marginTop: 10,
+            padding: "0 12px 8px",
             display: "flex",
-            gap: 8,
+            gap: 4,
             opacity: buttonsIn,
           }}
         >
           <span
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: colors.approveGreen,
-              padding: "3px 10px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 12,
+              fontWeight: 500,
+              color: colors.statusDone,
+              backgroundColor: colors.gateDoneBg,
+              padding: "4px 8px",
               borderRadius: radii.sm,
+              cursor: "pointer",
             }}
           >
-            Approve
+            &#x2713; Approve
           </span>
           <span
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: colors.rejectAmber,
-              padding: "3px 10px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
               borderRadius: radii.sm,
+              color: colors.textFaint,
+              cursor: "pointer",
+              fontSize: 12,
             }}
           >
-            Reject
+            &#x2717;
           </span>
         </div>
       )}
