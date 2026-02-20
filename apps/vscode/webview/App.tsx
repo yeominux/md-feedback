@@ -4,6 +4,7 @@ import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
 import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
 import { FileText, X, Unplug, Settings2 } from 'lucide-react'
+import type { StatusSummary } from './types'
 
 // Global impls store for MemoBlock (TipTap nodes lack React context access)
 declare global {
@@ -12,26 +13,11 @@ declare global {
   }
 }
 
-interface StatusSummary {
-  openFixes: number
-  openQuestions: number
-  gateStatus: string | null
-  totalMemos: number
-  resolvedMemos: number
-  inProgressMemos: number
-  doneMemos: number
-  failedMemos: number
-  needsReviewMemos?: number
-  workflowPhase?: 'scope' | 'root_cause' | 'implementation' | 'verification' | null
-  unresolvedBlockingCount?: number
-  approvalRequired?: boolean
-  pendingApprovalTool?: string | null
-}
-
 export default function App() {
   const editorRef = useRef<EditorHandle>(null)
   const [docLoaded, setDocLoaded] = useState(false)
   const [filePath, setFilePath] = useState('')
+  const [hasAnnotations, setHasAnnotations] = useState(false)
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [lastCheckpointTime, setLastCheckpointTime] = useState<string | null>(null)
@@ -52,6 +38,8 @@ export default function App() {
   const [showApprovalForm, setShowApprovalForm] = useState(false)
   const [approvalBy, setApprovalBy] = useState('vscode-user')
   const [approvalReason, setApprovalReason] = useState('')
+  const [showCheckpointPrompt, setShowCheckpointPrompt] = useState(false)
+  const [checkpointNote, setCheckpointNote] = useState('')
 
   const isLoadingRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
@@ -78,6 +66,8 @@ export default function App() {
             setDocLoaded(true)
             setDocEmpty(false)
             setFilePath(msg.filePath || '')
+            const hasMemo = Boolean((msg.content as string | undefined)?.includes('<!-- USER_MEMO'))
+            setHasAnnotations(hasMemo)
           }
           setTimeout(() => { isLoadingRef.current = false }, 150)
           // Request checkpoints after load
@@ -87,6 +77,7 @@ export default function App() {
         case 'document.empty':
           setDocLoaded(false)
           setDocEmpty(true)
+          setHasAnnotations(false)
           break
 
         case 'onboarding.state':
@@ -111,11 +102,9 @@ export default function App() {
           break
 
         case 'checkpoint.request': {
-          // Triggered by command palette — prompt for note
-          const note = prompt('Checkpoint note:')
-          if (note !== null) {
-            vscode.postMessage({ type: 'checkpoint.create', note })
-          }
+          // Triggered by command palette — show styled dialog for note
+          setCheckpointNote('')
+          setShowCheckpointPrompt(true)
           break
         }
 
@@ -202,7 +191,7 @@ export default function App() {
 
         case 'mcp.state':
           setMcpSetupDone(!!msg.done)
-          if (!msg.done) setShowMcpSetup(true)
+          setShowMcpSetup(false)
           break
 
       }
@@ -225,6 +214,7 @@ export default function App() {
     if (!firstAnnotationSentRef.current && md.includes('<!-- USER_MEMO')) {
       firstAnnotation = true
       firstAnnotationSentRef.current = true
+      setHasAnnotations(true)
     }
     vscode.postMessage({ type: 'document.edit', content: md, firstAnnotation })
   }, [])
@@ -260,7 +250,9 @@ export default function App() {
   const mcpConfigs: Record<string, { label: string; config: string }> = {
     claude: {
       label: 'Claude Code',
-      config: `// Add to .mcp.json or claude_desktop_config.json
+      config: `// Prerequisite: Node.js 18+ (npx required)
+// Claude Code project-level: .claude/mcp.json
+// Claude Desktop: claude_desktop_config.json
 {
   "mcpServers": {
     "md-feedback": {
@@ -272,7 +264,8 @@ export default function App() {
     },
     cursor: {
       label: 'Cursor',
-      config: `// Add to .cursor/mcp.json
+      config: `// Prerequisite: Node.js 18+ (npx required)
+// Add to .cursor/mcp.json (workspace root)
 {
   "mcpServers": {
     "md-feedback": {
@@ -284,12 +277,14 @@ export default function App() {
     },
     other: {
       label: 'Other',
-      config: `// Add to your MCP client config
+      config: `// Prerequisite: Node.js 18+ (npx required)
+// Add to your MCP client config file.
+// If workspace detection fails, add --workspace (Windows example below).
 {
   "mcpServers": {
     "md-feedback": {
       "command": "npx",
-      "args": ["-y", "md-feedback"]
+      "args": ["-y", "md-feedback", "--workspace=C:\\\\path\\\\to\\\\project"]
     }
   }
 }`,
@@ -368,7 +363,7 @@ export default function App() {
 
   return (
     <div className="md-feedback-root">
-      {/* MCP Setup Screen — shown on first launch */}
+      {/* MCP setup panel (optional, non-blocking) */}
       {showMcpSetup && !mcpSetupDone && docLoaded && (
         <div className="mcp-setup-overlay">
           <div className="mcp-setup-card">
@@ -376,6 +371,9 @@ export default function App() {
             <h2 className="mcp-setup-title">Connect your AI agent</h2>
             <p className="mcp-setup-desc">
               Your AI agent reads annotations directly via MCP — no export step needed.
+            </p>
+            <p className="mcp-setup-desc">
+              Requires Node.js 18+ (`npx`).
             </p>
 
             <div className="mcp-setup-tabs">
@@ -399,7 +397,7 @@ export default function App() {
 
             <ol className="mcp-setup-steps">
               <li>Copy the config above</li>
-              <li>Paste into your AI tool's MCP settings</li>
+              <li>Paste into your AI tool's MCP config file</li>
               <li>Restart your AI tool</li>
             </ol>
 
@@ -420,9 +418,9 @@ export default function App() {
         {docLoaded && !onboardingDone && (
           <div className="onboarding-banner">
             <div className="onboarding-content">
-              <p>Select text, then click <strong>Highlight</strong>, <strong>Fix</strong>, or <strong>Question</strong> in the bubble menu</p>
+              <p>Select text, then click <strong>Highlight</strong>, <strong>Fix</strong>, or <strong>Question</strong> — or press <strong>1</strong>, <strong>2</strong>, <strong>3</strong></p>
             </div>
-            <button onClick={handleDismissOnboarding} className="onboarding-close">
+            <button onClick={handleDismissOnboarding} className="onboarding-close" aria-label="Close">
               <X size={14} />
             </button>
           </div>
@@ -435,7 +433,7 @@ export default function App() {
               <Editor
                 ref={editorRef}
                 onUpdate={handleUpdate}
-                onSelectionChange={() => {}}
+                onSelectionChange={() => { }}
               />
             </div>
           </div>
@@ -457,139 +455,150 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Status Bar — review progress */}
+      {/* Floating Status Bar — minimal progress */}
       {docLoaded && statusSummary && (statusSummary.totalMemos > 0 || statusSummary.gateStatus) && (
-        <div className="floating-bar">
-          <div className="status-indicator" title="Review progress">
-            {/* Gate badge */}
-            {statusSummary.gateStatus === 'done' ? (
-              <span className="status-badge status-badge-approved">Approved</span>
-            ) : statusSummary.gateStatus ? (
-              <span className={`status-badge ${statusSummary.gateStatus === 'blocked' ? 'status-badge-blocked' : 'status-badge-proceed'}`}>
-                {statusSummary.gateStatus === 'blocked' ? 'Blocked' : 'Proceed'}
-              </span>
-            ) : null}
-
-            {/* Resolved ratio */}
+        <div className="status-bar">
+          {/* Progress bar + hover label */}
+          <div className="status-bar__left group">
             {statusSummary.totalMemos > 0 && (
-              <span className="status-detail">
-                {statusSummary.inProgressMemos > 0 || statusSummary.doneMemos > 0
-                  ? `${statusSummary.doneMemos} done | ${statusSummary.inProgressMemos} working | ${statusSummary.totalMemos - statusSummary.resolvedMemos - statusSummary.inProgressMemos} open`
-                  : `${statusSummary.resolvedMemos}/${statusSummary.totalMemos} resolved`}
-              </span>
-            )}
-
-            {/* Cursor step */}
-            {cursor && cursor.step && (
-              <span className="status-detail" title={cursor.nextAction}>
-                Step {cursor.step}
-              </span>
-            )}
-
-            {/* Workflow phase */}
-            {workflowPhase && (
-              <span className="status-badge status-badge-proceed" title="Workflow phase">
-                {workflowPhase}
-              </span>
-            )}
-
-            {/* Blocking memo count */}
-            {unresolvedBlockingCount > 0 && (
-              <span className="status-badge status-badge-blocked" title="Unresolved blocking memos">
-                {unresolvedBlockingCount} blocking
-              </span>
-            )}
-
-            {/* Approval required */}
-            {approvalRequired && (
-              <span className="status-badge status-badge-blocked" title="High-risk action requires approval">
-                action approval required
-              </span>
-            )}
-
-            {approvalRequired && hasNeedsReviewMemos && (
-              <span className="status-detail" title="Resolve memo reviews first">
-                review memos first
-              </span>
-            )}
-
-            {/* Action CTA */}
-            {showActionApproval && (
               <>
-                <button
-                  className="floating-btn-secondary"
-                  onClick={() => {
-                    if (!hasNeedsReviewMemos) openApprovalForm()
-                  }}
-                  disabled={hasNeedsReviewMemos}
-                  title={hasNeedsReviewMemos
-                    ? 'Resolve memo reviews first, then approve action'
-                    : `Approve pending checkpoint for ${pendingApprovalTool}`}
-                >
-                  Approve Action
-                </button>
-                {showApprovalForm && (
-                  <div className="approval-form" role="group" aria-label="Approval details">
-                    <input
-                      className="approval-input"
-                      value={approvalBy}
-                      onChange={(e) => setApprovalBy(e.target.value)}
-                      placeholder="approver"
-                      title="Approver"
-                    />
-                    <input
-                      className="approval-input approval-input-reason"
-                      value={approvalReason}
-                      onChange={(e) => setApprovalReason(e.target.value)}
-                      placeholder="reason"
-                      title="Reason"
-                    />
-                    <button
-                      className="floating-btn-secondary"
-                      onClick={handleApproveCheckpoint}
-                      title={`Confirm approval for ${pendingApprovalTool}`}
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      className="floating-btn-secondary"
-                      onClick={() => setShowApprovalForm(false)}
-                      title="Cancel approval"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                <div className="status-bar__progress" title={`${statusSummary.resolvedMemos}/${statusSummary.totalMemos} resolved`}>
+                  <div
+                    className="status-bar__progress-fill"
+                    style={{ width: `${Math.round((statusSummary.resolvedMemos / statusSummary.totalMemos) * 100)}%` }}
+                  />
+                </div>
+                <span className="status-bar__hint">
+                  {statusSummary.resolvedMemos}/{statusSummary.totalMemos}
+                </span>
               </>
             )}
+
+            {/* Gate dot */}
+            {statusSummary.gateStatus && (
+              <span
+                className={`status-bar__gate-dot ${
+                  statusSummary.gateStatus === 'done' ? 'status-bar__gate-dot--done' :
+                  statusSummary.gateStatus === 'blocked' ? 'status-bar__gate-dot--blocked' :
+                  'status-bar__gate-dot--proceed'
+                }`}
+                title={`Gate: ${statusSummary.gateStatus}`}
+                role="status"
+                aria-label={`Gate: ${statusSummary.gateStatus}`}
+              />
+            )}
+          </div>
+
+          {/* Right: CTA + gear */}
+          <div className="status-bar__right">
+            {/* Approve CTA */}
+            {showActionApproval && (
+              <button
+                className="status-bar__cta"
+                onClick={() => { if (!hasNeedsReviewMemos) openApprovalForm() }}
+                disabled={hasNeedsReviewMemos}
+                title={hasNeedsReviewMemos
+                  ? 'Resolve memo reviews first'
+                  : `Approve ${pendingApprovalTool}`}
+              >
+                {hasNeedsReviewMemos ? 'Review First' : 'Approve'}
+              </button>
+            )}
+
+            {/* Advance phase */}
             {!approvalRequired && unresolvedBlockingCount === 0 && nextWorkflowPhase(workflowPhase) && (
               <button
-                className="floating-btn-secondary"
+                className="status-bar__cta"
                 onClick={handleAdvancePhase}
-                title={`Advance workflow to ${nextWorkflowPhase(workflowPhase)}`}
+                title={`Advance to ${nextWorkflowPhase(workflowPhase)}`}
               >
                 Next Step
               </button>
             )}
 
-            {/* Checkpoint count */}
-            {checkpoints.length > 0 && (
-              <span className="status-detail" title="Checkpoints saved">
-                {checkpoints.length} ckpt
-              </span>
-            )}
-          </div>
-
-          {/* Metadata drawer toggle */}
-          {(gates.length > 0 || cursor || checkpoints.length > 0) && (
+            {/* Metadata drawer toggle */}
             <button
-              className="status-drawer-btn"
+              className="status-bar__icon-btn"
               onClick={() => setDrawerOpen(true)}
-              title="Gates & Cursor"
+              title="Details"
             >
-              <Settings2 size={13} />
+              <Settings2 size={14} />
             </button>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* Approval Dialog Overlay */}
+      {showApprovalForm && (
+        <div className="approval-dialog__backdrop" onClick={() => setShowApprovalForm(false)}>
+          <div className="approval-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Approve action">
+            <h3 className="approval-dialog__title">Approve: {pendingApprovalTool}</h3>
+            <div className="approval-dialog__field">
+              <label className="approval-dialog__label">Approver</label>
+              <input
+                className="approval-dialog__input"
+                value={approvalBy}
+                onChange={(e) => setApprovalBy(e.target.value)}
+                placeholder="your name"
+              />
+            </div>
+            <div className="approval-dialog__field">
+              <label className="approval-dialog__label">Reason</label>
+              <input
+                className="approval-dialog__input"
+                value={approvalReason}
+                onChange={(e) => setApprovalReason(e.target.value)}
+                placeholder="reason for approval"
+              />
+            </div>
+            <div className="approval-dialog__actions">
+              <button className="approval-dialog__confirm" onClick={handleApproveCheckpoint}>
+                Confirm
+              </button>
+              <button className="approval-dialog__cancel" onClick={() => setShowApprovalForm(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkpoint Note Dialog */}
+      {showCheckpointPrompt && (
+        <div className="approval-dialog__backdrop" onClick={() => setShowCheckpointPrompt(false)}>
+          <div className="approval-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Create checkpoint">
+            <h3 className="approval-dialog__title">Checkpoint note</h3>
+            <div className="approval-dialog__field">
+              <input
+                className="approval-dialog__input"
+                value={checkpointNote}
+                onChange={(e) => setCheckpointNote(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    vscode.postMessage({ type: 'checkpoint.create', note: checkpointNote })
+                    setShowCheckpointPrompt(false)
+                  }
+                  if (e.key === 'Escape') setShowCheckpointPrompt(false)
+                }}
+                placeholder="optional note"
+                autoFocus
+              />
+            </div>
+            <div className="approval-dialog__actions">
+              <button
+                className="approval-dialog__confirm"
+                onClick={() => {
+                  vscode.postMessage({ type: 'checkpoint.create', note: checkpointNote })
+                  setShowCheckpointPrompt(false)
+                }}
+              >
+                Create
+              </button>
+              <button className="approval-dialog__cancel" onClick={() => setShowCheckpointPrompt(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -600,10 +609,14 @@ export default function App() {
         gates={gates}
         cursor={cursor}
         checkpoints={checkpoints}
+        statusSummary={statusSummary}
+        workflowPhase={workflowPhase}
+        unresolvedBlockingCount={unresolvedBlockingCount}
+        approvalRequired={approvalRequired}
       />
 
       {/* MCP Reminder — for users who skipped setup */}
-      {docLoaded && !mcpSetupDone && !showMcpSetup && (
+      {docLoaded && hasAnnotations && !mcpSetupDone && !showMcpSetup && (
         <div className="floating-bar" style={{ bottom: statusSummary ? 48 : 12 }}>
           <button
             onClick={() => setShowMcpSetup(true)}

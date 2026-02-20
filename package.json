@@ -26,7 +26,8 @@
     "release": "node scripts/release.mjs",
     "publish:npm": "cd apps/mcp-server && npm publish",
     "publish:vsce": "node scripts/publish-vsce.mjs",
-    "publish:ovsx": "node scripts/publish-ovsx.mjs"
+    "publish:ovsx": "node scripts/publish-ovsx.mjs",
+    "publish:marketplaces": "pnpm publish:vsce && pnpm publish:ovsx"
   },
   "engines": {
     "node": ">=18"
