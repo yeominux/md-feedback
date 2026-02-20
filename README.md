@@ -8,13 +8,13 @@
 
 **MD Feedback** is a VS Code extension and MCP server for reviewing markdown plans before AI agents implement them. Annotate plans with Fix, Question, and Highlight — AI agents read your structured feedback directly through MCP. No copy-paste, no export step, no context lost between sessions.
 
-Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open a `.md` plan, press `1/2/3`, and your agent can act on that review immediately.
+Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open a `.md` plan, select text, press `1/2/3`, and your agent can act on that review immediately.
 
 **You review. The agent builds. Gates track completion. Handoffs preserve context.**
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.3.6): license and privacy documentation, Marketplace changelog tab, and improved accessibility for screen readers.
+> Latest (v1.3.16): release-quality workflow gates, approval checkpoints, and MCP/tooling stability updates.
 
 ## How It Works
 
@@ -45,7 +45,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 ## Features
 
 - **3 annotation types**: Highlight (reading mark), Fix (needs change), Question (needs clarification)
-- **26 MCP tools** for direct agent integration
+- **27 MCP tools** for direct agent integration
 - **Export to 11 AI tools**: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - **Quality gates** with automatic pass/fail evaluation
 - **Session handoffs** preserve context across AI agent sessions
@@ -56,6 +56,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 - **7 status badges**: Open, Working, Review, Answered, Done, Failed, Won't Fix
 - **Rollback**: agent can undo its last change if something went wrong
 - **Batch operations**: multiple fixes applied in one transaction
+- **Ambiguity-safe text replacement**: when the same text appears multiple times, agents must specify `occurrence` or `replaceAll` (prevents silent wrong-line edits)
 - **File safety**: blocks writes to .env, credentials, node_modules
 - **Approve / Reject buttons** — accept or dismiss annotations inline, always visible when review needed
 - **CodeLens in editor** — approve or reject directly in the markdown file, no sidebar needed
@@ -73,16 +74,18 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 ## Quick Start (under 2 minutes)
 
 1. **Install** from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)
-2. **Connect MCP** — add to your AI tool config (Claude Code, Cursor, etc.):
+2. **Annotate first** — select text in a markdown file, then press `1` (highlight), `2` (fix), `3` (question)
+3. **Optional: Connect MCP** — after first annotation, click `Connect AI` in the sidebar and add config to your MCP client:
 
 ```json
 { "mcpServers": { "md-feedback": { "command": "npx", "args": ["-y", "md-feedback"] } } }
 ```
 
-3. **Annotate** — open a `.md` file in the sidebar, press `1` (highlight), `2` (fix), `3` (question)
-4. **Done** — your agent reads annotations directly via MCP. No export needed.
+4. **Done** — MCP-compatible agents read annotations directly. If your agent is export-only (for example current Copilot flow), use Export.
 
-> **No MCP?** Use Command Palette → `MD Feedback: Export` → pick your AI tool.
+> **Node.js 18+ required** for MCP (`npx`).
+> Claude path: `.claude/mcp.json`  
+> Cursor path: `.cursor/mcp.json`
 
 > **Try it now:** Install from [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open any `.md` file, and press `2` to add your first Fix annotation.
 
@@ -118,7 +121,7 @@ Advanced timing and performance tuning options are available for large workspace
 
 ## MCP Server
 
-MD Feedback includes an MCP server with 19 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
+MD Feedback includes an MCP server with 27 tools that let AI agents read your annotations without manual export. Agents can query memos, mark tasks done, apply fixes, check gate status, and generate handoffs — all through the Model Context Protocol.
 
 **Setup:**
 
@@ -132,6 +135,7 @@ npx md-feedback
 { "command": "npx", "args": ["-y", "md-feedback", "--workspace=/path/to/project"] }
 ```
 
+Windows example: `{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=C:\\\\work\\\\my-project"] }`  
 Or via environment variable: `MD_FEEDBACK_WORKSPACE=/path/to/project`
 
 For full details, see [MCP Server documentation](./apps/mcp-server/README.md).
@@ -171,4 +175,5 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 Developers using AI coding assistants who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
 
 More questions and advanced guidance: [MCP Server docs](./apps/mcp-server/README.md) and [GitHub Issues](https://github.com/yeominux/md-feedback/issues).
+
 

@@ -28,6 +28,11 @@ scripts/test-mcp-manual.mjs
 *RELEASING*.md
 *RELEASE-PLAN*.md
 AGENTS.md
+CLAUDE.md
+.cursorrules
+.clinerules
+.windsurfrules
+.github/copilot-instructions.md
 RELEASE_NOTES.md
 *계획*.md
 *_초안.md
@@ -35,6 +40,7 @@ README_MCP_SETUP.md
 mcp-config*.json
 run_mcp.bat
 
+smoke/
 *.bak
 *.log
 .env*

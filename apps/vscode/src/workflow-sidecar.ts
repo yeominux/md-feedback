@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
+import { parseJsonWithBom } from '@md-feedback/shared'
 
 export type WorkflowPhase = 'scope' | 'root_cause' | 'implementation' | 'verification'
 
@@ -82,7 +83,7 @@ export function getWorkflowState(file: string): WorkflowState {
     return buildDefaultWorkflowState()
   }
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<WorkflowState>
+    const parsed = parseJsonWithBom<Partial<WorkflowState>>(readFileSync(path, 'utf-8'))
     const phase = parsed.phase
     if (!phase || !WORKFLOW_PHASE_ORDER.includes(phase)) {
       return buildDefaultWorkflowState()

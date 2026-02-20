@@ -7,7 +7,9 @@
 
 ## What is this?
 
-md-feedback is an [MCP](https://modelcontextprotocol.io/) server that lets AI agents (Claude Code, Cursor, Copilot, etc.) read your markdown review annotations, mark memos done, evaluate quality gates, and generate session handoffs — all automatically.
+md-feedback is an [MCP](https://modelcontextprotocol.io/) server that lets AI agents (Claude Code, Cursor, and other MCP-compatible clients) read your markdown review annotations, mark memos done, evaluate quality gates, and generate session handoffs — all automatically.
+
+Copilot users can use MD Feedback via export flow (`.github/copilot-instructions.md`) even when MCP is not enabled.
 
 **This is the MCP server component.** For the VS Code extension, see [MD Feedback on VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode).
 
@@ -27,6 +29,7 @@ Add to your MCP client config (Claude Code, Cursor, etc.):
 ```
 
 That's it. No install, no setup — `npx` handles everything.
+Prerequisite: Node.js 18+.
 
 **Workspace override** — if your MCP client doesn't set `cwd` to the project folder:
 
@@ -43,16 +46,33 @@ That's it. No install, no setup — `npx` handles everything.
 
 Resolution order: `--workspace=` CLI arg > `MD_FEEDBACK_WORKSPACE` env > `cwd`
 
-## 26 MCP Tools
+Known MCP config file paths:
+- Claude Code: `.claude/mcp.json`
+- Cursor: `.cursor/mcp.json`
+
+Windows workspace example:
+```json
+{
+  "mcpServers": {
+    "md-feedback": {
+      "command": "npx",
+      "args": ["-y", "md-feedback", "--workspace=C:\\\\work\\\\my-project"]
+    }
+  }
+}
+```
+
+## 27 MCP Tools
 
 | Tool | Description |
 |------|-------------|
 | `get_document_structure` | Full review state: memos, gates, cursor, sections, summary, metrics |
+| `list_documents` | List markdown files in workspace (optionally annotated-only) |
 | `list_annotations` | All annotations with type/status/owner/color |
 | `get_review_status` | Annotation counts and session status |
 | `create_annotation` | Create annotation programmatically with anchor search |
 | `respond_to_memo` | Add AI response to an annotation |
-| `update_memo_status` | Mark a memo as open/in_progress/needs_review/answered/done/failed/wontfix |
+| `update_memo_status` | Update a memo status to open/in_progress/needs_review (terminal statuses are VS Code approval path) |
 | `update_cursor` | Set plan cursor position (task ID, step, next action) |
 | `evaluate_gates` | Check if merge/release/implement conditions are met |
 | `export_review` | Export for a specific AI tool format |
@@ -66,6 +86,13 @@ Resolution order: `--workspace=` CLI arg > `MD_FEEDBACK_WORKSPACE` env > `cwd`
 | `rollback_memo` | Rollback the latest implementation for a memo |
 | `batch_apply` | Apply multiple operations in a single transaction |
 | `get_memo_changes` | Get implementation history and progress for a memo |
+| `get_policy_status` | Get current workflow enforcement mode and policy |
+| `get_workflow_status` | Get workflow phase, transitions, and pending approvals |
+| `get_severity_status` | Get memo severity overrides and unresolved blocking memos |
+| `advance_workflow_phase` | Advance to the next workflow phase (scope → root_cause → implementation → verification) |
+| `set_memo_severity` | Override a memo's severity (blocking / non_blocking) |
+| `request_approval_checkpoint` | Request human approval before a high-risk operation |
+| `approve_checkpoint` | Approve a pending approval checkpoint |
 
 ## Safety & Reliability
 

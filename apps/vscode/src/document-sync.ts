@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHighlightMarks } from '@md-feedback/shared'
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
-import { isResolved } from '@md-feedback/shared'
+import { isResolved, parseJsonWithBom } from '@md-feedback/shared'
 import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -37,7 +37,7 @@ function readWorkflowSidecar(document: vscode.TextDocument): WorkflowSidecar | n
   try {
     const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'workflow.json')
     if (!existsSync(sidecarPath)) return null
-    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<WorkflowSidecar>
+    const parsed = parseJsonWithBom<Partial<WorkflowSidecar>>(readFileSync(sidecarPath, 'utf-8'))
     if (!parsed.phase) return null
     return {
       phase: parsed.phase,
@@ -52,7 +52,7 @@ function readSeveritySidecar(document: vscode.TextDocument): SeveritySidecar {
   try {
     const sidecarPath = join(dirname(document.uri.fsPath), '.md-feedback', 'severity.json')
     if (!existsSync(sidecarPath)) return { overrides: {} }
-    const parsed = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as Partial<SeveritySidecar>
+    const parsed = parseJsonWithBom<Partial<SeveritySidecar>>(readFileSync(sidecarPath, 'utf-8'))
     if (!parsed.overrides || typeof parsed.overrides !== 'object') return { overrides: {} }
     return { overrides: parsed.overrides }
   } catch {
@@ -230,6 +230,12 @@ export function sendStatusInfo(
       onNeedsReviewCount(needsReviewMemos)
     }
 
+    // Build memoMap for humanized display in MetadataDrawer
+    const memoMap: Record<string, { text: string; color: string; type: string }> = {}
+    for (const memo of parts.memos) {
+      memoMap[memo.id] = { text: memo.text, color: memo.color, type: memo.type }
+    }
+
     // Send metadata for drawer (gates, cursor, checkpoints, impls, artifacts, dependencies)
     postMessage({
       type: 'metadata.update',
@@ -241,6 +247,7 @@ export function sendStatusInfo(
       dependencies: parts.dependencies,
       workflow,
       unresolvedBlockingMemos,
+      memoMap,
     })
   } catch {
     // best-effort — don't break document loading

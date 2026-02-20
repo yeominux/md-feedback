@@ -192,4 +192,46 @@ describe('document-sync sendStatusInfo', () => {
       rmSync(workspace, { recursive: true, force: true })
     }
   })
+
+  it('parses workflow sidecar with UTF-8 BOM and keeps approvalRequired visible', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-bom-'))
+    const mdFile = join(workspace, 'plan.md')
+    const sidecar = join(workspace, '.md-feedback')
+    mkdirSync(sidecar, { recursive: true })
+    writeFileSync(mdFile, '# Title\nAnchor\n', 'utf-8')
+    writeFileSync(
+      join(sidecar, 'workflow.json'),
+      '\uFEFF' + JSON.stringify({
+        version: '1.0',
+        phase: 'verification',
+        pendingCheckpoint: { id: 'chk_bom', tool: 'batch_apply', reason: 'risk', requestedAt: '2026-02-19T00:00:00.000Z' },
+      }),
+      'utf-8',
+    )
+
+    const gate: Gate = {
+      id: 'gate-1',
+      type: 'merge',
+      status: 'blocked',
+      blockedBy: ['memo-1'],
+      canProceedIf: '',
+      doneDefinition: 'All review annotations resolved',
+    }
+    const raw = buildRaw('open', gate)
+    const postMessage = vi.fn()
+    const sourceDocument = {
+      uri: { fsPath: mdFile },
+      languageId: 'markdown',
+    } as unknown as import('vscode').TextDocument
+
+    try {
+      sendStatusInfo(raw, postMessage, undefined, undefined, undefined, sourceDocument)
+      const summaryMsg = postMessage.mock.calls.find(call => call[0]?.type === 'status.summary')?.[0]
+      expect(summaryMsg.summary.workflowPhase).toBe('verification')
+      expect(summaryMsg.summary.approvalRequired).toBe(true)
+      expect(summaryMsg.summary.pendingApprovalTool).toBe('batch_apply')
+    } finally {
+      rmSync(workspace, { recursive: true, force: true })
+    }
+  })
 })

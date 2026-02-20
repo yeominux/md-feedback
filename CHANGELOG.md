@@ -1,5 +1,120 @@
 # Changelog
 
+## [1.3.20] - 2026-02-20
+
+### Added
+- Details drawer now shows a progress bar under the resolved memo count for quick visual status
+- Clicking the current task in the Details drawer scrolls to the memo and highlights it with a flash
+- MCP project config (`.mcp.json`) included for one-step agent setup on Windows
+
+### Changed
+- "Plan Cursor" section renamed to "Current Task" with human-readable memo text instead of raw IDs
+- Memo references in task descriptions now display quoted memo text instead of technical IDs
+- Auto-checkpoints are collapsed behind a toggle — only named checkpoints shown by default
+- Checkpoint stats now show only non-zero counts (e.g. "2 fix" instead of "2 fix · 0 Q · 0 HL")
+- Gate override controls hidden behind a "More…" disclosure button to reduce visual noise
+
+### Improved
+- Annotation anchoring now matches correctly even when document text contains markdown formatting like bold, blockquotes, or backslash escapes
+- Added accessibility attributes (`aria-expanded`, `aria-label`) to drawer toggle buttons
+
+### Fixed
+- Workflow phase names with underscores (e.g. `root_cause`) now display correctly with spaces in all cases
+
+## [1.3.19] - 2026-02-20
+
+### Added
+- `apply_memo` and `batch_apply` now support `scope="section"` for `text_replace`, allowing automatic propagation only inside the heading section around a memo anchor
+
+### Improved
+- Memo anchor safety fallback was hardened to keep malformed or missing anchor metadata pinned inside the document body instead of drifting toward EOF metadata blocks
+- Added regression coverage for missing-anchor memo reinsertion to guarantee stable in-body placement across split/merge cycles
+- Added regression coverage for section-scoped text replacement to prevent cross-section over-application
+
+## [1.3.18] - 2026-02-20
+
+### Changed
+- `apply_memo` and `batch_apply` now reject ambiguous `text_replace` requests when `oldText` appears multiple times and neither `occurrence` nor `replaceAll` is provided
+- MCP tool schemas now document explicit occurrence requirements for multi-match text replacement
+
+### Improved
+- Added regression tests covering ambiguous text replacement rejection in both single and batch memo application paths
+- README now documents ambiguity-safe text replacement behavior for agent workflows
+
+## [1.3.17] - 2026-02-20
+
+### Improved
+- Annotation anchors now stay attached to the intended lines more reliably when similar text appears multiple times in a document
+- Memo placement remains stable even when metadata blocks are grouped at the end of the markdown file
+
+### Fixed
+- Resolved an issue where some memos could be reinserted near the document end instead of their original context
+- Preserved backslashes and special marker text in memo content across repeated save and reload cycles
+
+## [1.3.16] - 2026-02-20
+
+### Added
+- New `list_documents` MCP tool to discover markdown files in workspace (including annotated-only mode)
+- VS Code walkthrough and editor-level `1/2/3` annotation commands for faster first-use onboarding
+- Extension now activates automatically when VS Code starts (no manual trigger needed)
+- Status overview in the details drawer shows resolved, in-progress, and blocking counts at a glance
+
+### Changed
+- Status bar redesigned with a progress indicator and color-coded gate dots replacing the previous badge layout
+- Approval flow now uses a focused modal dialog instead of an inline sidebar form
+- Memo cards use a two-row layout with colored status dot, inline editing, and keyboard-navigable status menu
+- Details drawer header renamed from "Gates & Cursor" to "Details" with live status summary
+- Onboarding flow now starts with annotation first; MCP setup is optional and non-blocking
+- Onboarding banner now mentions keyboard shortcuts `1/2/3` alongside click actions
+- Demo animation simplified and reduced by 41% in file size for faster loading
+- MCP/README/package metadata now consistently documents 27 tools and current version
+
+### Improved
+- Delete action now requires a brief confirmation hold to prevent accidental memo removal
+- Status menu supports arrow-key navigation, Enter to select, and Escape to dismiss
+- Button press animation added for tactile feedback on interactive elements
+- Theme tokens expanded with progress bar, diff block, and distinct `needs_review` status colors
+
+### Fixed
+- `apply_memo` / `batch_apply` text replacement now supports safe single-occurrence replacement by default
+- `batch_apply` rollback errors are now surfaced instead of being silently swallowed
+- File mutex now includes cross-process lock with timeout to reduce race conditions
+- Release guard now tolerates missing/transient filesystem entries during scan
+
+## [1.3.15] - 2026-02-20
+
+### Fixed
+- Highlight mark recovery no longer creates phantom duplicate memos when the memo anchorText includes a heading prefix (`### `) that the highlight mark omits
+
+## [1.3.14] - 2026-02-20
+
+### Added
+- Reject reason — rejecting a memo now prompts for an optional reason that agents can read to avoid repeating mistakes
+- MCP tool table in README now documents all 26 tools (7 were missing)
+
+### Improved
+- BOM-tolerant JSON parsing extracted to shared `parseJsonWithBom` utility, eliminating duplication across 3 packages
+
+## [1.3.13] - 2026-02-20
+
+### Fixed
+- `Approve Action` now enables immediately after approving all memos — previously the button stayed disabled until a manual reload
+- `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files
+- MCP server workflow and severity sidecar reads are now BOM-tolerant
+
+
+## [1.3.12] - 2026-02-20
+
+### Fixed
+- `Approve Action` click handler now correctly reads BOM-prefixed workflow sidecar files — previously the button was visible but clicking it silently failed, showing "No pending approval checkpoint"
+- MCP server workflow and severity sidecar reads are now BOM-tolerant, preventing silent fallback to default state
+
+## [1.3.11] - 2026-02-19
+
+### Fixed
+- `Approve Action` no longer disappears when workflow sidecar files contain UTF-8 BOM.
+- Sidecar JSON parsing is now BOM-tolerant for stable workflow and severity status rendering.
+
 ## [1.3.10] - 2026-02-19
 
 ### Fixed
