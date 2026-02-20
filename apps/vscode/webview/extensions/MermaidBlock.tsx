@@ -127,12 +127,12 @@ function MermaidBlockView({ node }: any) {
       <div className="relative rounded-md border border-mf-border bg-mf-surface overflow-hidden">
         {/* Header / Label */}
         <div className="px-3 py-1.5 bg-mf-bg border-b border-mf-border flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-mf-text-muted uppercase tracking-wider">Mermaid</span>
+          <span className="text-[11px] font-semibold text-mf-muted uppercase tracking-wider">Mermaid</span>
         </div>
 
         <div className="p-4 overflow-x-auto flex justify-center min-h-[100px] items-center" style={{ background: 'var(--mf-surface)' }}>
           {loading && (
-            <div className="flex flex-col items-center gap-2 text-mf-text-muted animate-pulse">
+            <div className="flex flex-col items-center gap-2 text-mf-muted animate-pulse">
               <div className="w-6 h-6 border-2 border-mf-border border-t-mf-link rounded-full animate-spin" />
               <span className="text-xs">Rendering diagram...</span>
             </div>

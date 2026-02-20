@@ -3,7 +3,7 @@
   --mf-surface: #ffffff;
   --mf-text: #37352f;
   --mf-text-muted: #787774;
-  --mf-text-faint: #b4b4b0;
+  --mf-text-faint: #8a8a86;
   --mf-border: rgba(55, 53, 47, 0.09);
   --mf-border-subtle: rgba(55, 53, 47, 0.04);
   --mf-accent-fix: #dc2626;
@@ -44,10 +44,15 @@
   --mf-status-in-progress-bg: #eff6ff;
   --mf-status-answered-text: #0369a1;
   --mf-status-answered-bg: #f0f9ff;
-  --mf-status-done-text: #059669;
+  --mf-status-done-text: #047857;
   --mf-status-done-bg: #ecfdf5;
-  --mf-status-failed-text: #dc2626;
-  --mf-status-failed-bg: #fef2f2;
+  --mf-status-needs-review-text: #6366f1;
+  --mf-status-needs-review-bg: #eef2ff;
+  --mf-status-failed-text: #e11d48;
+  --mf-status-failed-bg: #fff1f2;
+  /* Progress bar */
+  --mf-progress-track: rgba(55, 53, 47, 0.06);
+  --mf-progress-fill: #059669;
   /* Memo label tokens */
   --mf-memo-highlight-label: #b45309;
   --mf-memo-fix-label: #dc2626;
@@ -58,6 +63,13 @@
   --mf-ai-response-accent: #10b981;
   --mf-ai-response-label: #047857;
   --mf-ai-response-bg: rgba(16, 185, 129, 0.04);
+  /* Diff tokens */
+  --mf-diff-before-bg: #fef2f2;
+  --mf-diff-before-text: #dc2626;
+  --mf-diff-after-bg: #ecfdf5;
+  --mf-diff-after-text: #059669;
+  /* Shadow scale */
+  --mf-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
 }
 
 [data-theme="dark"] {
@@ -65,7 +77,7 @@
   --mf-surface: #252525;
   --mf-text: #e0e0e0;
   --mf-text-muted: #a0a0a0;
-  --mf-text-faint: #666;
+  --mf-text-faint: #8a8a8a;
   --mf-border: #333;
   --mf-border-subtle: #2a2a2a;
   --mf-accent-fix: #dc2626;
@@ -108,8 +120,13 @@
   --mf-status-answered-bg: #0c2d48;
   --mf-status-done-text: #34d399;
   --mf-status-done-bg: #1a332a;
-  --mf-status-failed-text: #f87171;
-  --mf-status-failed-bg: #331a1a;
+  --mf-status-needs-review-text: #a5b4fc;
+  --mf-status-needs-review-bg: #252248;
+  --mf-status-failed-text: #fb7185;
+  --mf-status-failed-bg: #33141e;
+  /* Progress bar */
+  --mf-progress-track: rgba(255, 255, 255, 0.06);
+  --mf-progress-fill: #34d399;
   /* Memo label tokens */
   --mf-memo-highlight-label: #fbbf24;
   --mf-memo-fix-label: #f87171;
@@ -123,4 +140,11 @@
   --mf-ai-response-accent: #34d399;
   --mf-ai-response-label: #6ee7b7;
   --mf-ai-response-bg: rgba(52, 211, 153, 0.06);
+  /* Diff tokens */
+  --mf-diff-before-bg: #331a1a;
+  --mf-diff-before-text: #f87171;
+  --mf-diff-after-bg: #1a332a;
+  --mf-diff-after-text: #34d399;
+  /* Shadow scale */
+  --mf-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
