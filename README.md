@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.3.15): release-quality workflow gates, approval checkpoints, and MCP/tooling stability updates.
+> Latest (v1.3.16): release-quality workflow gates, approval checkpoints, and MCP/tooling stability updates.
 
 ## How It Works
 

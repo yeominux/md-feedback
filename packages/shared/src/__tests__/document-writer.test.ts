@@ -330,6 +330,31 @@ Line C`)
     // Hash match should find the correct line
     expect(findMemoAnchorLine(lines, memo)).toBe(3)
   })
+
+  it('when anchorText has multiple matches, prefers the one closest to anchor line number', () => {
+    const lines = [
+      '# Title',
+      'Repeated anchor line',
+      'Other content',
+      'Repeated anchor line',
+      'Tail',
+    ]
+    const memo: MemoV2 = {
+      id: 'm_dup',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix duplicated anchor',
+      anchorText: 'Repeated anchor line',
+      anchor: 'L4|ffffffff', // hash stale, but line number indicates second occurrence
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    expect(findMemoAnchorLine(lines, memo)).toBe(3)
+  })
 })
 
 describe('splitDocument — v0.4 anchor refresh', () => {
@@ -357,6 +382,72 @@ Line C`
     // anchor should be refreshed to match current "Line B" hash, not stale "deadbeef"
     expect(parts.memos[0].anchor).not.toContain('deadbeef')
     expect(parts.memos[0].anchor).toMatch(/^L\d+\|[0-9a-f]{8}$/)
+  })
+
+  it('keeps per-memo anchors when all metadata blocks are grouped at EOF', () => {
+    const input = `# Report
+
+Intro
+First anchor line
+Middle
+Second anchor line
+
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix first"
+  anchorText="First anchor line"
+  anchor="L999|deadbeef"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- USER_MEMO
+  id="m2"
+  type="question"
+  status="open"
+  owner="human"
+  source="generic"
+  color="blue"
+  text="Ask second"
+  anchorText="Second anchor line"
+  anchor="L998|deadbeef"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+<!-- GATE
+  id="gate_1"
+  type="custom"
+  status="blocked"
+  blockedBy="m1,m2"
+  canProceedIf="All clear"
+  doneDefinition="Both addressed"
+-->
+<!-- PLAN_CURSOR
+  taskId="task_1"
+  step="1/1"
+  nextAction="review"
+  lastSeenHash="abc12345"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+
+    const firstAnchorIdx = lines.findIndex(l => l.includes('First anchor line'))
+    const secondAnchorIdx = lines.findIndex(l => l.includes('Second anchor line'))
+    const memo1Idx = lines.findIndex(l => l.includes('id="m1"'))
+    const memo2Idx = lines.findIndex(l => l.includes('id="m2"'))
+    const cursorIdx = lines.findIndex(l => l.includes('PLAN_CURSOR'))
+
+    expect(memo1Idx).toBeGreaterThan(firstAnchorIdx)
+    expect(memo1Idx).toBeLessThan(secondAnchorIdx)
+    expect(memo2Idx).toBeGreaterThan(secondAnchorIdx)
+    expect(memo2Idx).toBeLessThan(cursorIdx)
   })
 })
 
@@ -516,6 +607,33 @@ Some content
 
     const output = mergeDocument(parts)
     expect(output).not.toContain('rejectReason')
+  })
+
+  it('preserves backslashes and special text in memo content across cycles', () => {
+    const input = `# Title
+
+Anchor line
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Path C:\\todo\\report-clean.md and network \\\\server\\share and marker -->"
+  anchorText="Anchor line"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts1 = splitDocument(input)
+    const output1 = mergeDocument(parts1)
+    const parts2 = splitDocument(output1)
+    const output2 = mergeDocument(parts2)
+
+    expect(parts2.memos[0].text).toBe('Path C:\\todo\\report-clean.md and network \\\\server\\share and marker -->')
+    expect(output2).toContain('Path C:\\todo\\report-clean.md and network \\\\server\\share and marker --&#62;')
   })
 })
 
