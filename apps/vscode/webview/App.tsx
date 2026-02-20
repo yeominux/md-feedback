@@ -4,7 +4,7 @@ import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
 import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
 import { FileText, X, Unplug, Settings2 } from 'lucide-react'
-import type { StatusSummary } from './types'
+import type { StatusSummary, MemoMap } from './types'
 
 // Global impls store for MemoBlock (TipTap nodes lack React context access)
 declare global {
@@ -40,6 +40,7 @@ export default function App() {
   const [approvalReason, setApprovalReason] = useState('')
   const [showCheckpointPrompt, setShowCheckpointPrompt] = useState(false)
   const [checkpointNote, setCheckpointNote] = useState('')
+  const [memoMap, setMemoMap] = useState<MemoMap>({})
 
   const isLoadingRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
@@ -162,6 +163,7 @@ export default function App() {
           if (msg.gates) setGates(msg.gates as Gate[])
           if (msg.cursor !== undefined) setCursor(msg.cursor as PlanCursor | null)
           if (msg.checkpoints) setCheckpoints(msg.checkpoints as Checkpoint[])
+          if (msg.memoMap) setMemoMap(msg.memoMap as MemoMap)
           if (msg.impls) {
             window.__mfImpls = msg.impls as MemoImpl[]
             window.dispatchEvent(new CustomEvent('mf:impls-updated'))
@@ -351,6 +353,13 @@ export default function App() {
     setApprovalReason(`Approved ${pendingApprovalTool} via VS Code status CTA`)
     setShowApprovalForm(true)
   }
+
+  const handleNavigateToMemo = useCallback((memoId: string) => {
+    setDrawerOpen(false)
+    setTimeout(() => {
+      editorRef.current?.scrollToMemo(memoId)
+    }, 150) // small delay to let drawer close
+  }, [])
 
   const hasNeedsReviewMemos = (statusSummary?.needsReviewMemos ?? 0) > 0
   const showActionApproval = approvalRequired && Boolean(pendingApprovalTool)
@@ -613,6 +622,8 @@ export default function App() {
         workflowPhase={workflowPhase}
         unresolvedBlockingCount={unresolvedBlockingCount}
         approvalRequired={approvalRequired}
+        memoMap={memoMap}
+        onNavigateToMemo={handleNavigateToMemo}
       />
 
       {/* MCP Reminder — for users who skipped setup */}

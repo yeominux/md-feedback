@@ -13,3 +13,6 @@ export interface StatusSummary {
   approvalRequired?: boolean
   pendingApprovalTool?: string | null
 }
+
+export interface MemoMapEntry { text: string; color: string; type: string }
+export type MemoMap = Record<string, MemoMapEntry>
