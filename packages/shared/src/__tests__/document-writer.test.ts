@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitDocument, mergeDocument, getAnnotationCounts, findMemoAnchorLine, parseJsonWithBom } from '../index'
+import { splitDocument, mergeDocument, getAnnotationCounts, findMemoAnchorLine, parseJsonWithBom, stripMarkdownFormatting } from '../index'
 import type { MemoV2 } from '../index'
 
 describe('document-writer — splitDocument and mergeDocument', () => {
@@ -690,6 +690,304 @@ Line C
     expect(lineAIdx).toBeGreaterThanOrEqual(0)
     expect(memoIdx).toBeGreaterThan(titleIdx)
     expect(memoIdx).toBeLessThan(lineAIdx)
+  })
+})
+
+describe('stripMarkdownFormatting', () => {
+  // Block-level prefixes
+  it('strips blockquote prefix', () => {
+    expect(stripMarkdownFormatting('> Some text')).toBe('Some text')
+  })
+
+  it('strips nested blockquote prefix', () => {
+    expect(stripMarkdownFormatting('> > Deep quote')).toBe('Deep quote')
+  })
+
+  it('strips heading prefix', () => {
+    expect(stripMarkdownFormatting('### Section title')).toBe('Section title')
+  })
+
+  it('strips unordered list marker (dash)', () => {
+    expect(stripMarkdownFormatting('- List item')).toBe('List item')
+  })
+
+  it('strips unordered list marker (asterisk)', () => {
+    expect(stripMarkdownFormatting('* List item')).toBe('List item')
+  })
+
+  it('strips ordered list marker', () => {
+    expect(stripMarkdownFormatting('1. First item')).toBe('First item')
+  })
+
+  it('strips task list marker (unchecked)', () => {
+    expect(stripMarkdownFormatting('- [ ] Todo item')).toBe('Todo item')
+  })
+
+  it('strips task list marker (checked)', () => {
+    expect(stripMarkdownFormatting('- [x] Done item')).toBe('Done item')
+  })
+
+  // Inline formatting
+  it('strips bold markers', () => {
+    expect(stripMarkdownFormatting('**bold text**')).toBe('bold text')
+  })
+
+  it('strips italic markers (asterisk)', () => {
+    expect(stripMarkdownFormatting('*italic text*')).toBe('italic text')
+  })
+
+  it('strips underscore bold', () => {
+    expect(stripMarkdownFormatting('__bold text__')).toBe('bold text')
+  })
+
+  it('strips underscore italic', () => {
+    expect(stripMarkdownFormatting('_italic text_')).toBe('italic text')
+  })
+
+  it('strips bold+italic (***)', () => {
+    expect(stripMarkdownFormatting('***bold italic***')).toBe('bold italic')
+  })
+
+  it('strips strikethrough', () => {
+    expect(stripMarkdownFormatting('~~deleted text~~')).toBe('deleted text')
+  })
+
+  it('strips highlight marks (==)', () => {
+    expect(stripMarkdownFormatting('==highlighted text==')).toBe('highlighted text')
+  })
+
+  it('strips code spans', () => {
+    expect(stripMarkdownFormatting('Use `console.log` here')).toBe('Use console.log here')
+  })
+
+  it('strips double backtick code spans', () => {
+    expect(stripMarkdownFormatting('Use ``code here`` please')).toBe('Use code here please')
+  })
+
+  // Links and images
+  it('strips markdown links, keeps text', () => {
+    expect(stripMarkdownFormatting('[Click here](https://example.com)')).toBe('Click here')
+  })
+
+  it('strips markdown images, keeps alt text', () => {
+    expect(stripMarkdownFormatting('![Alt text](image.png)')).toBe('Alt text')
+  })
+
+  it('strips reference links, keeps text', () => {
+    expect(stripMarkdownFormatting('[Click here][ref1]')).toBe('Click here')
+  })
+
+  // HTML tags
+  it('strips inline HTML tags', () => {
+    expect(stripMarkdownFormatting('<strong>bold</strong> and <em>italic</em>')).toBe('bold and italic')
+  })
+
+  it('strips <mark> tags', () => {
+    expect(stripMarkdownFormatting('<mark>highlighted</mark> text')).toBe('highlighted text')
+  })
+
+  it('strips <del> and <u> tags', () => {
+    expect(stripMarkdownFormatting('<del>deleted</del> and <u>underlined</u>')).toBe('deleted and underlined')
+  })
+
+  it('strips <a> tags with attributes', () => {
+    expect(stripMarkdownFormatting('<a href="url">link text</a>')).toBe('link text')
+  })
+
+  it('strips <code> tags', () => {
+    expect(stripMarkdownFormatting('<code>code</code> here')).toBe('code here')
+  })
+
+  // Backslash escapes
+  it('unescapes markdown brackets', () => {
+    expect(stripMarkdownFormatting('\\[!CAUTION\\] Warning')).toBe('[!CAUTION] Warning')
+  })
+
+  it('unescapes markdown asterisks', () => {
+    expect(stripMarkdownFormatting('2 \\* 3 = 6')).toBe('2 * 3 = 6')
+  })
+
+  it('unescapes markdown hash', () => {
+    expect(stripMarkdownFormatting('\\# Not a heading')).toBe('# Not a heading')
+  })
+
+  it('unescapes markdown pipe', () => {
+    expect(stripMarkdownFormatting('A \\| B')).toBe('A | B')
+  })
+
+  it('unescapes backslash', () => {
+    expect(stripMarkdownFormatting('path\\\\to\\\\file')).toBe('path\\to\\file')
+  })
+
+  // Combined / real-world cases
+  it('handles combined formatting: blockquote + escaped brackets + bold', () => {
+    const input = '> \\[!CAUTION\\] **졸업프로젝트(1) 수강 가능 여부 확인**'
+    const stripped = stripMarkdownFormatting(input)
+    expect(stripped).toBe('[!CAUTION] 졸업프로젝트(1) 수강 가능 여부 확인')
+  })
+
+  it('handles callout variants: [!NOTE], [!WARNING], [!TIP], [!IMPORTANT]', () => {
+    expect(stripMarkdownFormatting('> \\[!NOTE\\] **Read this**')).toBe('[!NOTE] Read this')
+    expect(stripMarkdownFormatting('> \\[!WARNING\\] *Be careful*')).toBe('[!WARNING] Be careful')
+    expect(stripMarkdownFormatting('> \\[!TIP\\] Helpful tip')).toBe('[!TIP] Helpful tip')
+    expect(stripMarkdownFormatting('> \\[!IMPORTANT\\] **Critical**')).toBe('[!IMPORTANT] Critical')
+  })
+
+  it('handles heading with bold content', () => {
+    expect(stripMarkdownFormatting('### **Bold Heading**')).toBe('Bold Heading')
+  })
+
+  it('handles list item with link', () => {
+    expect(stripMarkdownFormatting('- [Click here](https://example.com) for details')).toBe('Click here for details')
+  })
+
+  it('handles blockquote with code span', () => {
+    expect(stripMarkdownFormatting('> Use `npm install` to install')).toBe('Use npm install to install')
+  })
+
+  it('preserves plain text unchanged', () => {
+    expect(stripMarkdownFormatting('Just normal text here')).toBe('Just normal text here')
+  })
+
+  it('preserves parentheses and numbers', () => {
+    expect(stripMarkdownFormatting('졸업프로젝트(1) (구 DCS(4))')).toBe('졸업프로젝트(1) (구 DCS(4))')
+  })
+
+  // Footnotes
+  it('strips footnote references', () => {
+    expect(stripMarkdownFormatting('Some text[^1] with footnote')).toBe('Some text with footnote')
+  })
+
+  it('strips named footnote references', () => {
+    expect(stripMarkdownFormatting('Text[^note] here')).toBe('Text here')
+  })
+
+  it('strips multiple footnote references', () => {
+    expect(stripMarkdownFormatting('A[^1] and B[^2]')).toBe('A and B')
+  })
+
+  // Inline math
+  it('strips inline math delimiters', () => {
+    expect(stripMarkdownFormatting('formula $x + 1$ here')).toBe('formula x + 1 here')
+  })
+
+  it('preserves display math ($$) untouched', () => {
+    expect(stripMarkdownFormatting('$$E = mc^2$$')).toBe('$$E = mc^2$$')
+  })
+
+  it('strips multiple inline math spans', () => {
+    expect(stripMarkdownFormatting('where $a$ and $b$ are constants')).toBe('where a and b are constants')
+  })
+
+  // Table pipes
+  it('strips leading table pipe', () => {
+    expect(stripMarkdownFormatting('| Cell content')).toBe('Cell content')
+  })
+
+  it('strips trailing table pipe', () => {
+    expect(stripMarkdownFormatting('Cell content |')).toBe('Cell content')
+  })
+
+  it('strips both leading and trailing pipes', () => {
+    expect(stripMarkdownFormatting('| Cell content |')).toBe('Cell content')
+  })
+
+  // Combined: footnotes + formatting
+  it('handles footnote in bold text', () => {
+    expect(stripMarkdownFormatting('**Important claim**[^1]')).toBe('Important claim')
+  })
+
+  // Combined: math + formatting
+  it('handles inline math in heading', () => {
+    expect(stripMarkdownFormatting('### Formula: $x^2$')).toBe('Formula: x^2')
+  })
+
+  // Combined: table + formatting
+  it('handles table cell with bold content', () => {
+    expect(stripMarkdownFormatting('| **Bold cell** |')).toBe('Bold cell')
+  })
+
+  // Escaped dollar sign
+  it('unescapes dollar sign', () => {
+    expect(stripMarkdownFormatting('Price is \\$100')).toBe('Price is $100')
+  })
+})
+
+describe('findMemoAnchorLine — markdown-formatted body lines', () => {
+  it('matches anchorText against escaped callout body line', () => {
+    const lines = [
+      '# Title',
+      '',
+      '> \\[!CAUTION\\] **졸업프로젝트(1) (구 DCS(4)) 수강 가능 여부를 반드시 확인할 것**',
+      '>',
+      '> Some details here.',
+    ]
+    const memo: MemoV2 = {
+      id: 'm_callout',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'recovered-highlight',
+      color: 'red',
+      text: 'Fix callout issue',
+      anchorText: '[!CAUTION] 졸업프로젝트(1) (구 DCS(4)) 수강 가능 여부를 반드시 확인할 것',
+      anchor: '',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    expect(findMemoAnchorLine(lines, memo)).toBe(2)
+  })
+
+  it('matches anchorText with bold markers in body line', () => {
+    const lines = [
+      '# Title',
+      '**Important text here**',
+      'Normal text',
+    ]
+    const memo: MemoV2 = {
+      id: 'm_bold',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix this',
+      anchorText: 'Important text here',
+      anchor: '',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    expect(findMemoAnchorLine(lines, memo)).toBe(1)
+  })
+})
+
+describe('HIGHLIGHT_MARK recovery — escaped callout anchor', () => {
+  it('recovers memo and anchors to callout line despite markdown escaping', () => {
+    const input = `# Title
+
+> \\[!CAUTION\\] **졸업프로젝트(1) 수강 가능 여부를 반드시 확인할 것**
+>
+> Some details.
+
+Other content.
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="졸업프로젝트(1) 수강 가능 여부를 반드시 확인할 것" anchor="[!CAUTION] 졸업프로젝트(1) 수강 가능 여부를 반드시 확인할 것" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    expect(recovered).toHaveLength(1)
+    // Anchor should resolve to the callout line, not be empty
+    expect(recovered[0].anchor).toMatch(/^L\d+\|[0-9a-f]{8}$/)
+    // Anchor line should be line 3 (the callout line)
+    expect(recovered[0].anchor).toMatch(/^L3\|/)
+
+    // After merge, memo should appear near the callout, not at the end
+    const merged = mergeDocument(parts)
+    const lines = merged.split('\n')
+    const calloutIdx = lines.findIndex(l => l.includes('CAUTION'))
+    const memoIdx = lines.findIndex(l => l.includes('USER_MEMO'))
+    expect(memoIdx).toBeGreaterThan(calloutIdx)
+    expect(memoIdx).toBeLessThan(calloutIdx + 5)
   })
 })
 
