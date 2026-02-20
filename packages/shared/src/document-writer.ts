@@ -244,6 +244,11 @@ export function splitDocument(markdown: string): DocumentParts {
       const freshAnchor = anchorLineIdx >= 0
         ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
         : (a.anchor || '')
+      // Refresh anchorText when anchor line was found – keeps it in sync across
+      // save cycles so the dedup key matches HIGHLIGHT_MARK anchors after AI edits.
+      const freshAnchorText = anchorLineIdx >= 0
+        ? bodyLines[anchorLineIdx].trim().slice(0, 80)
+        : anchorText
       memos.push({
         id: a.id || generateId('memo'),
         type: (a.type as MemoV2['type']) || colorToType((a.color || 'red') as MemoColor),
@@ -252,7 +257,7 @@ export function splitDocument(markdown: string): DocumentParts {
         source: a.source || 'generic',
         color: (a.color || 'red') as MemoColor,
         text: a.text || '',
-        anchorText,
+        anchorText: freshAnchorText,
         anchor: freshAnchor,
         createdAt: a.createdAt || new Date().toISOString(),
         updatedAt: a.updatedAt || new Date().toISOString(),
@@ -448,11 +453,14 @@ export function splitDocument(markdown: string): DocumentParts {
   // Normalize dedup keys: strip leading markdown heading markers (### ) so
   // "### Step 3: foo" and "Step 3: foo" match as the same anchor.
   const stripHeadingPrefix = (s: string) => s.replace(/^#+\s*/, '').trim()
-  const existingMemoKeys = new Set(
-    memos
-      .filter(m => m.color === 'red' || m.color === 'blue')
-      .map(m => `${m.color}|${stripHeadingPrefix(m.anchorText)}`),
-  )
+  // Build dedup keys from BOTH anchorText AND text for drift tolerance.
+  // When AI edits surrounding text, HIGHLIGHT_MARK anchor drifts from memo anchorText.
+  // Indexing by memo text as well catches cases where the highlighted text matches.
+  const existingMemoKeys = new Set<string>()
+  for (const m of memos.filter(m => m.color === 'red' || m.color === 'blue')) {
+    existingMemoKeys.add(`${m.color}|${stripHeadingPrefix(m.anchorText)}`)
+    if (m.text) existingMemoKeys.add(`${m.color}|${stripHeadingPrefix(m.text)}`)
+  }
   HIGHLIGHT_MARK_RE.lastIndex = 0
   let markMatch: RegExpExecArray | null
   while ((markMatch = HIGHLIGHT_MARK_RE.exec(body)) !== null) {
@@ -461,11 +469,15 @@ export function splitDocument(markdown: string): DocumentParts {
 
     const markText = decodeHighlightAttr(markMatch[2]).trim()
     const markAnchor = decodeHighlightAttr(markMatch[3]).trim()
-    const anchorText = markAnchor || markText
-    if (!anchorText) continue
+    if (!markText && !markAnchor) continue
 
-    const dedupeKey = `${memoColor}|${stripHeadingPrefix(anchorText)}`
-    if (existingMemoKeys.has(dedupeKey)) continue
+    // Try both block text (markAnchor) and highlighted text (markText) as dedup keys.
+    // markAnchor = current block text (drifts with edits); markText = highlighted span (more stable).
+    const anchorKey = markAnchor ? `${memoColor}|${stripHeadingPrefix(markAnchor)}` : ''
+    const textKey = markText ? `${memoColor}|${stripHeadingPrefix(markText)}` : ''
+    if ((anchorKey && existingMemoKeys.has(anchorKey)) || (textKey && existingMemoKeys.has(textKey))) continue
+
+    const anchorText = markAnchor || markText
 
     const searchNeedle = anchorText.slice(0, 40)
     const strippedNeedle = stripMarkdownFormatting(searchNeedle)
@@ -491,7 +503,8 @@ export function splitDocument(markdown: string): DocumentParts {
       createdAt: now,
       updatedAt: now,
     })
-    existingMemoKeys.add(dedupeKey)
+    if (anchorKey) existingMemoKeys.add(anchorKey)
+    if (textKey) existingMemoKeys.add(textKey)
   }
 
   return {
@@ -641,6 +654,32 @@ export function serializeMemoDependency(dep: MemoDependency): string {
   return `<!-- MEMO_DEPENDENCY id="${dep.id}" from="${dep.from}" to="${dep.to}" type="${dep.type}" -->`
 }
 
+// ─── Block boundary detection ───
+
+/** Detect if a line is inside a contiguous block structure (blockquote or table)
+ *  and return the index of the last line in that block.
+ *  Memos should be inserted after the block ends to preserve markdown formatting. */
+function findBlockEnd(lines: string[], lineIdx: number): number {
+  const line = lines[lineIdx]
+
+  // Blockquote: line starts with > (possibly nested, with optional leading whitespace)
+  if (/^\s*>/.test(line)) {
+    let end = lineIdx
+    while (end + 1 < lines.length && /^\s*>/.test(lines[end + 1])) end++
+    return end
+  }
+
+  // Table: line matches table row pattern (starts with |, or is a separator like |---|)
+  if (/^\s*\|/.test(line)) {
+    let end = lineIdx
+    while (end + 1 < lines.length && /^\s*\|/.test(lines[end + 1])) end++
+    return end
+  }
+
+  // Not in a block — insert right after this line
+  return lineIdx
+}
+
 // ─── Anchor-based memo reinsertion ───
 
 function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: ReviewResponse[]): string {
@@ -649,6 +688,7 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
   const lines = body.split('\n')
 
   // Build memo insertion map: lineIndex -> memos to insert after that line
+  // When anchor is inside a block structure, defer to after block end
   const memoMap = new Map<number, MemoV2[]>()
   const unanchored: MemoV2[] = []
 
@@ -657,9 +697,11 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
     if (lineIdx >= 0) {
       // Update anchor to actual position — prevents drift on repeated save cycles
       memo.anchor = `L${lineIdx + 1}|${computeLineHash(lines[lineIdx])}`
-      const existing = memoMap.get(lineIdx) || []
+      // Defer insertion to after the enclosing block to preserve formatting
+      const insertAt = findBlockEnd(lines, lineIdx)
+      const existing = memoMap.get(insertAt) || []
       existing.push(memo)
-      memoMap.set(lineIdx, existing)
+      memoMap.set(insertAt, existing)
     } else {
       unanchored.push(memo)
     }

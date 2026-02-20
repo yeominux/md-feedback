@@ -51,7 +51,45 @@ export function convertMemosToHtml(markdown: string): string {
     for (const pm of pendingTableMemos) preResult.push(pm)
   }
 
-  const lines = preResult
+  // B-2: Pre-process — extract USER_MEMO comments embedded inside blockquote lines.
+  // When memos appear on blockquote lines (e.g. `> <!-- USER_MEMO ... -->`), the
+  // `> ` prefix prevents the line-by-line processor from recognizing them.
+  // Also handles multi-line v0.4 memos with `> ` prefix on every line.
+  const bqResult: string[] = []
+  for (let j = 0; j < preResult.length; j++) {
+    const raw = preResult[j]
+    // Check if this line is inside a blockquote and contains a memo start
+    if (/^\s*>/.test(raw)) {
+      const stripped = raw.replace(/^(?:\s*>\s*)+/, '')
+      // v0.3 single-line: `> <!-- USER_MEMO id="..." ... : text -->`
+      if (/^<!-- USER_MEMO\s+id="/.test(stripped) && stripped.trimEnd().endsWith('-->')) {
+        bqResult.push(stripped)
+        continue
+      }
+      // v0.4 multi-line start: `> <!-- USER_MEMO`
+      if (/^<!-- USER_MEMO\s*$/.test(stripped.trim())) {
+        bqResult.push(stripped)
+        j++
+        // Consume subsequent `> ` prefixed attribute lines until `> -->`
+        while (j < preResult.length) {
+          const nextRaw = preResult[j]
+          const nextStripped = /^\s*>/.test(nextRaw) ? nextRaw.replace(/^(?:\s*>\s*)+/, '') : nextRaw
+          bqResult.push(nextStripped)
+          if (/^-->$/.test(nextStripped.trim())) break
+          j++
+        }
+        continue
+      }
+      // v0.3 closing tag: `> <!-- /USER_MEMO -->`
+      if (/^<!-- \/USER_MEMO\s*-->$/.test(stripped.trim())) {
+        bqResult.push(stripped)
+        continue
+      }
+    }
+    bqResult.push(raw)
+  }
+
+  const lines = bqResult
   const result: string[] = []
   let i = 0
 

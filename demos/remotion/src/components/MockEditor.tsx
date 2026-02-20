@@ -1,6 +1,6 @@
 import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { colors, editorPanel } from "../styles";
+import { colors, editorPanel, radii } from "../styles";
 
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
@@ -16,7 +16,7 @@ export const MockEditor: React.FC = () => {
   const reviewIn = frame >= 320 ? spring({ frame: frame - 320, fps, config: { damping: 16, stiffness: 95 } }) : 0;
 
   const lineNum = (n: number, visible = true) => (
-    <span style={{ width: 26, display: "inline-block", textAlign: "right", marginRight: 14, color: colors.textFaint, opacity: visible ? 0.65 : 0.15, fontSize: 11 }}>
+    <span style={{ width: 26, display: "inline-block", textAlign: "right", marginRight: 14, color: colors.textFaint, opacity: visible ? 0.65 : 0.15, fontSize: 12 }}>
       {n}
     </span>
   );
@@ -71,7 +71,7 @@ export const MockEditor: React.FC = () => {
             width: 740,
             minHeight: 392,
             background: colors.surface,
-            borderRadius: 3,
+            borderRadius: radii.sm,
             boxShadow: `${colors.shadowSm}, 0 0 0 1px ${colors.borderSubtle}`,
             padding: "32px 34px 40px",
             opacity: paperIn,
@@ -79,7 +79,7 @@ export const MockEditor: React.FC = () => {
           }}
         >
           <div style={{ fontSize: 15, lineHeight: 1.65, color: colors.text }}>
-            <div>{lineNum(1)}<span style={{ fontWeight: 700, fontSize: 24, color: colors.heading }}># Authentication Module</span></div>
+            <div>{lineNum(1)}<span style={{ fontWeight: 700, fontSize: 32, color: colors.heading }}># Authentication Module</span></div>
             <div style={{ marginTop: 8 }}>{lineNum(2, false)}&nbsp;</div>
             <div>{lineNum(3)}Store session tokens in localStorage for persistence across refreshes.</div>
             <div>{lineNum(4)}Add login throttling and password complexity checks.</div>
@@ -91,14 +91,14 @@ export const MockEditor: React.FC = () => {
                 style={{
                   background: `rgba(220,38,38,${0.14 * highlightIn})`,
                   borderBottom: highlightIn > 0.3 ? `2px solid rgba(220,38,38,${highlightIn})` : "none",
-                  borderRadius: 3,
+                  borderRadius: radii.sm,
                   padding: "1px 4px",
                 }}
               >
                 Use httpOnly cookies instead of localStorage for session tokens.
               </span>
               {highlightIn > 0.01 && (
-                <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: "#fff", background: colors.fixRed, borderRadius: 999, padding: "2px 8px" }}>
+                <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: "#fff", background: colors.fixRed, borderRadius: radii.sm, padding: "2px 8px" }}>
                   FIX
                 </span>
               )}
