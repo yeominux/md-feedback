@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.3.20] - 2026-02-20
+
+### Added
+- Details drawer now shows a progress bar under the resolved memo count for quick visual status
+- Clicking the current task in the Details drawer scrolls to the memo and highlights it with a flash
+- MCP project config (`.mcp.json`) included for one-step agent setup on Windows
+
+### Changed
+- "Plan Cursor" section renamed to "Current Task" with human-readable memo text instead of raw IDs
+- Memo references in task descriptions now display quoted memo text instead of technical IDs
+- Auto-checkpoints are collapsed behind a toggle — only named checkpoints shown by default
+- Checkpoint stats now show only non-zero counts (e.g. "2 fix" instead of "2 fix · 0 Q · 0 HL")
+- Gate override controls hidden behind a "More…" disclosure button to reduce visual noise
+
+### Improved
+- Annotation anchoring now matches correctly even when document text contains markdown formatting like bold, blockquotes, or backslash escapes
+- Added accessibility attributes (`aria-expanded`, `aria-label`) to drawer toggle buttons
+
+### Fixed
+- Workflow phase names with underscores (e.g. `root_cause`) now display correctly with spaces in all cases
+
+## [1.3.19] - 2026-02-20
+
+### Added
+- `apply_memo` and `batch_apply` now support `scope="section"` for `text_replace`, allowing automatic propagation only inside the heading section around a memo anchor
+
+### Improved
+- Memo anchor safety fallback was hardened to keep malformed or missing anchor metadata pinned inside the document body instead of drifting toward EOF metadata blocks
+- Added regression coverage for missing-anchor memo reinsertion to guarantee stable in-body placement across split/merge cycles
+- Added regression coverage for section-scoped text replacement to prevent cross-section over-application
+
+## [1.3.18] - 2026-02-20
+
+### Changed
+- `apply_memo` and `batch_apply` now reject ambiguous `text_replace` requests when `oldText` appears multiple times and neither `occurrence` nor `replaceAll` is provided
+- MCP tool schemas now document explicit occurrence requirements for multi-match text replacement
+
+### Improved
+- Added regression tests covering ambiguous text replacement rejection in both single and batch memo application paths
+- README now documents ambiguity-safe text replacement behavior for agent workflows
+
+## [1.3.17] - 2026-02-20
+
+### Improved
+- Annotation anchors now stay attached to the intended lines more reliably when similar text appears multiple times in a document
+- Memo placement remains stable even when metadata blocks are grouped at the end of the markdown file
+
+### Fixed
+- Resolved an issue where some memos could be reinserted near the document end instead of their original context
+- Preserved backslashes and special marker text in memo content across repeated save and reload cycles
+
 ## [1.3.16] - 2026-02-20
 
 ### Added
