@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.18] - 2026-02-20
+
+### Changed
+- `apply_memo` and `batch_apply` now reject ambiguous `text_replace` requests when `oldText` appears multiple times and neither `occurrence` nor `replaceAll` is provided
+- MCP tool schemas now document explicit occurrence requirements for multi-match text replacement
+
+### Improved
+- Added regression tests covering ambiguous text replacement rejection in both single and batch memo application paths
+- README now documents ambiguity-safe text replacement behavior for agent workflows
+
 ## [1.3.17] - 2026-02-20
 
 ### Improved
