@@ -36,25 +36,6 @@ jobs:
           fi
       - run: pnpm check:release-gates
       - run: pnpm --filter md-feedback-vscode package
-      - name: Generate release notes from CHANGELOG
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/release-notes.mjs --output RELEASE_NOTES.md
-      - name: Validate release notes body
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/check-release-body.mjs --file RELEASE_NOTES.md
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          body_path: RELEASE_NOTES.md
-          generate_release_notes: false
-      - name: Validate published release body
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/check-release-body.mjs --tag "${GITHUB_REF_NAME}"
       - name: Open or reuse post-release sync PR
         if: startsWith(github.ref, 'refs/tags/v')
         env:
