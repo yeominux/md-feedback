@@ -52,12 +52,23 @@ function isTextFile(filePath) {
 }
 
 function walk(dirPath, out) {
-  const entries = readdirSync(dirPath)
+  let entries = []
+  try {
+    entries = readdirSync(dirPath)
+  } catch {
+    return
+  }
   for (const entry of entries) {
     if (IGNORE_DIRS.has(entry)) continue
     const fullPath = join(dirPath, entry)
     const relPath = relative(root, fullPath).replaceAll('\\', '/')
-    const stat = statSync(fullPath)
+    let stat
+    try {
+      stat = statSync(fullPath)
+    } catch {
+      // Skip transient/dangling entries instead of failing the entire guard.
+      continue
+    }
     if (stat.isDirectory()) {
       walk(fullPath, out)
       continue

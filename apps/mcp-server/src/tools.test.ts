@@ -243,6 +243,33 @@ Anchor line
     expect(readFileSync(targetFile, 'utf-8')).toBe('alpha\nBETA\n')
   })
 
+  it('apply_memo text_replace replaces first occurrence by default', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Replace one occurrence',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Anchor line',
+      newText: 'Updated line',
+    })
+
+    expect(result.isError).toBeUndefined()
+    const updated = splitDocument(readFileSync(file, 'utf-8'))
+    expect(updated.body.match(/Updated line/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Anchor line/g)?.length ?? 0).toBe(1)
+  })
+
   it('apply_memo returns OPERATION_INVALID when required params are missing', async () => {
     const file = join(workspace, 'review.md')
     writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
@@ -840,6 +867,22 @@ Anchor line
     expect(body.sections.all).toContain('Section B')
     expect(body.sections.reviewed).toContain('Section A')
     expect(body.sections.reviewed).toContain('Section B')
+  })
+
+  it('list_documents returns markdown files and supports annotatedOnly filter', async () => {
+    writeFileSync(join(workspace, 'plain.md'), '# Plain\n', 'utf-8')
+    writeFileSync(
+      join(workspace, 'annotated.md'),
+      '# Annotated\n<!-- USER_MEMO id="m1" color="red" status="open" : fix -->\n',
+      'utf-8',
+    )
+
+    const listDocuments = server.handlers.get('list_documents')!
+    const all = parseJson(await listDocuments({ annotatedOnly: false })) as { files: string[] }
+    const annotatedOnly = parseJson(await listDocuments({ annotatedOnly: true })) as { files: string[] }
+
+    expect(all.files).toEqual(expect.arrayContaining(['plain.md', 'annotated.md']))
+    expect(annotatedOnly.files).toEqual(['annotated.md'])
   })
 
   it('export_review with handoff target returns handoff markdown', async () => {
