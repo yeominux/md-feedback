@@ -55,6 +55,61 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       fromIndex = idx + target.length
     }
   }
+  const findSectionRange = (lines: string[], anchorIdx: number): { start: number; end: number } => {
+    const isHeading = (s: string) => /^#{1,6}\s+/.test(s)
+    const safeAnchor = Math.max(0, Math.min(anchorIdx, Math.max(lines.length - 1, 0)))
+    let start = 0
+    for (let i = safeAnchor; i >= 0; i--) {
+      if (isHeading(lines[i])) {
+        start = i
+        break
+      }
+    }
+    let end = lines.length
+    for (let i = safeAnchor + 1; i < lines.length; i++) {
+      if (isHeading(lines[i])) {
+        end = i
+        break
+      }
+    }
+    return { start, end }
+  }
+  const applyTextReplaceWithScope = (
+    body: string,
+    oldText: string,
+    newText: string,
+    replaceAll: boolean,
+    occurrence: number | undefined,
+    scope: 'body' | 'section',
+    memo: MemoV2,
+  ): { output: string; matchCount: number } => {
+    if (scope === 'body') {
+      const matchCount = countOccurrences(body, oldText)
+      if (replaceAll) return { output: body.split(oldText).join(newText), matchCount }
+      const replaced = replaceOccurrence(body, oldText, newText, occurrence ?? 1)
+      if (!replaced.replaced) return { output: body, matchCount }
+      return { output: replaced.output, matchCount }
+    }
+
+    const lines = body.split('\n')
+    const anchorIdx = findMemoAnchorLine(lines, memo)
+    const { start, end } = findSectionRange(lines, anchorIdx >= 0 ? anchorIdx : 0)
+    const section = lines.slice(start, end).join('\n')
+    const matchCount = countOccurrences(section, oldText)
+    let outputSection = section
+
+    if (replaceAll) {
+      outputSection = section.split(oldText).join(newText)
+    } else {
+      const replaced = replaceOccurrence(section, oldText, newText, occurrence ?? 1)
+      if (!replaced.replaced) return { output: body, matchCount }
+      outputSection = replaced.output
+    }
+
+    const outputLines = outputSection.split('\n')
+    lines.splice(start, end - start, ...outputLines)
+    return { output: lines.join('\n'), matchCount }
+  }
 
   // ─── create_checkpoint ───
   server.tool(
@@ -368,7 +423,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
   // ─── apply_memo (v1.1 — apply an implementation to a memo) ───
   server.tool(
     'apply_memo',
-    'Apply an implementation action to a memo. Supports text_replace (requires occurrence or replaceAll when oldText has multiple matches), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
+    'Apply an implementation action to a memo. Supports text_replace (requires occurrence or replaceAll when oldText has multiple matches; optional section-scoped propagation), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to apply implementation to'),
@@ -378,11 +433,12 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       newText: z.string().optional().describe('For text_replace: the replacement text'),
       occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed). Required when oldText appears multiple times unless replaceAll=true'),
       replaceAll: z.boolean().optional().default(false).describe('For text_replace: replace all occurrences instead of one'),
+      scope: z.enum(['body', 'section']).optional().default('body').describe('For text_replace: replacement scope (body = whole document body, section = heading section around memo anchor)'),
       targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
       patch: z.string().optional().describe('For file_patch: unified diff patch content'),
       content: z.string().optional().describe('For file_create: the file content to write'),
     },
-    async ({ file, memoId, action, dryRun, oldText, newText, occurrence, replaceAll, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
+    async ({ file, memoId, action, dryRun, oldText, newText, occurrence, replaceAll, scope, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'apply_memo')
       const markdown = safeRead(file)
       const parts = splitDocument(markdown)
@@ -435,29 +491,24 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
 
       // Execute the operation
       if (action === 'text_replace') {
-        if (!parts.body.includes(oldText!)) {
-          throw new OperationValidationError('oldText not found in document body', { memoId, action })
+        const scopeMode = scope ?? 'body'
+        if (scopeMode === 'body' && !parts.body.includes(oldText!)) {
+          throw new OperationValidationError('oldText not found in document body', { memoId, action, scope: scopeMode })
         }
-        const matchCount = countOccurrences(parts.body, oldText!)
-        if (replaceAll) {
-          parts.body = parts.body.split(oldText!).join(newText!)
-        } else {
-          if (matchCount > 1 && occurrence === undefined) {
-            throw new OperationValidationError(
-              'Ambiguous text_replace: oldText appears multiple times; set occurrence or replaceAll=true',
-              { memoId, action, matchCount },
-            )
-          }
-          const replaced = replaceOccurrence(parts.body, oldText!, newText!, occurrence ?? 1)
-          if (!replaced.replaced) {
-            throw new OperationValidationError('Requested occurrence not found in document body', {
-              memoId,
-              action,
-              occurrence: occurrence ?? 1,
-            })
-          }
-          parts.body = replaced.output
+        const applied = applyTextReplaceWithScope(parts.body, oldText!, newText!, replaceAll ?? false, occurrence, scopeMode, memo)
+        if (applied.matchCount === 0) {
+          throw new OperationValidationError(
+            `oldText not found in ${scopeMode === 'section' ? 'memo section' : 'document body'}`,
+            { memoId, action, scope: scopeMode },
+          )
         }
+        if (!replaceAll && applied.matchCount > 1 && occurrence === undefined) {
+          throw new OperationValidationError(
+            'Ambiguous text_replace: oldText appears multiple times; set occurrence or replaceAll=true',
+            { memoId, action, matchCount: applied.matchCount, scope: scopeMode },
+          )
+        }
+        parts.body = applied.output
       } else if (action === 'file_patch') {
         if (!existsSync(targetFile!)) {
           throw new OperationValidationError(
@@ -671,6 +722,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         newText: z.string().optional().describe('For text_replace: the replacement text'),
         occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed). Required when oldText appears multiple times unless replaceAll=true'),
         replaceAll: z.boolean().optional().describe('For text_replace: replace all occurrences instead of one'),
+        scope: z.enum(['body', 'section']).optional().describe('For text_replace: replacement scope (body = whole document body, section = heading section around memo anchor)'),
         targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
         patch: z.string().optional().describe('For file_patch: unified diff patch content'),
         content: z.string().optional().describe('For file_create: the file content to write'),
@@ -702,31 +754,27 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
             )
           }
           operation = { type: 'text_replace', file: '', before: op.oldText, after: op.newText } as TextReplaceOp
-          if (!parts.body.includes(op.oldText)) {
+          const scopeMode = op.scope ?? 'body'
+          if (scopeMode === 'body' && !parts.body.includes(op.oldText)) {
             throw new OperationValidationError(
               `Operation failed (${op.memoId}): oldText not found in body`,
-              { memoId: op.memoId, action: op.action },
+              { memoId: op.memoId, action: op.action, scope: scopeMode },
             )
           }
-          const matchCount = countOccurrences(parts.body, op.oldText)
-          if (op.replaceAll) {
-            parts.body = parts.body.split(op.oldText).join(op.newText)
-          } else {
-            if (matchCount > 1 && op.occurrence === undefined) {
-              throw new OperationValidationError(
-                `Operation failed (${op.memoId}): ambiguous text_replace; set occurrence or replaceAll=true`,
-                { memoId: op.memoId, action: op.action, matchCount },
-              )
-            }
-            const replaced = replaceOccurrence(parts.body, op.oldText, op.newText, op.occurrence ?? 1)
-            if (!replaced.replaced) {
-              throw new OperationValidationError(
-                `Operation failed (${op.memoId}): requested occurrence not found in body`,
-                { memoId: op.memoId, action: op.action, occurrence: op.occurrence ?? 1 },
-              )
-            }
-            parts.body = replaced.output
+          const applied = applyTextReplaceWithScope(parts.body, op.oldText, op.newText, op.replaceAll ?? false, op.occurrence, scopeMode, memo)
+          if (applied.matchCount === 0) {
+            throw new OperationValidationError(
+              `Operation failed (${op.memoId}): oldText not found in ${scopeMode === 'section' ? 'memo section' : 'body'}`,
+              { memoId: op.memoId, action: op.action, scope: scopeMode },
+            )
           }
+          if (!op.replaceAll && applied.matchCount > 1 && op.occurrence === undefined) {
+            throw new OperationValidationError(
+              `Operation failed (${op.memoId}): ambiguous text_replace; set occurrence or replaceAll=true`,
+              { memoId: op.memoId, action: op.action, matchCount: applied.matchCount, scope: scopeMode },
+            )
+          }
+          parts.body = applied.output
           // Sync anchorText for affected memos to prevent stale references
           if (op.replaceAll) {
             for (const m of parts.memos) {
