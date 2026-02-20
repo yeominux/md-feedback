@@ -1,14 +1,38 @@
 # Changelog
 
+## [1.3.17] - 2026-02-20
+
+### Improved
+- Annotation anchors now stay attached to the intended lines more reliably when similar text appears multiple times in a document
+- Memo placement remains stable even when metadata blocks are grouped at the end of the markdown file
+
+### Fixed
+- Resolved an issue where some memos could be reinserted near the document end instead of their original context
+- Preserved backslashes and special marker text in memo content across repeated save and reload cycles
+
 ## [1.3.16] - 2026-02-20
 
 ### Added
 - New `list_documents` MCP tool to discover markdown files in workspace (including annotated-only mode)
 - VS Code walkthrough and editor-level `1/2/3` annotation commands for faster first-use onboarding
+- Extension now activates automatically when VS Code starts (no manual trigger needed)
+- Status overview in the details drawer shows resolved, in-progress, and blocking counts at a glance
 
 ### Changed
+- Status bar redesigned with a progress indicator and color-coded gate dots replacing the previous badge layout
+- Approval flow now uses a focused modal dialog instead of an inline sidebar form
+- Memo cards use a two-row layout with colored status dot, inline editing, and keyboard-navigable status menu
+- Details drawer header renamed from "Gates & Cursor" to "Details" with live status summary
 - Onboarding flow now starts with annotation first; MCP setup is optional and non-blocking
+- Onboarding banner now mentions keyboard shortcuts `1/2/3` alongside click actions
+- Demo animation simplified and reduced by 41% in file size for faster loading
 - MCP/README/package metadata now consistently documents 27 tools and current version
+
+### Improved
+- Delete action now requires a brief confirmation hold to prevent accidental memo removal
+- Status menu supports arrow-key navigation, Enter to select, and Escape to dismiss
+- Button press animation added for tactile feedback on interactive elements
+- Theme tokens expanded with progress bar, diff block, and distinct `needs_review` status colors
 
 ### Fixed
 - `apply_memo` / `batch_apply` text replacement now supports safe single-occurrence replacement by default
