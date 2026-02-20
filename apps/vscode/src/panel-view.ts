@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { createCheckpoint } from '@md-feedback/shared'
 import { buildHandoffDocument, formatHandoffMarkdown } from '@md-feedback/shared'
 import { generateContext, TARGET_LABELS, type TargetFormat } from '@md-feedback/shared'
-import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency, splitDocument, mergeDocument, evaluateAllGates } from '@md-feedback/shared'
+import { serializeGate, serializeCheckpoint, serializeCursor, serializeMemoImpl, serializeMemoArtifact, serializeMemoDependency, splitDocument, mergeDocument, evaluateAllGates, stripHighlightMarks, isResolved } from '@md-feedback/shared'
 import { extractCheckpoints } from '@md-feedback/shared'
 import type { ReviewHighlight, ReviewMemo, Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
 import { getHtml } from './webview-html'
@@ -263,6 +263,119 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
       case 'clipboard.copy': {
         await vscode.env.clipboard.writeText(msg.text || '')
         vscode.window.showInformationMessage('Copied to clipboard!')
+        break
+      }
+
+      case 'action.clean-copy': {
+        const cleanDoc = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!cleanDoc) {
+          vscode.window.showWarningMessage('Open a markdown file first.')
+          break
+        }
+        const raw = cleanDoc.getText()
+        const parts = splitDocument(raw)
+        // Strip all md-feedback metadata: keep only the body text
+        let clean = parts.body
+        // Remove v0.3 single-line memos
+        clean = clean.replace(/<!-- USER_MEMO\s+id="[^"]*"[^>]*-->\n?/g, '')
+        // Remove v0.4 multi-line memos
+        clean = clean.replace(/<!-- USER_MEMO\n[\s\S]*?-->\n?/g, '')
+        // Remove REVIEW_RESPONSE markers
+        clean = clean.replace(/<!-- \/?REVIEW_RESPONSE[^>]*-->\n?/g, '')
+        // Remove HIGHLIGHT_MARK comments
+        clean = stripHighlightMarks(clean)
+        // Remove CHECKPOINT comments
+        clean = clean.replace(/<!-- CHECKPOINT[^>]*-->\n?/g, '')
+        // Remove QUALITY_GATE blocks
+        clean = clean.replace(/<!-- QUALITY_GATE[\s\S]*?<!-- \/QUALITY_GATE -->\n?/g, '')
+        // Remove PLAN_CURSOR
+        clean = clean.replace(/<!-- PLAN_CURSOR[^>]*-->\n?/g, '')
+        // Remove IMPL / ARTIFACT / DEPENDENCY blocks
+        clean = clean.replace(/<!-- (?:IMPL|ARTIFACT|DEPENDENCY)[\s\S]*?<!-- \/(?:IMPL|ARTIFACT|DEPENDENCY) -->\n?/g, '')
+        // Collapse triple+ blank lines into double
+        clean = clean.replace(/\n{3,}/g, '\n\n').trim()
+
+        await vscode.env.clipboard.writeText(clean)
+        vscode.window.showInformationMessage('Clean markdown copied!')
+        ctx.postMessage({ type: 'action.clean-copy.done' })
+        break
+      }
+
+      case 'action.workflow-prompt': {
+        const wpDoc = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!wpDoc) {
+          vscode.window.showWarningMessage('Open a markdown file first.')
+          break
+        }
+        const wpRaw = wpDoc.getText()
+        const wpParts = splitDocument(wpRaw)
+        const memos = wpParts.memos
+
+        const openFixes = memos.filter(m => m.type === 'fix' && !isResolved(m.status) && m.status !== 'needs_review')
+        const openQuestions = memos.filter(m => m.type === 'question' && !isResolved(m.status) && m.status !== 'needs_review')
+        const needsReview = memos.filter(m => m.status === 'needs_review')
+        const totalResolved = memos.filter(m => isResolved(m.status)).length
+
+        const lines: string[] = []
+        const fp = vscode.workspace.asRelativePath(wpDoc.uri)
+        lines.push(`# Workflow Context: ${fp}`)
+        lines.push('')
+
+        if (needsReview.length > 0) {
+          lines.push(`## ${needsReview.length} memo${needsReview.length > 1 ? 's' : ''} need review`)
+          lines.push('')
+          lines.push('Review the AI responses and approve or request changes.')
+          for (const m of needsReview) {
+            lines.push(`- [${m.type}] ${m.id}: "${m.text.slice(0, 60)}"`)
+          }
+        } else if (openFixes.length > 0 && openQuestions.length > 0) {
+          lines.push(`## ${openFixes.length} fix + ${openQuestions.length} question memo${openFixes.length + openQuestions.length > 1 ? 's' : ''} to process`)
+          lines.push('')
+          lines.push('Follow workflow rules:')
+          lines.push('- fix memos → use `apply_memo` or `batch_apply` (implement changes)')
+          lines.push('- question memos → use `respond_to_memo` (write a response)')
+          lines.push('- Never treat a fix as a text-only response')
+          lines.push('')
+          lines.push('### Fix memos')
+          for (const m of openFixes) {
+            lines.push(`- ${m.id}: "${m.text.slice(0, 60)}"`)
+          }
+          lines.push('')
+          lines.push('### Question memos')
+          for (const m of openQuestions) {
+            lines.push(`- ${m.id}: "${m.text.slice(0, 60)}"`)
+          }
+        } else if (openFixes.length > 0) {
+          lines.push(`## ${openFixes.length} fix memo${openFixes.length > 1 ? 's' : ''} to implement`)
+          lines.push('')
+          lines.push('Use `apply_memo` or `batch_apply` to implement changes.')
+          lines.push('Never treat a fix as a text-only response.')
+          lines.push('')
+          for (const m of openFixes) {
+            lines.push(`- ${m.id}: "${m.text.slice(0, 60)}"`)
+          }
+        } else if (openQuestions.length > 0) {
+          lines.push(`## ${openQuestions.length} question memo${openQuestions.length > 1 ? 's' : ''} to answer`)
+          lines.push('')
+          lines.push('Use `respond_to_memo` to write responses.')
+          lines.push('')
+          for (const m of openQuestions) {
+            lines.push(`- ${m.id}: "${m.text.slice(0, 60)}"`)
+          }
+        } else if (totalResolved === memos.length && memos.length > 0) {
+          lines.push('## All memos resolved')
+          lines.push('')
+          lines.push(`${totalResolved}/${memos.length} done. Ready to finalize.`)
+        } else {
+          lines.push('## No actionable memos')
+          lines.push('')
+          lines.push('Add annotations to the document to start reviewing.')
+        }
+
+        const prompt = lines.join('\n')
+        await vscode.env.clipboard.writeText(prompt)
+        vscode.window.showInformationMessage('Workflow prompt copied!')
+        ctx.postMessage({ type: 'action.workflow-prompt.done' })
         break
       }
 

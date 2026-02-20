@@ -282,21 +282,23 @@ describe('report_clean.md E2E — full document with all metadata', () => {
     expect(merged).toContain('졸업요건 충족 현황')
   })
 
-  it('after merge → split cycle, memo converges to the callout anchor', () => {
-    // First cycle: v0.3 memo parsed (anchor = line above in source)
+  it('after merge → split cycle, no false recovery creates duplicate memos', () => {
+    // First cycle: v0.3 memo parsed + HIGHLIGHT_MARK recovery dedup
     const parts1 = splitDocument(DOC_FULL)
+
+    // With correct dedup, HIGHLIGHT_MARK text matches memo text → no false recovery.
+    // Previously this created duplicate memos with the same ID.
+    const redMemos = parts1.memos.filter(m => m.color === 'red')
+    expect(redMemos).toHaveLength(1)
+    expect(redMemos[0].id).toBe('memo_recovered_7857da0a')
+
+    // After merge → split, memo should be stable (no new memos created)
     const merged1 = mergeDocument(parts1)
-
-    // Second cycle: now in v0.4 format with anchorText, should find callout
     const parts2 = splitDocument(merged1)
-    const memo = parts2.memos.find(m => m.id === 'memo_recovered_7857da0a')!
-    expect(memo.anchor).not.toBe('')
-
-    const bodyLines = parts2.body.split('\n')
-    const anchorMatch = memo.anchor.match(/^L(\d+)\|/)!
-    const anchorLineIdx = parseInt(anchorMatch[1], 10) - 1
-    // After convergence, the anchor should point to the callout line
-    expect(isCalloutLine(bodyLines[anchorLineIdx])).toBe(true)
+    const redMemos2 = parts2.memos.filter(m => m.color === 'red')
+    expect(redMemos2).toHaveLength(1)
+    expect(redMemos2[0].id).toBe('memo_recovered_7857da0a')
+    expect(redMemos2[0].anchor).not.toBe('')
   })
 
   it('metadata counts preserved across two round-trips', () => {

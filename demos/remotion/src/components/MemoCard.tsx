@@ -1,10 +1,18 @@
 import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { colors } from "../styles";
+import { colors, radii } from "../styles";
 
 /**
  * Memo card — shows lifecycle status mirrored from editor review:
  *   Open → Working → Review → Done
+ *
+ * v1.3.20 redesign:
+ *   - Header: 12px pill badge (colored background) instead of 6px dot
+ *   - Status: 12px pill button instead of 9px text
+ *   - Body: fontSize 14, lineHeight 1.5
+ *   - Footer: anchor text + approve/reject buttons (Review state)
+ *   - Done: opacity 0.6, text line-through
+ *   - Card borderRadius: 0 8 8 0 (left border-left preserved)
  *
  * Timeline:
  *   frame 105: card slides in
@@ -52,13 +60,18 @@ export const MemoCard: React.FC = () => {
     : 0;
   const diffY = interpolate(diffIn, [0, 1], [10, 0]);
 
+  /* ─── Approve/Reject buttons (Review state) ─── */
+  const buttonsIn = frame >= 320
+    ? spring({ frame: frame - 320, fps, config: { damping: 16, stiffness: 90 } })
+    : 0;
+
   return (
     <div
       style={{
-        opacity: cardIn,
+        opacity: isDone ? 0.6 * cardIn : cardIn,
         transform: `translateY(${cardY}px)`,
         backgroundColor: colors.cardBg,
-        borderRadius: 10,
+        borderRadius: `0 ${radii.md}px ${radii.md}px 0`,
         border: `1px solid ${colors.cardBorder}`,
         borderLeft: `3px solid ${colors.fixRed}`,
         padding: 12,
@@ -76,13 +89,17 @@ export const MemoCard: React.FC = () => {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* Pill badge for type */}
           <span
             style={{
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 700,
               color: colors.fixRed,
               textTransform: "uppercase",
               letterSpacing: 0.5,
+              backgroundColor: colors.fixPillBg,
+              padding: "2px 8px",
+              borderRadius: radii.sm,
             }}
           >
             Fix
@@ -92,15 +109,15 @@ export const MemoCard: React.FC = () => {
           </span>
         </div>
 
-        {/* Status badge */}
+        {/* Status pill */}
         <span
           style={{
-            fontSize: 9,
+            fontSize: 12,
             fontWeight: 600,
             color: "white",
             backgroundColor: badgeColor,
             padding: "2px 8px",
-            borderRadius: 10,
+            borderRadius: radii.sm,
             transform: `scale(${badgeScale})`,
           }}
         >
@@ -109,8 +126,29 @@ export const MemoCard: React.FC = () => {
       </div>
 
       {/* Memo text */}
-      <p style={{ fontSize: 12, color: colors.text, margin: 0, lineHeight: 1.6 }}>
+      <p
+        style={{
+          fontSize: 14,
+          color: colors.text,
+          margin: 0,
+          lineHeight: 1.5,
+          textDecoration: isDone ? "line-through" : "none",
+        }}
+      >
         Use httpOnly cookies instead of localStorage for session tokens
+      </p>
+
+      {/* Anchor text */}
+      <p
+        style={{
+          fontSize: 12,
+          fontStyle: "italic",
+          color: colors.textFaint,
+          margin: "4px 0 0",
+          lineHeight: 1.4,
+        }}
+      >
+        line 6 &middot; implementation-plan.md
       </p>
 
       {/* Inline diff section */}
@@ -149,6 +187,42 @@ export const MemoCard: React.FC = () => {
         </div>
       )}
 
+      {/* Approve / Reject footer (Review state only) */}
+      {isReview && buttonsIn > 0.01 && (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            gap: 8,
+            opacity: buttonsIn,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#fff",
+              backgroundColor: colors.approveGreen,
+              padding: "3px 10px",
+              borderRadius: radii.sm,
+            }}
+          >
+            Approve
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#fff",
+              backgroundColor: colors.rejectAmber,
+              padding: "3px 10px",
+              borderRadius: radii.sm,
+            }}
+          >
+            Reject
+          </span>
+        </div>
+      )}
     </div>
   );
 };
