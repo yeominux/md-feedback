@@ -82,6 +82,53 @@ const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+t
 const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
 const ANCHOR_HASH_SEARCH_RADIUS = 10
 
+/** Strip markdown formatting to normalize body lines for anchor text matching.
+ *  Converts raw markdown → plain text approximating TipTap's node.textContent output.
+ *
+ *  Handles: blockquote, heading, list/task-list prefixes, bold, italic, strikethrough,
+ *  code spans, highlight (==), links, images, inline HTML tags, footnotes, inline math,
+ *  table pipes, backslash escapes. */
+export function stripMarkdownFormatting(s: string): string {
+  return s
+    // Block-level prefixes (order matters: strip outermost first)
+    .replace(/^(?:>\s*)+/, '')                   // blockquote: "> > text" → "text"
+    .replace(/^#+\s*/, '')                       // heading: "### text" → "text"
+    .replace(/^(\s*)[-*+]\s+\[[ xX]\]\s+/, '$1') // task list: "- [x] text" → "text"
+    .replace(/^(\s*)[-*+]\s+/, '$1')             // unordered list: "- text" → "text"
+    .replace(/^(\s*)\d+[.)]\s+/, '$1')           // ordered list: "1. text" → "text"
+    // Inline HTML tags (strip tags, keep content)
+    .replace(/<\/?(?:strong|em|b|i|u|s|del|ins|mark|code|kbd|sub|sup|span|a)\b[^>]*>/gi, '')
+    // Markdown images: ![alt](url) → alt
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Markdown links: [text](url) → text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Reference links: [text][ref] → text
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+    // Strikethrough: ~~text~~ → text
+    .replace(/~~([^~]+)~~/g, '$1')
+    // Highlight mark: ==text== → text
+    .replace(/==([^=]+)==/g, '$1')
+    // Code spans: `code` → code (handle double backticks too)
+    .replace(/``([^`]+)``/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    // Bold/italic (handle *** first, then ** and *)
+    .replace(/\*{3}([^*]+)\*{3}/g, '$1')        // ***bold italic***
+    .replace(/\*{2}([^*]+)\*{2}/g, '$1')         // **bold**
+    .replace(/(?<!\w)\*([^*]+)\*(?!\w)/g, '$1')   // *italic* (word boundary aware)
+    // Underscore bold/italic
+    .replace(/_{2}([^_]+)_{2}/g, '$1')            // __bold__
+    .replace(/(?<!\w)_([^_]+)_(?!\w)/g, '$1')     // _italic_
+    // Footnote references: [^1] → (removed)
+    .replace(/\[\^\w+\]/g, '')
+    // Inline math: $formula$ → formula (single $, not $$)
+    .replace(/(?<!\$)\$(?!\$)([^$]+)\$(?!\$)/g, '$1')
+    // Table cell delimiters: leading/trailing pipes
+    .replace(/^\|\s*/, '').replace(/\s*\|$/, '')
+    // Backslash escapes: \[ → [, \] → ], \* → *, etc.
+    .replace(/\\([[\](){}#*+\-.!|`~>_\\$^])/g, '$1')
+    .trim()
+}
+
 /** Parse attribute key="value" pairs from multi-line comment body */
 function parseAttrs(lines: string[]): Record<string, string> {
   const attrs: Record<string, string> = {}
@@ -421,7 +468,10 @@ export function splitDocument(markdown: string): DocumentParts {
     if (existingMemoKeys.has(dedupeKey)) continue
 
     const searchNeedle = anchorText.slice(0, 40)
-    const anchorLineIdx = searchNeedle ? bodyLines.findIndex(l => l.includes(searchNeedle)) : -1
+    const strippedNeedle = stripMarkdownFormatting(searchNeedle)
+    const anchorLineIdx = searchNeedle
+      ? bodyLines.findIndex(l => l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle))
+      : -1
     const anchor = anchorLineIdx >= 0
       ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
       : ''
@@ -678,12 +728,13 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
     }
   }
 
-  // Fallback: search by anchorText content match
+  // Fallback: search by anchorText content match (with markdown-stripped fuzzy matching)
   if (memo.anchorText) {
     const needle = memo.anchorText.trim()
+    const strippedNeedle = stripMarkdownFormatting(needle)
     const matches: number[] = []
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(needle)) matches.push(i)
+      if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
     }
     if (matches.length === 1) return matches[0]
     if (matches.length > 1) {
