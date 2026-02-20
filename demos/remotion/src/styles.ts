@@ -1,66 +1,56 @@
 import { CSSProperties } from "react";
 
-// VS Code dark theme colors
+// MD Feedback v1.3.16 light theme tokens (aligned with webview/theme/tokens.css)
 export const colors = {
-  bg: "#1e1e1e",
-  sidebar: "#252526",
-  sidebarBorder: "#3c3c3c",
-  text: "#d4d4d4",
-  textMuted: "#858585",
-  heading: "#e0e0e0",
-  accent: "#007acc",
-  // Memo colors
+  bg: "#f7f7f5",
+  surface: "#ffffff",
+  border: "rgba(55, 53, 47, 0.09)",
+  borderSubtle: "rgba(55, 53, 47, 0.04)",
+  text: "#37352f",
+  textMuted: "#787774",
+  textFaint: "#8a8a86",
+  heading: "#2d2a26",
+  link: "#2383e2",
+  progressTrack: "rgba(55, 53, 47, 0.06)",
+  progressFill: "#059669",
+  hover: "#f1f1ef",
   fixRed: "#dc2626",
   fixRedBg: "rgba(220, 38, 38, 0.15)",
-  fixRedLight: "#fca5a5",
+  fixRedLight: "#b42318",
   questionBlue: "#2563eb",
   highlightYellow: "#d97706",
-  // Status badges
-  statusOpen: "#6b7280",
+  statusOpen: "#b45309",
   statusWorking: "#3b82f6",
   statusReview: "#6366f1",
-  statusDone: "#22c55e",
-  // Gate
-  gateBlocked: "#ef4444",
-  gateApproved: "#22c55e",
-  // Diff
-  diffRemoveBg: "rgba(220, 38, 38, 0.2)",
-  diffAddBg: "rgba(34, 197, 94, 0.2)",
-  diffRemoveText: "#fca5a5",
-  diffAddText: "#86efac",
-  // Card
-  cardBg: "#2d2d2d",
-  cardBorder: "#404040",
-  // Approve / Reject
-  approveGreen: "#22c55e",
+  statusDone: "#047857",
+  diffRemoveBg: "#fef2f2",
+  diffAddBg: "#ecfdf5",
+  diffRemoveText: "#dc2626",
+  diffAddText: "#059669",
+  cardBg: "#ffffff",
+  cardBorder: "rgba(55, 53, 47, 0.09)",
+  approveGreen: "#10b981",
   rejectAmber: "#f59e0b",
+  shadowSm: "0 1px 3px rgba(0, 0, 0, 0.04)",
+  shadowMd: "0 4px 12px rgba(0, 0, 0, 0.08)",
 };
 
 export const container: CSSProperties = {
   width: "100%",
   height: "100%",
   backgroundColor: colors.bg,
-  display: "flex",
+  display: "block",
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
   color: colors.text,
   overflow: "hidden",
 };
 
-export const sidebarPanel: CSSProperties = {
-  width: 320,
-  backgroundColor: colors.sidebar,
-  borderRight: `1px solid ${colors.sidebarBorder}`,
-  display: "flex",
-  flexDirection: "column",
-  padding: 16,
-  overflow: "hidden",
-};
-
 export const editorPanel: CSSProperties = {
-  flex: 1,
-  padding: "24px 32px",
+  width: "100%",
+  height: "100%",
   display: "flex",
   flexDirection: "column",
+  backgroundColor: colors.bg,
   overflow: "hidden",
 };
