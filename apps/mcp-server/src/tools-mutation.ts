@@ -44,6 +44,17 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       fromIndex = idx + target.length
     }
   }
+  const countOccurrences = (source: string, target: string): number => {
+    if (!target) return 0
+    let count = 0
+    let fromIndex = 0
+    while (true) {
+      const idx = source.indexOf(target, fromIndex)
+      if (idx === -1) return count
+      count++
+      fromIndex = idx + target.length
+    }
+  }
 
   // ─── create_checkpoint ───
   server.tool(
@@ -357,7 +368,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
   // ─── apply_memo (v1.1 — apply an implementation to a memo) ───
   server.tool(
     'apply_memo',
-    'Apply an implementation action to a memo. Supports text_replace (replaces first occurrence by default), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
+    'Apply an implementation action to a memo. Supports text_replace (requires occurrence or replaceAll when oldText has multiple matches), file_patch (applies unified diff patch — snapshot saved first), and file_create (create a new file). Creates a snapshot before modification, records the implementation, and updates memo status to needs_review.',
     {
       file: z.string().describe('Path to the annotated markdown file'),
       memoId: z.string().describe('The memo ID to apply implementation to'),
@@ -365,7 +376,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       dryRun: z.boolean().optional().default(false).describe('If true, return preview without writing'),
       oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
       newText: z.string().optional().describe('For text_replace: the replacement text'),
-      occurrence: z.number().int().min(1).optional().default(1).describe('For text_replace: which occurrence to replace (1-indexed)'),
+      occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed). Required when oldText appears multiple times unless replaceAll=true'),
       replaceAll: z.boolean().optional().default(false).describe('For text_replace: replace all occurrences instead of one'),
       targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
       patch: z.string().optional().describe('For file_patch: unified diff patch content'),
@@ -427,9 +438,16 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         if (!parts.body.includes(oldText!)) {
           throw new OperationValidationError('oldText not found in document body', { memoId, action })
         }
+        const matchCount = countOccurrences(parts.body, oldText!)
         if (replaceAll) {
           parts.body = parts.body.split(oldText!).join(newText!)
         } else {
+          if (matchCount > 1 && occurrence === undefined) {
+            throw new OperationValidationError(
+              'Ambiguous text_replace: oldText appears multiple times; set occurrence or replaceAll=true',
+              { memoId, action, matchCount },
+            )
+          }
           const replaced = replaceOccurrence(parts.body, oldText!, newText!, occurrence ?? 1)
           if (!replaced.replaced) {
             throw new OperationValidationError('Requested occurrence not found in document body', {
@@ -651,7 +669,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         action: z.enum(['text_replace', 'file_patch', 'file_create']).describe('Type of implementation action'),
         oldText: z.string().optional().describe('For text_replace: the text to find and replace'),
         newText: z.string().optional().describe('For text_replace: the replacement text'),
-        occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed, default 1)'),
+        occurrence: z.number().int().min(1).optional().describe('For text_replace: which occurrence to replace (1-indexed). Required when oldText appears multiple times unless replaceAll=true'),
         replaceAll: z.boolean().optional().describe('For text_replace: replace all occurrences instead of one'),
         targetFile: z.string().optional().describe('For file_patch/file_create: target file path'),
         patch: z.string().optional().describe('For file_patch: unified diff patch content'),
@@ -690,9 +708,16 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
               { memoId: op.memoId, action: op.action },
             )
           }
+          const matchCount = countOccurrences(parts.body, op.oldText)
           if (op.replaceAll) {
             parts.body = parts.body.split(op.oldText).join(op.newText)
           } else {
+            if (matchCount > 1 && op.occurrence === undefined) {
+              throw new OperationValidationError(
+                `Operation failed (${op.memoId}): ambiguous text_replace; set occurrence or replaceAll=true`,
+                { memoId: op.memoId, action: op.action, matchCount },
+              )
+            }
             const replaced = replaceOccurrence(parts.body, op.oldText, op.newText, op.occurrence ?? 1)
             if (!replaced.replaced) {
               throw new OperationValidationError(
