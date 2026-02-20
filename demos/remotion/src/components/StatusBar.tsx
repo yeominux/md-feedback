@@ -1,9 +1,15 @@
 import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { colors } from "../styles";
+import { colors, radii } from "../styles";
 
 /**
- * Status bar — shows real-time progress with smooth transitions
+ * Status bar — shows real-time progress with gate pills
+ *
+ * v1.3.20 redesign:
+ *   - Colored dot → gate pill (inner dot + label: "blocked"/"done")
+ *   - Always-visible breakdown: "1 fix"
+ *   - Fraction display: "0/1" → "1/1"
+ *   - Gate pill transition at frame 430: blocked(red) → done(green)
  *
  * Timeline:
  *   frame 220: Open → Working
@@ -24,7 +30,6 @@ export const StatusBar: React.FC = () => {
     : 0;
 
   const doneCount = isDone ? 1 : 0;
-  const reviewCount = isReview ? 1 : 0;
 
   const progressTarget = isDone ? 100 : isReview ? 66 : isWorking ? 34 : 12;
   const progressWidth = interpolate(
@@ -33,21 +38,29 @@ export const StatusBar: React.FC = () => {
     [8, progressTarget]
   );
 
+  // Gate pill state
+  const gateLabel = isDone ? "done" : "blocked";
+  const gateBg = isDone ? colors.gateDoneBg : colors.gateBlockedBg;
+  const gateText = isDone ? colors.gateDoneText : colors.gateBlockedText;
+  const gateDotColor = isDone ? colors.statusDone : colors.fixRed;
+
+  // Gate pill transition pulse
+  const gatePulse = frame >= 430 && frame <= 445
+    ? 1 + 0.12 * Math.sin(
+        spring({ frame: frame - 430, fps, config: { damping: 12, stiffness: 200, mass: 0.5 } }) * Math.PI
+      )
+    : 1;
+
   // Status text
   const statusText = isDone
     ? "1/1 resolved"
     : approvalRequired
     ? "review required"
     : isReview
-    ? "needs review"
+    ? "0/1 resolved"
     : isWorking
     ? "applying..."
     : "ready";
-
-  // Subtle indicator dot for review state
-  const reviewDotScale = isReview
-    ? 1 + 0.2 * Math.sin((frame - 310) * 0.1)
-    : 1;
 
   return (
     <div
@@ -89,21 +102,45 @@ export const StatusBar: React.FC = () => {
             />
           </div>
           <span style={{ fontSize: 10, color: colors.textMuted, opacity: 0.75 }}>{statusText}</span>
+
+          {/* Gate pill (replaces simple dot) */}
           <span
             style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: isDone ? "#059669" : isReview ? "#6366f1" : "#d97706",
-              boxShadow: isDone ? "0 0 6px rgba(5,150,105,0.4)" : "none",
-              transform: `scale(${reviewDotScale})`,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: gateBg,
+              color: gateText,
+              fontSize: 10,
+              fontWeight: 600,
+              padding: "2px 8px",
+              borderRadius: radii.sm,
+              transform: `scale(${gatePulse})`,
+              textTransform: "uppercase",
+              letterSpacing: 0.3,
             }}
-          />
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                backgroundColor: gateDotColor,
+                boxShadow: isDone ? "0 0 6px rgba(5,150,105,0.4)" : "none",
+              }}
+            />
+            {gateLabel}
+          </span>
+
+          {/* Breakdown text */}
+          <span style={{ fontSize: 10, color: colors.textMuted }}>
+            {doneCount}/1 fix
+          </span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {reviewCount > 0 && (
+          {isReview && (
             <span
               style={{
               fontSize: 10,
@@ -112,14 +149,14 @@ export const StatusBar: React.FC = () => {
               textTransform: "uppercase",
               color: colors.surface,
               backgroundColor: colors.link,
-              borderRadius: 4,
+              borderRadius: radii.sm,
               padding: "4px 10px",
             }}
             >
               Review First
             </span>
           )}
-          {!reviewCount && (
+          {!isReview && (
             <span
               style={{
               fontSize: 10,
@@ -128,14 +165,14 @@ export const StatusBar: React.FC = () => {
               textTransform: "uppercase",
               color: colors.surface,
               backgroundColor: colors.link,
-              borderRadius: 4,
+              borderRadius: radii.sm,
               padding: "4px 10px",
             }}
             >
               Next Step
             </span>
           )}
-          <span style={{ fontSize: 12, color: colors.textMuted }}>⚙</span>
+          <span style={{ fontSize: 12, color: colors.textMuted }}>&#x2699;</span>
         </div>
       </div>
 

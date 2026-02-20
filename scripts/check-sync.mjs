@@ -12,7 +12,7 @@
  * Run: node scripts/check-sync.mjs
  * Exit 0 = all good, Exit 1 = problems found.
  */
-import { readFileSync, readdirSync } from 'fs'
+import { readFileSync, readdirSync, existsSync } from 'fs'
 
 const PASS = '\x1b[32m✓\x1b[0m'
 const FAIL = '\x1b[31m✗\x1b[0m'
@@ -181,9 +181,36 @@ if (vscodeFAQ === rootFAQ) {
   fail(`apps/vscode/README.md: ${vscodeFAQ} FAQ entries (root has ${rootFAQ})`)
 }
 
-// ── 5. Export target count ──
+// ── 5. Agent instruction file sync ──
 
-console.log('\n\x1b[1m[5/5] Export target count\x1b[0m')
+console.log('\n\x1b[1m[5/7] Agent instruction sync\x1b[0m')
+
+const agentSource = 'CLAUDE.md'
+const agentTargets = [
+  { path: 'AGENTS.md', label: 'AGENTS.md (Codex/universal)' },
+  { path: '.github/copilot-instructions.md', label: '.github/copilot-instructions.md (Copilot)' },
+  { path: '.cursorrules', label: '.cursorrules (Cursor)' },
+]
+
+if (!existsSync(agentSource)) {
+  // CLAUDE.md is in .gitignore — skip in CI
+  console.log(`  (skipped — ${agentSource} not present, e.g. CI environment)`)
+} else {
+  const sourceContent = read(agentSource)
+  for (const { path: targetPath, label } of agentTargets) {
+    if (!existsSync(targetPath)) { warn(`${label}: file not found`); continue }
+    const targetContent = read(targetPath)
+    if (targetContent === sourceContent) {
+      pass(`${label}: in sync with CLAUDE.md`)
+    } else {
+      fail(`${label}: out of sync with CLAUDE.md — run "pnpm sync:agents"`)
+    }
+  }
+}
+
+// ── 6. Export target count ──
+
+console.log('\n\x1b[1m[6/7] Export target count\x1b[0m')
 
 for (const { path, label } of readmeFiles) {
   const content = read(path)
@@ -192,6 +219,32 @@ for (const { path, label } of readmeFiles) {
   if (exportMatch) {
     const num = parseInt(exportMatch[1], 10)
     pass(`${label}: export to ${num} AI tools`)
+  }
+}
+
+// ── 7. README version tags ──
+
+console.log('\n\x1b[1m[7/7] README version tags\x1b[0m')
+
+const readmeVersionFiles = [
+  { path: 'README.md', label: 'README.md (GitHub EN)' },
+  { path: 'README.ko.md', label: 'README.ko.md (GitHub KO)' },
+  { path: 'apps/vscode/README.md', label: 'apps/vscode/README.md (Marketplace)' },
+]
+
+for (const { path, label } of readmeVersionFiles) {
+  const content = read(path)
+  // Match "> Latest (vX.Y.Z):" or "> 최신(vX.Y.Z):"
+  const versionMatch = content.match(/>\s*(?:Latest|최신)\s*\(v([\d.]+)\)/)
+  if (!versionMatch) {
+    warn(`${label}: no version tag found`)
+  } else {
+    const readmeVersion = versionMatch[1]
+    if (readmeVersion === rootVersion) {
+      pass(`${label}: v${readmeVersion}`)
+    } else {
+      fail(`${label}: says v${readmeVersion} but package.json has ${rootVersion}`)
+    }
   }
 }
 
