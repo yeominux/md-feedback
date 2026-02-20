@@ -243,9 +243,9 @@ Anchor line
     expect(readFileSync(targetFile, 'utf-8')).toBe('alpha\nBETA\n')
   })
 
-  it('apply_memo text_replace replaces first occurrence by default', async () => {
+  it('apply_memo text_replace replaces single match without occurrence', async () => {
     const file = join(workspace, 'review.md')
-    writeFileSync(file, '# Title\nAnchor line\nAnchor line\n', 'utf-8')
+    writeFileSync(file, '# Title\nAnchor line\n', 'utf-8')
 
     const createAnnotation = server.handlers.get('create_annotation')!
     const created = parseJson(await createAnnotation({
@@ -267,7 +267,71 @@ Anchor line
     expect(result.isError).toBeUndefined()
     const updated = splitDocument(readFileSync(file, 'utf-8'))
     expect(updated.body.match(/Updated line/g)?.length ?? 0).toBe(1)
-    expect(updated.body.match(/Anchor line/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Anchor line/g)?.length ?? 0).toBe(0)
+  })
+
+  it('apply_memo text_replace rejects ambiguous matches without occurrence', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Replace ambiguous occurrence',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Anchor line',
+      newText: 'Updated line',
+    })
+
+    expect(result.isError).toBe(true)
+    expect(parseJson(result)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      type: 'OperationValidationError',
+      details: { memoId: created.memo.id, action: 'text_replace', matchCount: 2 },
+    })
+  })
+
+  it('apply_memo text_replace with scope=section updates only memo section', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\n\n## Section A\nAnchor line\nShared phrase\n\n## Section B\nShared phrase\n',
+      'utf-8',
+    )
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const created = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Update only section A',
+    })) as { memo: { id: string } }
+
+    const applyMemo = server.handlers.get('apply_memo')!
+    const result = await applyMemo({
+      file,
+      memoId: created.memo.id,
+      action: 'text_replace',
+      oldText: 'Shared phrase',
+      newText: 'Updated phrase',
+      replaceAll: true,
+      scope: 'section',
+    })
+
+    expect(result.isError).toBeUndefined()
+    const updated = splitDocument(readFileSync(file, 'utf-8'))
+    expect(updated.body).toContain('## Section A')
+    expect(updated.body).toContain('## Section B')
+    expect(updated.body.match(/Updated phrase/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Shared phrase/g)?.length ?? 0).toBe(1)
   })
 
   it('apply_memo returns OPERATION_INVALID when required params are missing', async () => {
@@ -867,6 +931,78 @@ Anchor line
     expect(body.sections.all).toContain('Section B')
     expect(body.sections.reviewed).toContain('Section A')
     expect(body.sections.reviewed).toContain('Section B')
+  })
+
+  it('batch_apply rejects ambiguous text_replace without occurrence', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(file, '# Title\nAnchor line\nAnchor line\n', 'utf-8')
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const fixMemo = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Fix path',
+    })) as { memo: { id: string } }
+
+    const before = readFileSync(file, 'utf-8')
+    const batchApply = server.handlers.get('batch_apply')!
+    const result = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: fixMemo.memo.id,
+          action: 'text_replace',
+          oldText: 'Anchor line',
+          newText: 'Updated line',
+        },
+      ],
+    })
+
+    expect(result.isError).toBe(true)
+    expect(parseJson(result)).toMatchObject({
+      code: 'OPERATION_INVALID',
+      type: 'OperationValidationError',
+      details: { memoId: fixMemo.memo.id, action: 'text_replace', matchCount: 2 },
+    })
+    expect(readFileSync(file, 'utf-8')).toBe(before)
+  })
+
+  it('batch_apply text_replace with scope=section updates only anchored section', async () => {
+    const file = join(workspace, 'review.md')
+    writeFileSync(
+      file,
+      '# Title\n\n## Section A\nAnchor line\nShared phrase\n\n## Section B\nShared phrase\n',
+      'utf-8',
+    )
+
+    const createAnnotation = server.handlers.get('create_annotation')!
+    const fixMemo = parseJson(await createAnnotation({
+      file,
+      anchorText: 'Anchor line',
+      type: 'fix',
+      text: 'Update section only',
+    })) as { memo: { id: string } }
+
+    const batchApply = server.handlers.get('batch_apply')!
+    const result = await batchApply({
+      file,
+      operations: [
+        {
+          memoId: fixMemo.memo.id,
+          action: 'text_replace',
+          oldText: 'Shared phrase',
+          newText: 'Updated phrase',
+          replaceAll: true,
+          scope: 'section',
+        },
+      ],
+    })
+
+    expect(result.isError).toBeUndefined()
+    const updated = splitDocument(readFileSync(file, 'utf-8'))
+    expect(updated.body.match(/Updated phrase/g)?.length ?? 0).toBe(1)
+    expect(updated.body.match(/Shared phrase/g)?.length ?? 0).toBe(1)
   })
 
   it('list_documents returns markdown files and supports annotatedOnly filter', async () => {
