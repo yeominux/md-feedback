@@ -17,6 +17,8 @@
   --mf-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --mf-hover: #f1f1ef;
   --mf-radius: 4px;
+  --mf-radius-md: 8px;
+  --mf-radius-lg: 12px;
   --mf-selection: #2383e233;
   --mf-link: #2383e2;
   --mf-blockquote-bg: #f6f6f4;
@@ -91,6 +93,8 @@
   --mf-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --mf-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --mf-radius: 4px;
+  --mf-radius-md: 8px;
+  --mf-radius-lg: 12px;
   --mf-selection: #2383e244;
   --mf-link: #6ea8fe;
   --mf-blockquote-bg: #2a2a2a;

@@ -176,7 +176,7 @@ function MemoDiffSection({ memoId }: { memoId: string }) {
 }
 
 const STATUS_TRANSITIONS: Record<MemoStatus, MemoStatus[]> = {
-  open:         ['open', 'done', 'wontfix'],
+  open:         ['open', 'in_progress', 'done', 'wontfix'],
   in_progress:  ['in_progress', 'open', 'done', 'failed'],
   needs_review: ['needs_review', 'open', 'done', 'wontfix'],
   answered:     ['answered', 'open', 'done'],
@@ -185,14 +185,23 @@ const STATUS_TRANSITIONS: Record<MemoStatus, MemoStatus[]> = {
   wontfix:      ['wontfix', 'open'],
 }
 
+const TYPE_OPTIONS: { color: MemoColor; label: string; desc: string }[] = [
+  { color: 'red', label: 'Fix', desc: 'AI will change your document' },
+  { color: 'blue', label: 'Question', desc: 'AI will write a response' },
+  { color: 'yellow', label: 'Highlight', desc: 'Personal reading mark' },
+]
+
 function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }: any) {
   const [editing, setEditing] = useState(!node.attrs.text)
   const [text, setText] = useState(node.attrs.text || '')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [showTypeMenu, setShowTypeMenu] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
   const [focusedStatusIdx, setFocusedStatusIdx] = useState(-1)
+  const [focusedTypeIdx, setFocusedTypeIdx] = useState(-1)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
+  const typeMenuRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<number>()
   const color = normalizeMemoColor(node.attrs.color || 'red')
   const status = (node.attrs.status || 'open') as MemoStatus
@@ -210,6 +219,65 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showStatusMenu])
+
+  // Close type menu on click outside
+  useEffect(() => {
+    if (!showTypeMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (typeMenuRef.current && !typeMenuRef.current.contains(e.target as globalThis.Node)) {
+        setShowTypeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTypeMenu])
+
+  // Switch memo type and re-color the associated highlight mark
+  const handleTypeChange = useCallback((newColor: MemoColor) => {
+    if (newColor === color) { setShowTypeMenu(false); return }
+
+    const oldHighlight = HIGHLIGHT_COLORS[color as HighlightColor]
+    const newHighlight = HIGHLIGHT_COLORS[newColor as HighlightColor]
+
+    // Re-color the highlight mark in the editor
+    if (editor && oldHighlight && newHighlight) {
+      const markType = editor.schema.marks.highlight
+      let memoPos = -1
+      editor.state.doc.descendants((n: any, pos: number) => {
+        if (memoPos >= 0) return false
+        if (n.type.name === 'memoBlock' && n.attrs.memoId === node.attrs.memoId) {
+          memoPos = pos; return false
+        }
+      })
+
+      if (memoPos >= 0) {
+        let bestFrom = -1, bestTo = -1
+        editor.state.doc.descendants((textNode: any, nodePos: number) => {
+          if (nodePos >= memoPos) return false
+          if (!textNode.isText) return
+          const hasMark = textNode.marks.some((m: any) =>
+            m.type === markType && m.attrs.color === oldHighlight,
+          )
+          if (hasMark) {
+            if (bestTo === nodePos) { bestTo = nodePos + textNode.nodeSize }
+            else { bestFrom = nodePos; bestTo = nodePos + textNode.nodeSize }
+          }
+        })
+
+        if (bestFrom >= 0) {
+          const tr = editor.state.tr
+            .removeMark(bestFrom, bestTo, markType)
+            .addMark(bestFrom, bestTo, markType.create({ color: newHighlight }))
+          editor.view.dispatch(tr)
+        }
+      }
+    }
+
+    updateAttributes({ color: newColor })
+    setShowTypeMenu(false)
+    setFocusedTypeIdx(-1)
+    window.dispatchEvent(new CustomEvent('mf:flush-edit'))
+  }, [color, editor, node.attrs.memoId, updateAttributes])
 
   useEffect(() => {
     if (editing) {
@@ -369,45 +437,64 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
     }
   }, [editor, node.attrs])
 
+  const isDone = status === 'done' || status === 'wontfix' || status === 'failed'
+
   return (
-    <NodeViewWrapper className="my-2.5" data-drag-handle>
+    <NodeViewWrapper className="my-2" data-drag-handle>
       <div
-        className={`memo-card group ${selected ? 'ring-1 ring-indigo-300 ring-offset-1' : ''}`}
+        className={`memo-card group ${selected ? 'ring-1 ring-indigo-300 ring-offset-1' : ''} ${isDone ? 'memo-card--resolved' : ''}`}
         style={{ '--memo-accent': accent.bar } as React.CSSProperties}
       >
-        {/* Row 1: type dot + memo text */}
-        <div className="memo-card__row1">
-          <span className="memo-card__type-dot" style={{ background: accent.bar }} />
-          {editing ? (
-            <div className="flex-1 min-w-0">
-              <textarea
-                ref={inputRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={() => handleSave('blur')}
-                placeholder="Write your feedback..."
-                className="memo-card__textarea"
-                rows={2}
-              />
-              <div className="text-right">
-                <span className="text-[11px] text-mf-faint">Enter · Shift+Enter · Esc</span>
+        {/* Header: type pill + status + actions */}
+        <div className="memo-card__header">
+          {/* Type pill — clickable to switch type */}
+          <div className="relative" ref={typeMenuRef}>
+            <button
+              onClick={() => setShowTypeMenu(!showTypeMenu)}
+              className={`memo-card__type-pill memo-card__type-pill--${color}`}
+              title={accent.desc}
+            >
+              {accent.label}
+              <ChevronDown size={9} style={{ opacity: 0.5 }} />
+            </button>
+            {showTypeMenu && (
+              <div
+                className="absolute top-full left-0 mt-1 z-[45] bg-mf-surface border border-mf-border rounded-md shadow-lg py-1 min-w-[160px]"
+                role="listbox"
+                aria-label="Memo type"
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedTypeIdx(i => Math.min(i + 1, TYPE_OPTIONS.length - 1)) }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusedTypeIdx(i => Math.max(i - 1, 0)) }
+                  else if (e.key === 'Enter' && focusedTypeIdx >= 0) { e.preventDefault(); handleTypeChange(TYPE_OPTIONS[focusedTypeIdx].color) }
+                  else if (e.key === 'Escape') { setShowTypeMenu(false); setFocusedTypeIdx(-1) }
+                }}
+                tabIndex={0}
+                ref={(el) => el?.focus()}
+              >
+                {TYPE_OPTIONS.map((opt, i) => (
+                  <button
+                    key={opt.color}
+                    role="option"
+                    aria-selected={opt.color === color}
+                    onClick={() => handleTypeChange(opt.color)}
+                    className={`block w-full px-3 py-1.5 text-xs hover:bg-[var(--mf-hover)] ${opt.color === color ? 'font-bold' : ''} ${i === focusedTypeIdx ? 'bg-[var(--mf-hover)]' : ''}`}
+                    style={{ textAlign: 'left' }}
+                  >
+                    <span className={`memo-card__type-pill memo-card__type-pill--${opt.color}`} style={{ display: 'inline', padding: '1px 6px', fontSize: '10px' }}>
+                      {opt.label}
+                    </span>
+                    <span className="text-mf-faint ml-2">{opt.desc}</span>
+                  </button>
+                ))}
               </div>
-            </div>
-          ) : (
-            <p className="memo-card__text" onClick={() => setEditing(true)}>
-              {node.attrs.text || 'Click to add feedback...'}
-            </p>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Row 2: status + anchor + actions */}
-        <div className="memo-card__row2">
           {/* Status dropdown */}
           <div className="relative" ref={statusMenuRef}>
             <button
               onClick={() => setShowStatusMenu(!showStatusMenu)}
-              className={`memo-card__status ${statusInfo.color}`}
+              className={`memo-card__status-btn ${statusInfo.color} ${statusInfo.bg}`}
               title="Change status"
             >
               {statusInfo.label}
@@ -417,7 +504,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
               const options = STATUS_TRANSITIONS[status] || [status]
               return (
                 <div
-                  className="absolute top-full left-0 mt-1 z-[45] bg-mf-surface border border-mf-border rounded-md shadow-lg py-0.5 min-w-[100px]"
+                  className="absolute top-full left-0 mt-1 z-[45] bg-mf-surface border border-mf-border rounded-md shadow-lg py-1 min-w-[120px]"
                   role="listbox"
                   aria-label="Status"
                   onKeyDown={(e) => {
@@ -435,7 +522,8 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
                       role="option"
                       aria-selected={s === status}
                       onClick={() => { updateAttributes({ status: s }); setShowStatusMenu(false); setFocusedStatusIdx(-1); window.dispatchEvent(new CustomEvent('mf:flush-edit')) }}
-                      className={`block w-full text-left px-3 py-1 text-[11px] hover-bg-mf-bg ${s === status ? 'font-bold' : ''} ${i === focusedStatusIdx ? 'bg-mf-bg' : ''} ${STATUS_LABELS[s].color}`}
+                      className={`block w-full px-3 py-1.5 text-xs hover-bg-mf-bg ${s === status ? 'font-bold' : ''} ${i === focusedStatusIdx ? 'bg-mf-bg' : ''} ${STATUS_LABELS[s].color}`}
+                      style={{ textAlign: 'left' }}
                     >
                       {STATUS_LABELS[s].label}
                     </button>
@@ -445,6 +533,55 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
             })()}
           </div>
 
+          <div className="flex-1" />
+
+          {/* Hover actions: edit + delete */}
+          <div className="memo-card__hover-actions">
+            {!editing && (
+              <button onClick={() => setEditing(true)} className="memo-card__icon-btn" title="Edit">
+                <Pencil size={12} />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (pendingDelete) { clearTimeout(deleteTimerRef.current); setPendingDelete(false); handleDelete() }
+                else { setPendingDelete(true); deleteTimerRef.current = window.setTimeout(() => setPendingDelete(false), 3000) }
+              }}
+              className={`memo-card__icon-btn memo-card__icon-btn--danger ${pendingDelete ? 'memo-card__icon-btn--confirming' : ''}`}
+              title={pendingDelete ? 'Click again to confirm' : 'Delete'}
+            >
+              {pendingDelete ? <span className="text-[10px] font-medium">Delete?</span> : <X size={12} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Body: memo text */}
+        <div className="memo-card__body">
+          {editing ? (
+            <div className="flex-1 min-w-0">
+              <textarea
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => handleSave('blur')}
+                placeholder="Write your feedback..."
+                className="memo-card__textarea"
+                rows={2}
+              />
+              <div className="text-right">
+                <span className="text-xs text-mf-faint">Enter · Shift+Enter · Esc</span>
+              </div>
+            </div>
+          ) : (
+            <p className={`memo-card__text ${isDone ? 'memo-card__text--done' : ''}`} onClick={() => setEditing(true)}>
+              {node.attrs.text || 'Click to add feedback...'}
+            </p>
+          )}
+        </div>
+
+        {/* Footer: anchor + action buttons */}
+        <div className="memo-card__footer">
           {/* Anchor text */}
           {node.attrs.anchorText && (
             <span
@@ -452,7 +589,7 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
               title="Scroll to highlight"
               onClick={handleScrollToHighlight}
             >
-              {node.attrs.anchorText.slice(0, 35)}{node.attrs.anchorText.length > 35 ? '...' : ''}
+              {node.attrs.anchorText.slice(0, 40)}{node.attrs.anchorText.length > 40 ? '...' : ''}
             </span>
           )}
 
@@ -488,25 +625,6 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
               <Check size={12} />
             </button>
           )}
-
-          {/* Hover actions: edit + delete */}
-          <div className="memo-card__hover-actions">
-            {!editing && (
-              <button onClick={() => setEditing(true)} className="memo-card__icon-btn" title="Edit">
-                <Pencil size={12} />
-              </button>
-            )}
-            <button
-              onClick={() => {
-                if (pendingDelete) { clearTimeout(deleteTimerRef.current); setPendingDelete(false); handleDelete() }
-                else { setPendingDelete(true); deleteTimerRef.current = window.setTimeout(() => setPendingDelete(false), 3000) }
-              }}
-              className={`memo-card__icon-btn memo-card__icon-btn--danger ${pendingDelete ? 'memo-card__icon-btn--confirming' : ''}`}
-              title={pendingDelete ? 'Click again to confirm' : 'Delete'}
-            >
-              {pendingDelete ? <span className="text-[10px] font-medium">Delete?</span> : <X size={12} />}
-            </button>
-          </div>
         </div>
 
         {/* Reject reason */}

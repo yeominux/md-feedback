@@ -427,3 +427,15 @@ Initial public release.
 - MCP Server: 12 tools for annotations, checkpoints, handoff, and export
 - Export support for 11 AI coding tools
 - Keyboard shortcuts (1-2-3) for quick annotation
+
+<!-- CHECKPOINT id="ckpt_mlv17eor_85r42o" time="2026-02-20T15:15:15.867Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
+
+<!-- CHECKPOINT id="ckpt_mlv2muk9_ixxyh8" time="2026-02-20T15:55:15.897Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
+
+<!-- CHECKPOINT id="ckpt_mlv3pfgq_z774u0" time="2026-02-20T16:25:15.914Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
+
+<!-- CHECKPOINT id="ckpt_mlv42afh_hgmils" time="2026-02-20T16:35:15.917Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
+
+<!-- CHECKPOINT id="ckpt_mlv4f5ef_xsv0bl" time="2026-02-20T16:45:15.927Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
+
+<!-- CHECKPOINT id="ckpt_mlv4s0d7_25vido" time="2026-02-20T16:55:15.932Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
