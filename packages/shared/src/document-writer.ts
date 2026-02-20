@@ -716,6 +716,9 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
     }
   }
 
+  // Final fallback: keep memo inside document body instead of drifting to EOF metadata area.
+  // If body has lines but anchor metadata is missing/corrupted, pin to first line.
+  if (lines.length > 0) return 0
   return -1
 }
 
