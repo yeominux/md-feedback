@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.17] - 2026-02-20
+
+### Improved
+- Annotation anchors now stay attached to the intended lines more reliably when similar text appears multiple times in a document
+- Memo placement remains stable even when metadata blocks are grouped at the end of the markdown file
+
+### Fixed
+- Resolved an issue where some memos could be reinserted near the document end instead of their original context
+- Preserved backslashes and special marker text in memo content across repeated save and reload cycles
+
 ## [1.3.16] - 2026-02-20
 
 ### Added
