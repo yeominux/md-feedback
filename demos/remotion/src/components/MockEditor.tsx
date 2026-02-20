@@ -135,9 +135,9 @@ export const MockEditor: React.FC = () => {
                 }}
               >
                 <span>CodeLens:</span>
-                <span style={{ color: colors.approveGreen, fontWeight: 600 }}>$(check) Approve Memo</span>
+                <span style={{ color: colors.statusDone, fontWeight: 600 }}>&#x2713; Approve</span>
                 <span style={{ color: colors.textFaint }}>|</span>
-                <span style={{ color: colors.rejectAmber }}>$(x) Reject</span>
+                <span style={{ color: colors.textFaint }}>&#x2717; Reject</span>
               </div>
             )}
 
