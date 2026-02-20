@@ -71,7 +71,7 @@ function ReviewResponseBlockView({ node }: any) {
         <div className="flex items-center gap-1.5">
           <Bot size={12} style={{ color: 'var(--mf-ai-response-label)' }} />
           <span style={{
-            fontSize: '11px',
+            fontSize: '12px',
             fontWeight: 600,
             textTransform: 'uppercase' as const,
             letterSpacing: '0.05em',

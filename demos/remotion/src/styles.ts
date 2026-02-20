@@ -1,6 +1,6 @@
 import { CSSProperties } from "react";
 
-// MD Feedback v1.3.16 light theme tokens (aligned with webview/theme/tokens.css)
+// MD Feedback v1.3.20 light theme tokens (aligned with webview/theme/tokens.css)
 export const colors = {
   bg: "#f7f7f5",
   surface: "#ffffff",
@@ -19,10 +19,21 @@ export const colors = {
   fixRedLight: "#b42318",
   questionBlue: "#2563eb",
   highlightYellow: "#d97706",
+  // Pill badge backgrounds (v1.3.17+)
+  fixPillBg: "rgba(220, 38, 38, 0.12)",
+  questionPillBg: "rgba(37, 99, 235, 0.12)",
+  highlightPillBg: "rgba(217, 119, 6, 0.12)",
   statusOpen: "#b45309",
   statusWorking: "#3b82f6",
   statusReview: "#6366f1",
   statusDone: "#047857",
+  // Gate pill colors (v1.3.18+)
+  gateDoneBg: "rgba(4, 120, 87, 0.12)",
+  gateDoneText: "#047857",
+  gateBlockedBg: "rgba(220, 38, 38, 0.12)",
+  gateBlockedText: "#dc2626",
+  gateProceedBg: "rgba(37, 99, 235, 0.12)",
+  gateProceedText: "#2563eb",
   diffRemoveBg: "#fef2f2",
   diffAddBg: "#ecfdf5",
   diffRemoveText: "#dc2626",
@@ -33,6 +44,12 @@ export const colors = {
   rejectAmber: "#f59e0b",
   shadowSm: "0 1px 3px rgba(0, 0, 0, 0.04)",
   shadowMd: "0 4px 12px rgba(0, 0, 0, 0.08)",
+};
+
+export const radii = {
+  sm: 4,   // paper, cards
+  md: 8,   // pills, badges
+  lg: 12,  // modals, drawers
 };
 
 export const container: CSSProperties = {
