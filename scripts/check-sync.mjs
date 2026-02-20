@@ -12,7 +12,7 @@
  * Run: node scripts/check-sync.mjs
  * Exit 0 = all good, Exit 1 = problems found.
  */
-import { readFileSync, readdirSync } from 'fs'
+import { readFileSync, readdirSync, existsSync } from 'fs'
 
 const PASS = '\x1b[32m✓\x1b[0m'
 const FAIL = '\x1b[31m✗\x1b[0m'
@@ -192,13 +192,19 @@ const agentTargets = [
   { path: '.cursorrules', label: '.cursorrules (Cursor)' },
 ]
 
-const sourceContent = read(agentSource)
-for (const { path: targetPath, label } of agentTargets) {
-  const targetContent = read(targetPath)
-  if (targetContent === sourceContent) {
-    pass(`${label}: in sync with CLAUDE.md`)
-  } else {
-    fail(`${label}: out of sync with CLAUDE.md — run "pnpm sync:agents"`)
+if (!existsSync(agentSource)) {
+  // CLAUDE.md is in .gitignore — skip in CI
+  console.log(`  (skipped — ${agentSource} not present, e.g. CI environment)`)
+} else {
+  const sourceContent = read(agentSource)
+  for (const { path: targetPath, label } of agentTargets) {
+    if (!existsSync(targetPath)) { warn(`${label}: file not found`); continue }
+    const targetContent = read(targetPath)
+    if (targetContent === sourceContent) {
+      pass(`${label}: in sync with CLAUDE.md`)
+    } else {
+      fail(`${label}: out of sync with CLAUDE.md — run "pnpm sync:agents"`)
+    }
   }
 }
 
