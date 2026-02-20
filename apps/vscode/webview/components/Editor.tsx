@@ -21,6 +21,7 @@ export interface EditorHandle {
   getSections: () => string[]
   applyAnnotation: (color: HighlightColor) => void
   applyHighlightMarks: (marks: HighlightMark[]) => void
+  scrollToMemo: (memoId: string) => void
 }
 
 interface EditorProps {
@@ -272,6 +273,25 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
         // Don't add to undo history — this is a reconstruction, not a user edit
         tr.setMeta('addToHistory', false)
         editor.view.dispatch(tr)
+      }
+    },
+    scrollToMemo: (memoId: string) => {
+      if (!editor) return
+      let targetPos = -1
+      editor.state.doc.descendants((node: any, pos: number) => {
+        if (targetPos >= 0) return false
+        if (node.type.name === 'memoBlock' && node.attrs.memoId === memoId) {
+          targetPos = pos
+        }
+      })
+      if (targetPos >= 0) {
+        const domAtPos = editor.view.domAtPos(targetPos)
+        const el = domAtPos.node instanceof Element ? domAtPos.node : domAtPos.node.parentElement
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('memo-highlight-flash')
+          setTimeout(() => el.classList.remove('memo-highlight-flash'), 1500)
+        }
       }
     },
   }))

@@ -230,6 +230,12 @@ export function sendStatusInfo(
       onNeedsReviewCount(needsReviewMemos)
     }
 
+    // Build memoMap for humanized display in MetadataDrawer
+    const memoMap: Record<string, { text: string; color: string; type: string }> = {}
+    for (const memo of parts.memos) {
+      memoMap[memo.id] = { text: memo.text, color: memo.color, type: memo.type }
+    }
+
     // Send metadata for drawer (gates, cursor, checkpoints, impls, artifacts, dependencies)
     postMessage({
       type: 'metadata.update',
@@ -241,6 +247,7 @@ export function sendStatusInfo(
       dependencies: parts.dependencies,
       workflow,
       unresolvedBlockingMemos,
+      memoMap,
     })
   } catch {
     // best-effort — don't break document loading
