@@ -2,313 +2,147 @@ import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors, editorPanel } from "../styles";
 
-/**
- * VS Code editor panel — markdown content with annotation + inline diff
- *
- * Timeline:
- *   frame 95:  content fades in
- *   frame 130: fix annotation highlight appears
- *   frame 220: inline diff slides in
- *   frame 310: CodeLens Approve Memo/Reject appears
- *   frame 400: cursor clicks Approve Memo in editor
- */
 export const MockEditor: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  /* ─── Content entrance ─── */
-  const contentIn = frame >= 95
-    ? spring({ frame: frame - 95, fps, config: { damping: 20, stiffness: 60 } })
-    : 0;
+  const paperIn = spring({ frame: Math.max(0, frame - 70), fps, config: { damping: 18, stiffness: 80 } });
+  const onboardingIn = frame >= 95 ? spring({ frame: frame - 95, fps, config: { damping: 18, stiffness: 90 } }) : 0;
+  const onboardingOut = frame >= 250 ? spring({ frame: frame - 250, fps, config: { damping: 20, stiffness: 120 } }) : 0;
+  const onboardingOpacity = Math.max(0, onboardingIn - onboardingOut);
 
-  /* ─── Fix annotation highlight (frame 130) ─── */
-  const highlightIn = frame >= 130
-    ? spring({ frame: frame - 130, fps, config: { damping: 14, stiffness: 100, mass: 0.7 } })
-    : 0;
+  const highlightIn = frame >= 145 ? spring({ frame: frame - 145, fps, config: { damping: 16, stiffness: 95 } }) : 0;
+  const diffIn = frame >= 235 ? spring({ frame: frame - 235, fps, config: { damping: 16, stiffness: 90 } }) : 0;
+  const reviewIn = frame >= 320 ? spring({ frame: frame - 320, fps, config: { damping: 16, stiffness: 95 } }) : 0;
 
-  /* ─── Diff section (frame 220) ─── */
-  const diffIn = frame >= 220
-    ? spring({ frame: frame - 220, fps, config: { damping: 16, stiffness: 70 } })
-    : 0;
-  const diffY = interpolate(diffIn, [0, 1], [12, 0]);
-
-  /* ─── CodeLens actions (frame 310) ─── */
-  const lensIn = frame >= 310
-    ? spring({ frame: frame - 310, fps, config: { damping: 14, stiffness: 90 } })
-    : 0;
-  const lensOut = frame >= 455
-    ? spring({ frame: frame - 455, fps, config: { damping: 20, stiffness: 140 } })
-    : 0;
-  const lensOpacity = Math.max(0, lensIn - lensOut);
-  const lensY = interpolate(lensIn, [0, 1], [8, 0]);
-  const approveHover = frame >= 398 && frame < 430;
-  const cursorIn = frame >= 388
-    ? spring({ frame: frame - 388, fps, config: { damping: 15, stiffness: 100 } })
-    : 0;
-  const cursorOut = frame >= 432
-    ? spring({ frame: frame - 432, fps, config: { damping: 18, stiffness: 130 } })
-    : 0;
-  const cursorOpacity = Math.max(0, cursorIn - cursorOut);
-  const clickPulse = frame >= 404 && frame < 430
-    ? interpolate(frame, [404, 412, 430], [0, 0.65, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 0;
-
-  // Line numbers for realism
-  const lineNum = (n: number, opacity = 1) => (
-    <span
-      style={{
-        display: "inline-block",
-        width: 28,
-        textAlign: "right",
-        marginRight: 16,
-        color: colors.textMuted,
-        fontSize: 11,
-        opacity: opacity * 0.5,
-        userSelect: "none",
-      }}
-    >
+  const lineNum = (n: number, visible = true) => (
+    <span style={{ width: 26, display: "inline-block", textAlign: "right", marginRight: 14, color: colors.textFaint, opacity: visible ? 0.65 : 0.15, fontSize: 11 }}>
       {n}
     </span>
   );
 
   return (
     <div style={editorPanel}>
-      {/* File tab bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0,
-          marginBottom: 20,
-          borderBottom: `1px solid ${colors.sidebarBorder}`,
-        }}
-      >
+      <div style={{ padding: "0 0 8px 0", borderBottom: `1px solid ${colors.borderSubtle}`, background: colors.surface }}>
         <div
           style={{
+            width: "100%",
+            padding: "10px 16px",
+            fontSize: 13,
+            color: colors.textMuted,
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>implementation-plan.md</span>
+          <span>Markdown</span>
+        </div>
+      </div>
+
+      {onboardingOpacity > 0.01 && (
+        <div
+          style={{
+            margin: "0 0 0 0",
+            padding: "10px 16px",
+            borderBottom: `1px solid ${colors.borderSubtle}`,
+            background: colors.surface,
+            color: colors.textMuted,
+            fontSize: 12,
             display: "flex",
             alignItems: "center",
             gap: 6,
-            padding: "8px 14px",
-            borderBottom: `2px solid ${colors.accent}`,
-            marginBottom: -1,
+            opacity: onboardingOpacity,
+            transform: `translateY(${interpolate(onboardingIn, [0, 1], [6, 0])}px)`,
           }}
         >
-          <span style={{ color: colors.accent, fontSize: 11 }}>M↓</span>
-          <span style={{ color: colors.text, fontSize: 12 }}>
-            implementation-plan.md
-          </span>
+          <span>Select text, then press</span>
+          <strong style={{ color: colors.text }}>1</strong>
+          <span>/</span>
+          <strong style={{ color: colors.text }}>2</strong>
+          <span>/</span>
+          <strong style={{ color: colors.text }}>3</strong>
+          <span>for Highlight/Fix/Question</span>
         </div>
-        <span
+      )}
+
+      <div style={{ padding: "20px 18px", display: "flex", justifyContent: "center" }}>
+        <div
           style={{
-            color: colors.textMuted,
-            fontSize: 10,
-            marginLeft: "auto",
-            padding: "0 8px",
+            width: 740,
+            minHeight: 392,
+            background: colors.surface,
+            borderRadius: 3,
+            boxShadow: `${colors.shadowSm}, 0 0 0 1px ${colors.borderSubtle}`,
+            padding: "32px 34px 40px",
+            opacity: paperIn,
+            transform: `translateY(${interpolate(paperIn, [0, 1], [12, 0])}px)`,
           }}
         >
-          UTF-8 · Markdown
-        </span>
-      </div>
+          <div style={{ fontSize: 15, lineHeight: 1.65, color: colors.text }}>
+            <div>{lineNum(1)}<span style={{ fontWeight: 700, fontSize: 24, color: colors.heading }}># Authentication Module</span></div>
+            <div style={{ marginTop: 8 }}>{lineNum(2, false)}&nbsp;</div>
+            <div>{lineNum(3)}Store session tokens in localStorage for persistence across refreshes.</div>
+            <div>{lineNum(4)}Add login throttling and password complexity checks.</div>
+            <div style={{ marginTop: 6 }}>{lineNum(5, false)}&nbsp;</div>
 
-      {/* Markdown content */}
-      <div style={{ fontSize: 13, lineHeight: 2, opacity: contentIn }}>
-        {/* Line 1: heading */}
-        <div style={{ marginBottom: 4 }}>
-          {lineNum(1)}
-          <span style={{ color: "#569cd6", fontWeight: 600 }}>#</span>
-          <span style={{ color: colors.heading, fontSize: 17, fontWeight: 600, marginLeft: 6 }}>
-            Authentication Module
-          </span>
-        </div>
-
-        {/* Line 2: blank */}
-        <div style={{ marginBottom: 4 }}>{lineNum(2, 0)}</div>
-
-        {/* Line 3-4: content */}
-        <div style={{ marginBottom: 4 }}>
-          {lineNum(3)}
-          <span style={{ color: colors.text }}>
-            Store session tokens in localStorage for persistence
-          </span>
-        </div>
-        <div style={{ marginBottom: 4 }}>
-          {lineNum(4)}
-          <span style={{ color: colors.text }}>across browser refreshes.</span>
-        </div>
-
-        {/* Line 5: blank */}
-        <div style={{ marginBottom: 4 }}>{lineNum(5, 0)}</div>
-
-        {/* Line 6: annotated line */}
-        <div style={{ marginBottom: 4, position: "relative" }}>
-          {lineNum(6)}
-          <span
-            style={{
-              backgroundColor: interpolate(highlightIn, [0, 1], [0, 1]) > 0
-                ? `rgba(220, 38, 38, ${0.15 * highlightIn})`
-                : "transparent",
-              borderBottom: highlightIn > 0.5
-                ? `2px solid rgba(220, 38, 38, ${highlightIn})`
-                : "none",
-              padding: "1px 3px",
-              borderRadius: 3,
-            }}
-          >
-            <span style={{ color: colors.text }}>Use httpOnly cookies instead of localStorage</span>
-          </span>
-
-          {/* FIX badge */}
-          {highlightIn > 0.01 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                marginLeft: 8,
-                backgroundColor: colors.fixRed,
-                color: "white",
-                fontSize: 9,
-                fontWeight: 700,
-                padding: "1px 7px",
-                borderRadius: 10,
-                opacity: highlightIn,
-                transform: `scale(${interpolate(highlightIn, [0, 0.5, 1], [0.8, 1.05, 1])})`,
-                letterSpacing: 0.5,
-              }}
-            >
-              FIX
-            </span>
-          )}
-        </div>
-
-        {/* CodeLens review actions (editor-first approve flow) */}
-        {lensOpacity > 0.01 && (
-          <div
-            style={{
-              margin: "2px 0 8px 44px",
-              opacity: lensOpacity,
-              transform: `translateY(${lensY}px)`,
-              fontSize: 10,
-              color: colors.textMuted,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <span style={{ color: "rgba(212,212,212,0.55)" }}>CodeLens:</span>
-            <span
-              style={{
-                color: approveHover ? colors.approveGreen : "rgba(134,239,172,0.95)",
-                fontWeight: 600,
-              }}
-            >
-              $(check) Approve Memo
-            </span>
-            <span style={{ color: "rgba(212,212,212,0.45)" }}>|</span>
-            <span style={{ color: "rgba(252,165,165,0.95)" }}>$(x) Reject</span>
-
-            {cursorOpacity > 0.01 && (
+            <div style={{ position: "relative" }}>
+              {lineNum(6)}
               <span
                 style={{
-                  position: "relative",
-                  marginLeft: 8,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  opacity: cursorOpacity,
+                  background: `rgba(220,38,38,${0.14 * highlightIn})`,
+                  borderBottom: highlightIn > 0.3 ? `2px solid rgba(220,38,38,${highlightIn})` : "none",
+                  borderRadius: 3,
+                  padding: "1px 4px",
                 }}
               >
-                <span style={{ color: "white", fontSize: 12, lineHeight: 1 }}>↖</span>
-                {clickPulse > 0.01 && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: -4,
-                      top: -6,
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      border: `2px solid rgba(34,197,94,${clickPulse})`,
-                    }}
-                  />
-                )}
+                Use httpOnly cookies instead of localStorage for session tokens.
               </span>
+              {highlightIn > 0.01 && (
+                <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: "#fff", background: colors.fixRed, borderRadius: 999, padding: "2px 8px" }}>
+                  FIX
+                </span>
+              )}
+            </div>
+
+            {diffIn > 0.01 && (
+              <div
+                style={{
+                  margin: "10px 0 10px 40px",
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 6,
+                  overflow: "hidden",
+                  fontSize: 12,
+                  opacity: diffIn,
+                  transform: `translateY(${interpolate(diffIn, [0, 1], [8, 0])}px)`,
+                }}
+              >
+                <div style={{ padding: "5px 10px", background: colors.hover, color: colors.textFaint, fontSize: 11 }}>AI applied change</div>
+                <div style={{ padding: "5px 10px", background: colors.diffRemoveBg, color: colors.diffRemoveText }}>- localStorage session token</div>
+                <div style={{ padding: "5px 10px", background: colors.diffAddBg, color: colors.diffAddText }}>+ secure httpOnly SameSite cookie</div>
+              </div>
             )}
-          </div>
-        )}
 
-        {/* Inline diff — appears at frame 130 */}
-        {diffIn > 0.01 && (
-          <div
-            style={{
-              opacity: diffIn,
-              transform: `translateY(${diffY}px)`,
-              margin: "8px 0 8px 44px",
-              borderRadius: 8,
-              border: `1px solid ${colors.cardBorder}`,
-              overflow: "hidden",
-              fontSize: 11,
-              fontFamily: "'Fira Code', 'Cascadia Code', monospace",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                padding: "4px 10px",
-                backgroundColor: "rgba(255,255,255,0.03)",
-                borderBottom: `1px solid ${colors.cardBorder}`,
-                fontSize: 10,
-                color: colors.textMuted,
-              }}
-            >
-              AI applied change
-            </div>
-            <div
-              style={{
-                backgroundColor: colors.diffRemoveBg,
-                padding: "5px 12px",
-                borderBottom: "1px solid rgba(255,255,255,0.03)",
-              }}
-            >
-              <span style={{ color: colors.fixRedLight, marginRight: 8 }}>−</span>
-              <span style={{ color: colors.diffRemoveText }}>
-                Store session tokens in{" "}
-              </span>
-              <span
+            {reviewIn > 0.01 && (
+              <div
                 style={{
-                  color: colors.diffRemoveText,
-                  textDecoration: "line-through",
-                  textDecorationColor: "rgba(220,38,38,0.6)",
+                  margin: "6px 0 8px 40px",
+                  opacity: reviewIn,
+                  fontSize: 11,
+                  color: colors.textMuted,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
                 }}
               >
-                localStorage
-              </span>
-            </div>
-            <div
-              style={{
-                backgroundColor: colors.diffAddBg,
-                padding: "5px 12px",
-              }}
-            >
-              <span style={{ color: colors.diffAddText, marginRight: 8 }}>+</span>
-              <span style={{ color: colors.diffAddText }}>
-                Store session tokens in{" "}
-              </span>
-              <span style={{ color: colors.diffAddText, fontWeight: 600 }}>
-                httpOnly secure cookies
-              </span>
-            </div>
-          </div>
-        )}
+                <span>CodeLens:</span>
+                <span style={{ color: colors.approveGreen, fontWeight: 600 }}>$(check) Approve Memo</span>
+                <span style={{ color: colors.textFaint }}>|</span>
+                <span style={{ color: colors.rejectAmber }}>$(x) Reject</span>
+              </div>
+            )}
 
-        {/* Line 7: more content */}
-        <div style={{ marginBottom: 4 }}>{lineNum(7, 0)}</div>
-        <div style={{ marginBottom: 4 }}>
-          {lineNum(8)}
-          <span style={{ color: colors.text }}>
-            Add CSRF protection middleware to all API routes.
-          </span>
+            <div>{lineNum(7)}Add CSRF protection middleware to all API routes.</div>
+          </div>
         </div>
       </div>
     </div>
