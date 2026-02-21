@@ -260,6 +260,114 @@ Line C`
   })
 })
 
+describe('splitDocument — memo ID dedup', () => {
+  it('deduplicates v0.3 memos with the same ID, keeping the first occurrence', () => {
+    const input = `# Title
+
+Correct anchor line
+<!-- USER_MEMO id="m1" color="red" status="done" : Fix this -->
+
+More content
+
+Wrong anchor line (EOF duplicate)
+<!-- USER_MEMO id="m1" color="red" status="open" : Fix this -->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].id).toBe('m1')
+    // First occurrence has status="done" and correct anchor
+    expect(parts.memos[0].status).toBe('done')
+    expect(parts.memos[0].anchorText).toBe('Correct anchor line')
+  })
+
+  it('deduplicates v0.4 memos with the same ID', () => {
+    const input = `# Title
+
+First anchor
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="needs_review"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="First anchor"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->
+
+Last line
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Last line"
+  anchor="L5|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].status).toBe('needs_review')
+  })
+
+  it('deduplicates mixed v0.3 + v0.4 memos with the same ID', () => {
+    const input = `# Title
+
+Anchor line
+<!-- USER_MEMO id="m1" color="red" status="done" : Fix this -->
+
+<!-- USER_MEMO
+  id="m1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="generic"
+  color="red"
+  text="Fix this"
+  anchorText="Anchor line"
+  anchor="L3|placeholder"
+  createdAt="2026-01-01T00:00:00.000Z"
+  updatedAt="2026-01-01T00:00:00.000Z"
+-->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].status).toBe('done')
+  })
+})
+
+describe('splitDocument — v0.3 anchorText attribute', () => {
+  it('parses anchorText from v0.3 memo comment', () => {
+    const input = `# Title
+
+Some content
+<!-- USER_MEMO id="m1" color="red" status="open" anchorText="Some content" : Fix this -->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].anchorText).toBe('Some content')
+  })
+
+  it('falls back to findAnchorAbove when anchorText is absent in v0.3', () => {
+    const input = `# Title
+
+Fallback anchor line
+<!-- USER_MEMO id="m1" color="red" status="open" : Fix this -->`
+
+    const parts = splitDocument(input)
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].anchorText).toBe('Fallback anchor line')
+  })
+})
+
 describe('getAnnotationCounts — no double-counting', () => {
   it('does not double-count highlights that have both USER_MEMO and <mark> tags', () => {
     const input = `# Test
