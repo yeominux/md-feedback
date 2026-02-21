@@ -29,6 +29,7 @@ scripts/test-mcp-manual.mjs
 *RELEASE-PLAN*.md
 docs/pr/
 docs/architecture/sidecar-pr-execution-plan.md
+docs/architecture/sidecar-canonical-contract-v10.md
 AGENTS.md
 CLAUDE.md
 .cursorrules
