@@ -388,7 +388,7 @@ export class SyncController implements vscode.Disposable {
 
   private handleExternalFileChange(): void {
     if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
-    this.fileWatchDebounce = setTimeout(() => {
+    this.fileWatchDebounce = setTimeout(async () => {
       // Skip exactly one watcher event after a webview-originated document change.
       if (this.skipNextFileWatch || this.panelProvider.isLatestEditFromWebview()) {
         this.skipNextFileWatch = false
@@ -398,6 +398,18 @@ export class SyncController implements vscode.Disposable {
 
       const document = this.currentDocument()
       if (!document) return
+
+      // If webview has unsaved edits, confirm before overwriting with external changes
+      if (this.panelProvider.webviewIsDirty) {
+        const choice = await vscode.window.showWarningMessage(
+          'The file was modified externally. Reload will discard your unsaved webview changes.',
+          { modal: true },
+          'Reload',
+          'Keep Mine',
+        )
+        if (choice !== 'Reload') return
+        this.panelProvider.webviewIsDirty = false
+      }
 
       this.panelProvider.handleDocumentUpdate(document)
     }, this.timing.fileWatchDebounceMs)
