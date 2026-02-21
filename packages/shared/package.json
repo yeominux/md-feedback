@@ -6,6 +6,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "echo 'shared: source-only package, no build needed'",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:name": "vitest run -t"
   }
 }

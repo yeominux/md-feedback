@@ -269,6 +269,33 @@ export interface HandoffItem {
   feedback: string              // memo content
 }
 
+// ─── Sidecar Metadata (v1.5 — heavy metadata lives in .md-feedback/metadata.json) ───
+
+export interface SidecarMetadata {
+  version: '1.0'
+  updatedAt: string
+  impls: MemoImpl[]
+  artifacts: MemoArtifact[]
+  dependencies: MemoDependency[]
+  checkpoints: Checkpoint[]
+}
+
+export interface MergeResult {
+  markdown: string
+  sidecar: SidecarMetadata | null
+}
+
+export function emptySidecarMetadata(): SidecarMetadata {
+  return {
+    version: '1.0',
+    updatedAt: new Date().toISOString(),
+    impls: [],
+    artifacts: [],
+    dependencies: [],
+    checkpoints: [],
+  }
+}
+
 /** Accent config for memo cards and bubble menu */
 export const MEMO_ACCENT: Record<MemoColor, {
   bar: string

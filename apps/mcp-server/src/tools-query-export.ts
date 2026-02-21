@@ -13,7 +13,11 @@ import { readProgress } from './file-ops.js'
 import type { QueryToolContext } from './tools-runtime.js'
 
 export function registerExportQueryTools(server: McpServer, ctx: QueryToolContext): void {
-  const { safeRead, wrapTool } = ctx
+  const { safeRead, splitWithSidecar, wrapTool } = ctx
+  const readParts = (file: string) => {
+    if (typeof splitWithSidecar === 'function') return splitWithSidecar(file)
+    return splitDocument(safeRead(file))
+  }
 
   // ─── export_review ───
   server.tool(
@@ -32,7 +36,7 @@ export function registerExportQueryTools(server: McpServer, ctx: QueryToolContex
         return { content: [{ type: 'text' as const, text: handoff }] }
       }
 
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
       const memos = parts.memos
       const allSections = getAllSections(markdown)
       const docTitle = allSections[0] || 'Plan Review'
@@ -66,8 +70,7 @@ export function registerExportQueryTools(server: McpServer, ctx: QueryToolContex
       memoId: z.string().optional().describe('Optional memo ID to filter by — if omitted, returns all changes'),
     },
     async ({ file, memoId }) => wrapTool(async () => {
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const impls = memoId
         ? parts.impls.filter(imp => imp.memoId === memoId)
