@@ -1,5 +1,5 @@
 #!/bin/sh
-# Block pushes that include local-only operational/architecture artifacts.
+# Block pushes that include private planning/workspace artifacts.
 
 set -u
 

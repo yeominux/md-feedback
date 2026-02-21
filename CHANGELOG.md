@@ -3,12 +3,12 @@
 ## [1.5.1] - 2026-02-21
 
 ### Changed
-- Large operational metadata is now written to `.md-feedback/metadata.json` instead of being repeatedly appended to markdown body blocks, which keeps review documents easier to read.
+- Large review metadata is now written to `.md-feedback/metadata.json` instead of being repeatedly appended to markdown body blocks, which keeps review documents easier to read.
 
 ### Fixed
 - MCP document mutation and query tools now use a single sidecar-aware runtime path, reducing inconsistent behavior between tools.
 - VS Code document sync now reloads sidecar metadata consistently, including updates triggered by `.md-feedback/metadata.json` changes.
-- Legacy sidecar files (`operational-meta.json`) are still read for compatibility, while new writes are standardized to `metadata.json`.
+- Legacy sidecar files are still read for compatibility, while new writes are standardized to `metadata.json`.
 - Comment-integrity safeguards and anchor-confidence regressions are covered by expanded automated tests to prevent repeat corruption issues.
 - Focused test filtering commands are now stable with Vitest v4 name matching (`-t`) for reliable evidence-based verification.
 
