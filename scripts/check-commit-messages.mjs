@@ -79,6 +79,10 @@ const bannedPatterns = [
   /\bdev\s*(->|→)\s*main\b/i,
   /\brelease automation\b/i,
   /\bbranch protection\b/i,
+  // Conventional commit prefixes for internal ops — not user-facing
+  /^chore(\(.+?\))?:/i,
+  /^ci(\(.+?\))?:/i,
+  /^CI(\(.+?\))?:/,
 ]
 
 const tooGenericPatterns = [
@@ -87,6 +91,14 @@ const tooGenericPatterns = [
   /^misc$/i,
   /^wip$/i,
   /^temp$/i,
+  // Generic filler messages that say nothing about what changed
+  /^customer[- ]facing reliability improvement$/i,
+  /^repository synchronization$/i,
+  /^product release integration$/i,
+  /^product quality refinement$/i,
+  /^customer documentation and onboarding update$/i,
+  /^new customer[- ]facing capability$/i,
+  /^security hardening for customer environments$/i,
 ]
 
 const allowedMergePatterns = [
