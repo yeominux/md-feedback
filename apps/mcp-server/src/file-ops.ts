@@ -1,10 +1,9 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, readdirSync, openSync, closeSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, readdirSync } from 'fs'
 import { resolve, isAbsolute, dirname, join } from 'path'
 import { randomBytes } from 'node:crypto'
-import { FileLockTimeoutError, FileNotFoundError, FileReadError, FileWriteError } from './errors.js'
+import { FileNotFoundError, FileReadError, FileWriteError } from './errors.js'
+import { withFileLock } from './file-mutex.js'
 
-const FILE_LOCK_TIMEOUT_MS = 2000
-const FILE_LOCK_POLL_MS = 10
 const MAX_SNAPSHOTS = 20
 
 /** Resolve file path: supports both absolute and relative (resolved against CWD) */
@@ -44,48 +43,6 @@ interface ProgressEntry {
   status: string
   message: string
   timestamp: string
-}
-
-const pathLocks = new Map<string, Promise<void>>()
-
-async function withPathLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
-  while (pathLocks.has(lockKey)) {
-    await pathLocks.get(lockKey)
-  }
-  let releaseLock!: () => void
-  pathLocks.set(lockKey, new Promise<void>(resolve => { releaseLock = resolve }))
-  try {
-    return await fn()
-  } finally {
-    pathLocks.delete(lockKey)
-    releaseLock()
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-async function acquireFileLock(lockPath: string, timeoutMs = FILE_LOCK_TIMEOUT_MS): Promise<() => void> {
-  const start = Date.now()
-  while (true) {
-    try {
-      const fd = openSync(lockPath, 'wx')
-      return () => {
-        try { closeSync(fd) } catch { /* ignore */ }
-        try { unlinkSync(lockPath) } catch { /* ignore */ }
-      }
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      if (code !== 'EEXIST') {
-        throw err
-      }
-      if (Date.now() - start > timeoutMs) {
-        throw new FileLockTimeoutError(lockPath)
-      }
-      await sleep(FILE_LOCK_POLL_MS)
-    }
-  }
 }
 
 /** Creates .md-feedback/ directory next to the markdown file if it doesn't exist. Returns the sidecar directory path. */
@@ -134,27 +91,21 @@ export function readProgress(mdFilePath: string): ProgressEntry[] {
 export async function appendProgress(mdFilePath: string, entry: ProgressEntry): Promise<void> {
   const sidecar = ensureSidecar(mdFilePath)
   const progressPath = join(sidecar, 'progress.json')
-  const lockPath = `${progressPath}.lock`
 
-  await withPathLock(progressPath, async () => {
-    const release = await acquireFileLock(lockPath)
-    try {
-      let entries: ProgressEntry[] = []
-      if (existsSync(progressPath)) {
-        try {
-          entries = JSON.parse(readFileSync(progressPath, 'utf-8'))
-        } catch {
-          entries = []
-        }
+  await withFileLock(progressPath, async () => {
+    let entries: ProgressEntry[] = []
+    if (existsSync(progressPath)) {
+      try {
+        entries = JSON.parse(readFileSync(progressPath, 'utf-8'))
+      } catch {
+        entries = []
       }
-      entries.push(entry)
-
-      const tmpPath = `${progressPath}.tmp-${randomBytes(6).toString('hex')}`
-      writeFileSync(tmpPath, JSON.stringify(entries, null, 2), 'utf-8')
-      renameSync(tmpPath, progressPath)
-    } finally {
-      release()
     }
+    entries.push(entry)
+
+    const tmpPath = `${progressPath}.tmp-${randomBytes(6).toString('hex')}`
+    writeFileSync(tmpPath, JSON.stringify(entries, null, 2), 'utf-8')
+    renameSync(tmpPath, progressPath)
   })
 }
 
