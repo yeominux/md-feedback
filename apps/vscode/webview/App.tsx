@@ -3,7 +3,7 @@ import Editor, { type EditorHandle } from './components/Editor'
 import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
 import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
-import { FileText, X, Unplug, Settings2, ClipboardCopy, Wand2 } from 'lucide-react'
+import { FileText, X, Unplug, Settings2, FileCheck, Wand2 } from 'lucide-react'
 import type { StatusSummary, MemoMap } from './types'
 
 // Global impls store for MemoBlock (TipTap nodes lack React context access)
@@ -41,7 +41,7 @@ export default function App() {
   const [showCheckpointPrompt, setShowCheckpointPrompt] = useState(false)
   const [checkpointNote, setCheckpointNote] = useState('')
   const [memoMap, setMemoMap] = useState<MemoMap>({})
-  const [cleanCopied, setCleanCopied] = useState(false)
+  const [finalized, setFinalized] = useState(false)
   const [promptCopied, setPromptCopied] = useState(false)
 
   const isLoadingRef = useRef(false)
@@ -199,8 +199,8 @@ export default function App() {
           break
 
         case 'action.clean-copy.done':
-          setCleanCopied(true)
-          setTimeout(() => setCleanCopied(false), 2000)
+          setFinalized(true)
+          setTimeout(() => setFinalized(false), 2000)
           break
 
         case 'action.workflow-prompt.done':
@@ -541,14 +541,14 @@ export default function App() {
               {promptCopied ? <span className="status-bar__copied-check">&#10003;</span> : <Wand2 size={14} />}
             </button>
 
-            {/* Clean copy — strip all metadata */}
+            {/* Finalize — save clean document (strip all annotations) */}
             <button
-              className={`status-bar__icon-btn ${cleanCopied ? 'status-bar__icon-btn--copied' : ''}`}
+              className={`status-bar__icon-btn ${finalized ? 'status-bar__icon-btn--copied' : ''}`}
               onClick={() => vscode.postMessage({ type: 'action.clean-copy' })}
-              title={cleanCopied ? 'Copied!' : 'Copy clean markdown (no annotations)'}
-              aria-label="Copy clean markdown"
+              title={finalized ? 'Finalized!' : 'Finalize document (remove annotations)'}
+              aria-label="Finalize document"
             >
-              {cleanCopied ? <span className="status-bar__copied-check">&#10003;</span> : <ClipboardCopy size={14} />}
+              {finalized ? <span className="status-bar__copied-check">&#10003;</span> : <FileCheck size={14} />}
             </button>
 
             {/* Approve CTA */}

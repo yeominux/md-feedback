@@ -17,7 +17,7 @@
 
 ![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.4.1): 메모 타입 전환, 클린 복사 및 워크플로우 프롬프트 버튼, 진행률 추적이 포함된 상세 서랍 리디자인, 데모 업데이트.
+> 최신(v1.4.2): 문서 정리(finalize) 기능, 외부 변경 실시간 반영, 메모 중복 생성 및 역슬래시 이스케이프 수정.
 
 ## 작동 방식
 
