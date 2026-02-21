@@ -82,6 +82,25 @@ const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+t
 const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
 const ANCHOR_HASH_SEARCH_RADIUS = 10
 
+/** Check if a line is a metadata comment (HIGHLIGHT_MARK, USER_MEMO, MEMO_IMPL, etc.)
+ *  that should be excluded from content-matching operations. */
+function isCommentLine(line: string): boolean {
+  const t = line.trim()
+  return (
+    t.startsWith('<!-- USER_MEMO') ||
+    t.startsWith('<!-- MEMO_IMPL') ||
+    t.startsWith('<!-- MEMO_ARTIFACT') ||
+    t.startsWith('<!-- GATE') ||
+    t.startsWith('<!-- CHECKPOINT') ||
+    t.startsWith('<!-- PLAN_CURSOR') ||
+    t.startsWith('<!-- MEMO_DEPENDENCY') ||
+    t.startsWith('<!-- HIGHLIGHT_MARK') ||
+    // Multi-line memo/impl continuation lines (attributes or closing -->)
+    (t.startsWith('id="') && !t.includes('<')) ||
+    t === '-->'
+  )
+}
+
 /** Strip markdown formatting to normalize body lines for anchor text matching.
  *  Converts raw markdown → plain text approximating TipTap's node.textContent output.
  *
@@ -255,7 +274,7 @@ export function splitDocument(markdown: string): DocumentParts {
         : (a.anchor || '')
       // Refresh anchorText when anchor line was found – keeps it in sync across
       // save cycles so the dedup key matches HIGHLIGHT_MARK anchors after AI edits.
-      const freshAnchorText = anchorLineIdx >= 0
+      const freshAnchorText = anchorLineIdx >= 0 && !isCommentLine(bodyLines[anchorLineIdx])
         ? bodyLines[anchorLineIdx].trim().slice(0, 80)
         : anchorText
       memos.push({
@@ -524,12 +543,15 @@ export function splitDocument(markdown: string): DocumentParts {
 
     const searchNeedle = anchorText.slice(0, 40)
     const strippedNeedle = stripMarkdownFormatting(searchNeedle)
+    // Exclude comment/metadata lines from anchor search — prevents matching HIGHLIGHT_MARKs themselves
     const anchorLineIdx = searchNeedle
-      ? bodyLines.findIndex(l => l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle))
+      ? bodyLines.findIndex(l => !isCommentLine(l) && (l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle)))
       : -1
-    const anchor = anchorLineIdx >= 0
-      ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
-      : ''
+
+    // Skip recovery for stale HIGHLIGHT_MARKs whose content was deleted from the body
+    if (anchorLineIdx < 0) continue
+
+    const anchor = `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
     const now = new Date().toISOString()
 
     const recoveredId = `memo_recovered_${computeLineHash(`${memoColor}|${anchorText}|${markText}`)}`
@@ -566,6 +588,31 @@ export function splitDocument(markdown: string): DocumentParts {
   }
 }
 
+// ─── stale HIGHLIGHT_MARK cleanup ───
+
+/** Remove HIGHLIGHT_MARK comments whose anchor text no longer exists in the body.
+ *  This prevents phantom memo recovery on subsequent splitDocument calls. */
+function removeStaleHighlightMarks(body: string): string {
+  const lines = body.split('\n')
+  // Collect non-comment body lines for content matching
+  const contentLines = lines.filter(l => !isCommentLine(l))
+  const contentText = contentLines.join('\n')
+
+  return lines.filter(line => {
+    HIGHLIGHT_MARK_RE.lastIndex = 0
+    const m = HIGHLIGHT_MARK_RE.exec(line.trim())
+    if (!m) return true // keep non-HIGHLIGHT_MARK lines
+
+    const markAnchor = decodeHighlightAttr(m[3]).trim()
+    const markText = decodeHighlightAttr(m[2]).trim()
+    const needle = (markAnchor || markText).slice(0, 40)
+    if (!needle) return true // keep marks with no searchable text
+
+    // Keep mark only if its anchor text exists in the actual body content
+    return contentText.includes(needle)
+  }).join('\n')
+}
+
 // ─── mergeDocument ───
 
 export function mergeDocument(parts: DocumentParts): string {
@@ -576,8 +623,11 @@ export function mergeDocument(parts: DocumentParts): string {
     sections.push(parts.frontmatter.trimEnd())
   }
 
+  // Strip stale HIGHLIGHT_MARKs whose anchor text no longer exists in the body
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+
   // Body with memos and response markers re-inserted at anchor positions
-  const bodyWithMemos = reinsertMemosAndResponses(parts.body, parts.memos, parts.responses || [])
+  const bodyWithMemos = reinsertMemosAndResponses(cleanBody, parts.memos, parts.responses || [])
   sections.push(bodyWithMemos)
 
   // Implementation records (sorted by ID for stable git output)
@@ -835,6 +885,7 @@ export function findMemoAnchorLineWithConfidence(lines: string[], memo: MemoV2):
     const strippedNeedle = stripMarkdownFormatting(needle)
     const matches: number[] = []
     for (let i = 0; i < lines.length; i++) {
+      if (isCommentLine(lines[i])) continue // skip metadata comment lines
       if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
     }
     if (matches.length === 1) return { lineIdx: matches[0], confidence: 'text' }
