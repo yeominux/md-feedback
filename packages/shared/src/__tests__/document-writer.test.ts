@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { splitDocument, mergeDocument, getAnnotationCounts, findMemoAnchorLine, parseJsonWithBom, stripMarkdownFormatting } from '../index'
-import type { MemoV2 } from '../index'
+import { splitDocument, mergeDocument, exportCleanBody, getAnnotationCounts, findMemoAnchorLine, findMemoAnchorLineWithConfidence, parseJsonWithBom, stripMarkdownFormatting, MIN_ANCHOR_TEXT_LENGTH } from '../index'
+import type { MemoV2, DocumentParts } from '../index'
 
 describe('document-writer — splitDocument and mergeDocument', () => {
   it('parses annotated markdown with v0.3 memo', () => {
@@ -1408,5 +1408,271 @@ describe('parseJsonWithBom', () => {
   it('strips BOM and parses JSON', () => {
     const result = parseJsonWithBom<{ a: number }>('\uFEFF{"a":1}')
     expect(result).toEqual({ a: 1 })
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Hotfix 2: Low-confidence anchor blocking
+// ═══════════════════════════════════════════════════════════════════
+
+describe('findMemoAnchorLineWithConfidence — short anchorText guard', () => {
+  it('skips text fallback for short anchorText (e.g. "3") and uses line-number fallback', () => {
+    const lines = ['# Title', '', 'Line 3', 'Other content', 'Line 5']
+    const memo: MemoV2 = {
+      id: 'm_short',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix numbering',
+      anchorText: '3', // too short for reliable text match
+      anchor: 'L3|ffffffff',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    const result = findMemoAnchorLineWithConfidence(lines, memo)
+    // Should NOT match via text (would wrongly match "Line 3")
+    // Should use line-number fallback instead
+    expect(result.confidence).toBe('line_number')
+    expect(result.lineIdx).toBe(2) // L3 → index 2
+  })
+
+  it('allows text fallback for long anchorText (e.g. "졸업프로젝트(1) (구 DCS(4))...")', () => {
+    const longAnchor = '졸업프로젝트(1) (구 DCS(4)) 수강 가능 여부를 반드시 확인할 것'
+    const lines = ['# Title', '', longAnchor, 'Other content']
+    const memo: MemoV2 = {
+      id: 'm_long',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix this',
+      anchorText: longAnchor,
+      anchor: 'L3|ffffffff', // hash stale
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    const result = findMemoAnchorLineWithConfidence(lines, memo)
+    expect(result.confidence).toBe('text')
+    expect(result.lineIdx).toBe(2)
+  })
+
+  it('skips text fallback when too many matches (> MAX_TEXT_MATCHES_CONFIDENT)', () => {
+    // 10 identical lines — text match is ambiguous
+    const repeatedLine = 'This is a repeated anchor line content here'
+    const lines = ['# Title', '']
+    for (let i = 0; i < 10; i++) lines.push(repeatedLine)
+    lines.push('End')
+
+    const memo: MemoV2 = {
+      id: 'm_many',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix',
+      anchorText: repeatedLine,
+      anchor: 'L5|ffffffff', // stale hash, L5 = index 4
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    const result = findMemoAnchorLineWithConfidence(lines, memo)
+    // 10 matches > MAX_TEXT_MATCHES_CONFIDENT → falls to line-number
+    expect(result.confidence).toBe('line_number')
+  })
+
+  it('MIN_ANCHOR_TEXT_LENGTH is exported and equals 8', () => {
+    expect(MIN_ANCHOR_TEXT_LENGTH).toBe(8)
+  })
+})
+
+describe('HIGHLIGHT_MARK recovery — low-confidence anchor guards', () => {
+  it('does not recover memo from HIGHLIGHT_MARK with short text (e.g. text="3")', () => {
+    const input = `# Title
+
+Anchor line content
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="3" anchor="3" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('does not recover memo from HIGHLIGHT_MARK with contaminated anchor (anchorText=)', () => {
+    const input = `# Title
+
+Real anchor line here
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="test" anchor="anchorText=&quot;some value&quot;" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('does not recover memo from HIGHLIGHT_MARK with contaminated anchor (<!-- prefix)', () => {
+    const input = `# Title
+
+Some body content here
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="problem" anchor="<!-- USER_MEMO stuff" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('still recovers memo from HIGHLIGHT_MARK with valid long anchor', () => {
+    const input = `# Title
+
+A sufficiently long anchor text line
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="highlighted word" anchor="A sufficiently long anchor text line" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+    expect(recovered).toHaveLength(1)
+    expect(recovered[0].color).toBe('red')
+    expect(recovered[0].type).toBe('fix')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Hotfix 3: Meta block sidecar — stripOperationalMeta + exportCleanBody
+// ═══════════════════════════════════════════════════════════════════
+
+describe('mergeDocument — stripOperationalMeta option', () => {
+  function buildDocumentParts(): DocumentParts {
+    return {
+      frontmatter: '---\ntitle: Test\n---\n',
+      body: '# Title\n\nSome content.',
+      memos: [{
+        id: 'm1', type: 'fix', status: 'open', owner: 'human', source: 'generic',
+        color: 'red', text: 'Fix this', anchorText: 'Some content.',
+        anchor: 'L3|placeholder',
+        createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      responses: [],
+      impls: [{
+        id: 'impl_1', memoId: 'm1', status: 'applied',
+        operations: [{ type: 'text_replace', file: '', before: 'old', after: 'new' }],
+        summary: 'test impl', appliedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      artifacts: [{
+        id: 'art_1', memoId: 'm1', files: ['src/foo.ts'], linkedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      dependencies: [{
+        id: 'dep_1', from: 'm1', to: 'm2', type: 'blocks',
+      }],
+      checkpoints: [{
+        id: 'ckpt_1', timestamp: '2026-01-01T00:00:00.000Z', note: 'Phase 1',
+        fixes: 1, questions: 0, highlights: 0, sectionsReviewed: ['Title'],
+      }],
+      gates: [{
+        id: 'gate_1', type: 'custom', status: 'blocked', blockedBy: ['m1'],
+        canProceedIf: 'All clear', doneDefinition: 'Done',
+      }],
+      cursor: {
+        taskId: 'm1', step: '1/1', nextAction: 'review',
+        lastSeenHash: 'abc12345', updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }
+  }
+
+  it('default (no options) — includes MEMO_IMPL, CHECKPOINT, PLAN_CURSOR', () => {
+    const parts = buildDocumentParts()
+    const output = mergeDocument(parts)
+
+    expect(output).toContain('MEMO_IMPL')
+    expect(output).toContain('CHECKPOINT')
+    expect(output).toContain('PLAN_CURSOR')
+    expect(output).toContain('USER_MEMO')
+    expect(output).toContain('GATE')
+    expect(output).toContain('MEMO_ARTIFACT')
+    expect(output).toContain('MEMO_DEPENDENCY')
+  })
+
+  it('stripOperationalMeta: true — excludes MEMO_IMPL, CHECKPOINT, PLAN_CURSOR', () => {
+    const parts = buildDocumentParts()
+    const output = mergeDocument(parts, { stripOperationalMeta: true })
+
+    expect(output).not.toContain('MEMO_IMPL')
+    expect(output).not.toContain('CHECKPOINT')
+    expect(output).not.toContain('PLAN_CURSOR')
+  })
+
+  it('stripOperationalMeta: true — still keeps GATE, USER_MEMO, MEMO_ARTIFACT, MEMO_DEPENDENCY', () => {
+    const parts = buildDocumentParts()
+    const output = mergeDocument(parts, { stripOperationalMeta: true })
+
+    expect(output).toContain('USER_MEMO')
+    expect(output).toContain('GATE')
+    expect(output).toContain('MEMO_ARTIFACT')
+    expect(output).toContain('MEMO_DEPENDENCY')
+  })
+
+  it('stripOperationalMeta: false — same as default (all included)', () => {
+    const partsA = buildDocumentParts()
+    const partsB = buildDocumentParts()
+    const outputDefault = mergeDocument(partsA)
+    const outputExplicit = mergeDocument(partsB, { stripOperationalMeta: false })
+
+    expect(outputDefault).toBe(outputExplicit)
+  })
+})
+
+describe('exportCleanBody', () => {
+  it('returns only body + frontmatter, no metadata', () => {
+    const parts: DocumentParts = {
+      frontmatter: '---\ntitle: Test\n---\n',
+      body: '# Title\n\nSome content.',
+      memos: [{
+        id: 'm1', type: 'fix', status: 'open', owner: 'human', source: 'generic',
+        color: 'red', text: 'Fix', anchorText: 'content',
+        anchor: 'L3|placeholder',
+        createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      responses: [],
+      impls: [{
+        id: 'impl_1', memoId: 'm1', status: 'applied',
+        operations: [], summary: 'test', appliedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      artifacts: [],
+      dependencies: [],
+      checkpoints: [],
+      gates: [{
+        id: 'gate_1', type: 'custom', status: 'blocked', blockedBy: ['m1'],
+        canProceedIf: '', doneDefinition: '',
+      }],
+      cursor: null,
+    }
+
+    const clean = exportCleanBody(parts)
+
+    expect(clean).toContain('# Title')
+    expect(clean).toContain('Some content.')
+    expect(clean).toContain('title: Test')
+    expect(clean).not.toContain('USER_MEMO')
+    expect(clean).not.toContain('MEMO_IMPL')
+    expect(clean).not.toContain('GATE')
+    expect(clean).not.toContain('CHECKPOINT')
+  })
+
+  it('returns body without frontmatter when frontmatter is empty', () => {
+    const parts: DocumentParts = {
+      frontmatter: '',
+      body: '# Title\n\nContent here.',
+      memos: [],
+      responses: [],
+      impls: [],
+      artifacts: [],
+      dependencies: [],
+      checkpoints: [],
+      gates: [],
+      cursor: null,
+    }
+
+    const clean = exportCleanBody(parts)
+    expect(clean.trim()).toBe('# Title\n\nContent here.')
   })
 })
