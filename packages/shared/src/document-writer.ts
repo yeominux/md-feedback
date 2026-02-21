@@ -574,10 +574,38 @@ export function splitDocument(markdown: string): DocumentParts {
     if (textKey) existingMemoKeys.add(textKey)
   }
 
+  // Clean up orphaned recovered-highlight memos: these were created by previous
+  // code runs from stale HIGHLIGHT_MARKs and persisted as USER_MEMOs.
+  // Discard them when their anchorText is corrupted (contains HTML comment markers)
+  // or references content that no longer exists in the body.
+  const nonCommentBodyLines = bodyLines.filter(l => !isCommentLine(l))
+  const contentText = nonCommentBodyLines.join('\n')
+  const strippedContentText = nonCommentBodyLines.map(l => stripMarkdownFormatting(l)).join('\n')
+  const cleanMemos = memos.filter(m => {
+    if (m.source !== 'recovered-highlight') return true
+    // Corrupted anchorText containing raw HTML comment content
+    if (m.anchorText.includes('<!-- HIGHLIGHT_MARK') ||
+        m.anchorText.includes('<!-- USER_MEMO') ||
+        m.anchorText.includes('<!-- MEMO_IMPL')) return false
+    // Phantom memos whose anchor was resolved only by line-number fallback
+    // (not by content match) are unreliable — discard them. The original
+    // anchorText was corrupted but anchor refresh healed it, making the
+    // corruption undetectable from the refreshed anchorText alone.
+    if (m.anchorConfidence === 'line_number' || m.anchorConfidence === 'fallback') return false
+    // AnchorText references content that was deleted from the body.
+    // Also check memo text when anchorText is empty (e.g. after anchor refresh
+    // set it to '' because the fallback landed on an empty line).
+    const needle = (m.anchorText.trim() || m.text.trim()).slice(0, 40)
+    if (!needle) return true
+    const strippedNeedle = stripMarkdownFormatting(needle)
+    if (contentText.includes(needle) || strippedContentText.includes(strippedNeedle)) return true
+    return false
+  })
+
   return {
     frontmatter,
     body: bodyLines.join('\n'),
-    memos,
+    memos: cleanMemos,
     responses,
     impls,
     artifacts,
