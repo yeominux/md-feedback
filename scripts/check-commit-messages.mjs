@@ -79,6 +79,9 @@ const bannedPatterns = [
   /\bdev\s*(->|→)\s*main\b/i,
   /\brelease automation\b/i,
   /\bbranch protection\b/i,
+  /\barchitecture\b/i,
+  /\boperational\b/i,
+  /\blocal-only\b/i,
   // Conventional commit prefixes for internal ops — not user-facing
   /^chore(\(.+?\))?:/i,
   /^ci(\(.+?\))?:/i,
