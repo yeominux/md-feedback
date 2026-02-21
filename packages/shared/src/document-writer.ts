@@ -7,7 +7,7 @@
  * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor
  */
 
-import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation } from './types'
+import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation, AnchorConfidence } from './types'
 import { colorToType, isResolved, HEX_TO_COLOR_NAME } from './types'
 import { generateId } from './id'
 import { parseJsonStrict } from './errors'
@@ -81,6 +81,25 @@ const ARTIFACT_END_RE = /^-->$/
 const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
 const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
 const ANCHOR_HASH_SEARCH_RADIUS = 10
+
+/** Check if a line is a metadata comment (HIGHLIGHT_MARK, USER_MEMO, MEMO_IMPL, etc.)
+ *  that should be excluded from content-matching operations. */
+function isCommentLine(line: string): boolean {
+  const t = line.trim()
+  return (
+    t.startsWith('<!-- USER_MEMO') ||
+    t.startsWith('<!-- MEMO_IMPL') ||
+    t.startsWith('<!-- MEMO_ARTIFACT') ||
+    t.startsWith('<!-- GATE') ||
+    t.startsWith('<!-- CHECKPOINT') ||
+    t.startsWith('<!-- PLAN_CURSOR') ||
+    t.startsWith('<!-- MEMO_DEPENDENCY') ||
+    t.startsWith('<!-- HIGHLIGHT_MARK') ||
+    // Multi-line memo/impl continuation lines (attributes or closing -->)
+    (t.startsWith('id="') && !t.includes('<')) ||
+    t === '-->'
+  )
+}
 
 /** Strip markdown formatting to normalize body lines for anchor text matching.
  *  Converts raw markdown → plain text approximating TipTap's node.textContent output.
@@ -236,7 +255,7 @@ export function splitDocument(markdown: string): DocumentParts {
       const anchorText = a.anchorText || findAnchorAbove(bodyLines) || ''
       // Refresh anchor using persisted anchor/hash/anchorText (not last seen body line).
       // This avoids collapsing all EOF metadata memos onto the same trailing body line.
-      const anchorLineIdx = findMemoAnchorLine(bodyLines, {
+      const tmpMemo: MemoV2 = {
         id: a.id || 'memo_parse_tmp',
         type: (a.type as MemoV2['type']) || 'fix',
         status: (a.status as MemoV2['status']) || 'open',
@@ -248,13 +267,14 @@ export function splitDocument(markdown: string): DocumentParts {
         anchor: a.anchor || '',
         createdAt: a.createdAt || new Date().toISOString(),
         updatedAt: a.updatedAt || new Date().toISOString(),
-      })
+      }
+      const { lineIdx: anchorLineIdx, confidence } = findMemoAnchorLineWithConfidence(bodyLines, tmpMemo)
       const freshAnchor = anchorLineIdx >= 0
         ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
         : (a.anchor || '')
       // Refresh anchorText when anchor line was found – keeps it in sync across
       // save cycles so the dedup key matches HIGHLIGHT_MARK anchors after AI edits.
-      const freshAnchorText = anchorLineIdx >= 0
+      const freshAnchorText = anchorLineIdx >= 0 && !isCommentLine(bodyLines[anchorLineIdx])
         ? bodyLines[anchorLineIdx].trim().slice(0, 80)
         : anchorText
       memos.push({
@@ -270,6 +290,7 @@ export function splitDocument(markdown: string): DocumentParts {
         createdAt: a.createdAt || new Date().toISOString(),
         updatedAt: a.updatedAt || new Date().toISOString(),
         ...(a.rejectReason ? { rejectReason: a.rejectReason } : {}),
+        anchorConfidence: confidence,
       })
       continue
     }
@@ -461,14 +482,43 @@ export function splitDocument(markdown: string): DocumentParts {
   // Normalize dedup keys: strip leading markdown heading markers (### ) so
   // "### Step 3: foo" and "Step 3: foo" match as the same anchor.
   const stripHeadingPrefix = (s: string) => s.replace(/^#+\s*/, '').trim()
+
+  // Word-overlap Jaccard similarity for fuzzy dedup (prevents phantom memo_recovered_* memos
+  // when AI edits both anchor and memo text). Threshold 0.7 = 70% word overlap.
+  const FUZZY_DEDUP_THRESHOLD = 0.7
+  const toWords = (s: string) => new Set(s.toLowerCase().split(/\s+/).filter(Boolean))
+  const jaccardSimilarity = (a: Set<string>, b: Set<string>): number => {
+    if (a.size === 0 && b.size === 0) return 1
+    let intersection = 0
+    for (const w of a) { if (b.has(w)) intersection++ }
+    const union = a.size + b.size - intersection
+    return union === 0 ? 0 : intersection / union
+  }
+
   // Build dedup keys from BOTH anchorText AND text for drift tolerance.
   // When AI edits surrounding text, HIGHLIGHT_MARK anchor drifts from memo anchorText.
   // Indexing by memo text as well catches cases where the highlighted text matches.
   const existingMemoKeys = new Set<string>()
+  // Also keep word sets for fuzzy matching
+  const existingMemoWordSets: Array<{ color: string; words: Set<string> }> = []
   for (const m of memos.filter(m => m.color === 'red' || m.color === 'blue')) {
-    existingMemoKeys.add(`${m.color}|${stripHeadingPrefix(m.anchorText)}`)
-    if (m.text) existingMemoKeys.add(`${m.color}|${stripHeadingPrefix(m.text)}`)
+    const strippedAnchor = stripHeadingPrefix(m.anchorText)
+    const strippedText = stripHeadingPrefix(m.text)
+    existingMemoKeys.add(`${m.color}|${strippedAnchor}`)
+    if (m.text) existingMemoKeys.add(`${m.color}|${strippedText}`)
+    if (strippedAnchor) existingMemoWordSets.push({ color: m.color, words: toWords(strippedAnchor) })
+    if (strippedText) existingMemoWordSets.push({ color: m.color, words: toWords(strippedText) })
   }
+
+  const fuzzyMatchesExisting = (color: string, text: string): boolean => {
+    if (!text) return false
+    const words = toWords(text)
+    for (const entry of existingMemoWordSets) {
+      if (entry.color === color && jaccardSimilarity(words, entry.words) >= FUZZY_DEDUP_THRESHOLD) return true
+    }
+    return false
+  }
+
   HIGHLIGHT_MARK_RE.lastIndex = 0
   let markMatch: RegExpExecArray | null
   while ((markMatch = HIGHLIGHT_MARK_RE.exec(body)) !== null) {
@@ -483,18 +533,25 @@ export function splitDocument(markdown: string): DocumentParts {
     // markAnchor = current block text (drifts with edits); markText = highlighted span (more stable).
     const anchorKey = markAnchor ? `${memoColor}|${stripHeadingPrefix(markAnchor)}` : ''
     const textKey = markText ? `${memoColor}|${stripHeadingPrefix(markText)}` : ''
+    // Exact match
     if ((anchorKey && existingMemoKeys.has(anchorKey)) || (textKey && existingMemoKeys.has(textKey))) continue
+    // Fuzzy match — catches cases where AI edits both anchor and memo text
+    if (fuzzyMatchesExisting(memoColor, stripHeadingPrefix(markAnchor)) ||
+        fuzzyMatchesExisting(memoColor, stripHeadingPrefix(markText))) continue
 
     const anchorText = markAnchor || markText
 
     const searchNeedle = anchorText.slice(0, 40)
     const strippedNeedle = stripMarkdownFormatting(searchNeedle)
+    // Exclude comment/metadata lines from anchor search — prevents matching HIGHLIGHT_MARKs themselves
     const anchorLineIdx = searchNeedle
-      ? bodyLines.findIndex(l => l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle))
+      ? bodyLines.findIndex(l => !isCommentLine(l) && (l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle)))
       : -1
-    const anchor = anchorLineIdx >= 0
-      ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
-      : ''
+
+    // Skip recovery for stale HIGHLIGHT_MARKs whose content was deleted from the body
+    if (anchorLineIdx < 0) continue
+
+    const anchor = `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
     const now = new Date().toISOString()
 
     const recoveredId = `memo_recovered_${computeLineHash(`${memoColor}|${anchorText}|${markText}`)}`
@@ -517,10 +574,38 @@ export function splitDocument(markdown: string): DocumentParts {
     if (textKey) existingMemoKeys.add(textKey)
   }
 
+  // Clean up orphaned recovered-highlight memos: these were created by previous
+  // code runs from stale HIGHLIGHT_MARKs and persisted as USER_MEMOs.
+  // Discard them when their anchorText is corrupted (contains HTML comment markers)
+  // or references content that no longer exists in the body.
+  const nonCommentBodyLines = bodyLines.filter(l => !isCommentLine(l))
+  const contentText = nonCommentBodyLines.join('\n')
+  const strippedContentText = nonCommentBodyLines.map(l => stripMarkdownFormatting(l)).join('\n')
+  const cleanMemos = memos.filter(m => {
+    if (m.source !== 'recovered-highlight') return true
+    // Corrupted anchorText containing raw HTML comment content
+    if (m.anchorText.includes('<!-- HIGHLIGHT_MARK') ||
+        m.anchorText.includes('<!-- USER_MEMO') ||
+        m.anchorText.includes('<!-- MEMO_IMPL')) return false
+    // Phantom memos whose anchor was resolved only by line-number fallback
+    // (not by content match) are unreliable — discard them. The original
+    // anchorText was corrupted but anchor refresh healed it, making the
+    // corruption undetectable from the refreshed anchorText alone.
+    if (m.anchorConfidence === 'line_number' || m.anchorConfidence === 'fallback') return false
+    // AnchorText references content that was deleted from the body.
+    // Also check memo text when anchorText is empty (e.g. after anchor refresh
+    // set it to '' because the fallback landed on an empty line).
+    const needle = (m.anchorText.trim() || m.text.trim()).slice(0, 40)
+    if (!needle) return true
+    const strippedNeedle = stripMarkdownFormatting(needle)
+    if (contentText.includes(needle) || strippedContentText.includes(strippedNeedle)) return true
+    return false
+  })
+
   return {
     frontmatter,
     body: bodyLines.join('\n'),
-    memos,
+    memos: cleanMemos,
     responses,
     impls,
     artifacts,
@@ -529,6 +614,31 @@ export function splitDocument(markdown: string): DocumentParts {
     gates,
     cursor,
   }
+}
+
+// ─── stale HIGHLIGHT_MARK cleanup ───
+
+/** Remove HIGHLIGHT_MARK comments whose anchor text no longer exists in the body.
+ *  This prevents phantom memo recovery on subsequent splitDocument calls. */
+function removeStaleHighlightMarks(body: string): string {
+  const lines = body.split('\n')
+  // Collect non-comment body lines for content matching
+  const contentLines = lines.filter(l => !isCommentLine(l))
+  const contentText = contentLines.join('\n')
+
+  return lines.filter(line => {
+    HIGHLIGHT_MARK_RE.lastIndex = 0
+    const m = HIGHLIGHT_MARK_RE.exec(line.trim())
+    if (!m) return true // keep non-HIGHLIGHT_MARK lines
+
+    const markAnchor = decodeHighlightAttr(m[3]).trim()
+    const markText = decodeHighlightAttr(m[2]).trim()
+    const needle = (markAnchor || markText).slice(0, 40)
+    if (!needle) return true // keep marks with no searchable text
+
+    // Keep mark only if its anchor text exists in the actual body content
+    return contentText.includes(needle)
+  }).join('\n')
 }
 
 // ─── mergeDocument ───
@@ -541,22 +651,28 @@ export function mergeDocument(parts: DocumentParts): string {
     sections.push(parts.frontmatter.trimEnd())
   }
 
+  // Strip stale HIGHLIGHT_MARKs whose anchor text no longer exists in the body
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+
   // Body with memos and response markers re-inserted at anchor positions
-  const bodyWithMemos = reinsertMemosAndResponses(parts.body, parts.memos, parts.responses || [])
+  const bodyWithMemos = reinsertMemosAndResponses(cleanBody, parts.memos, parts.responses || [])
   sections.push(bodyWithMemos)
 
-  // Implementation records
-  for (const impl of (parts.impls || [])) {
+  // Implementation records (sorted by ID for stable git output)
+  const sortedImpls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const impl of sortedImpls) {
     sections.push(serializeMemoImpl(impl))
   }
 
-  // Artifacts
-  for (const art of (parts.artifacts || [])) {
+  // Artifacts (sorted by ID for stable git output)
+  const sortedArtifacts = [...(parts.artifacts || [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const art of sortedArtifacts) {
     sections.push(serializeMemoArtifact(art))
   }
 
-  // Dependencies
-  for (const dep of (parts.dependencies || [])) {
+  // Dependencies (sorted by ID for stable git output)
+  const sortedDeps = [...(parts.dependencies || [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const dep of sortedDeps) {
     sections.push(serializeMemoDependency(dep))
   }
 
@@ -597,6 +713,9 @@ export function serializeMemoV2(memo: MemoV2): string {
   ]
   if (memo.rejectReason) {
     lines.push(`  rejectReason="${escAttrValue(memo.rejectReason)}"`)
+  }
+  if (memo.anchorConfidence) {
+    lines.push(`  anchorConfidence="${memo.anchorConfidence}"`)
   }
   lines.push('-->')
   return lines.join('\n')
@@ -703,10 +822,16 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
   const unanchored: MemoV2[] = []
 
   for (const memo of memos) {
-    const lineIdx = findMemoAnchorLine(lines, memo)
+    const { lineIdx, confidence } = findMemoAnchorLineWithConfidence(lines, memo)
+    const oldAnchor = memo.anchor
+    memo.anchorConfidence = confidence
     if (lineIdx >= 0) {
       // Update anchor to actual position — prevents drift on repeated save cycles
-      memo.anchor = `L${lineIdx + 1}|${computeLineHash(lines[lineIdx])}`
+      const newAnchor = `L${lineIdx + 1}|${computeLineHash(lines[lineIdx])}`
+      // Skip updatedAt bump when only anchor hash refreshed (no semantic change)
+      if (newAnchor !== oldAnchor) {
+        memo.anchor = newAnchor
+      }
       // Defer insertion to after the enclosing block to preserve formatting
       const insertAt = findBlockEnd(lines, lineIdx)
       const existing = memoMap.get(insertAt) || []
@@ -735,9 +860,10 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
 
     result.push(lines[i])
 
-    // Memos anchored to this line
+    // Memos anchored to this line (sorted by ID for stable git output)
     const memosHere = memoMap.get(i)
     if (memosHere) {
+      memosHere.sort((a, b) => a.id.localeCompare(b.id))
       for (const m of memosHere) {
         result.push(serializeMemoV2(m))
       }
@@ -747,7 +873,8 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
     if (responseCloseAfter.has(i)) result.push(responseCloseAfter.get(i)!)
   }
 
-  // Append unanchored memos at the end
+  // Append unanchored memos at the end (sorted by ID for stable git output)
+  unanchored.sort((a, b) => a.id.localeCompare(b.id))
   for (const m of unanchored) {
     result.push(serializeMemoV2(m))
   }
@@ -755,8 +882,8 @@ function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: Rev
   return result.join('\n')
 }
 
-/** Find the best line index for a memo based on its anchor */
-export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
+/** Find the best line index for a memo with confidence level */
+export function findMemoAnchorLineWithConfidence(lines: string[], memo: MemoV2): { lineIdx: number; confidence: AnchorConfidence } {
   // Try anchor hash first: "L42|a3f8c2d1" or "L42:L45|a3f8c2d1"
   if (memo.anchor) {
     const anchorMatch = memo.anchor.match(/^L(\d+)(?::L\d+)?\|(.+)$/)
@@ -766,14 +893,14 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
 
       // Exact line match
       if (lineNum >= 0 && lineNum < lines.length && computeLineHash(lines[lineNum]) === expectedHash) {
-        return lineNum
+        return { lineIdx: lineNum, confidence: 'exact' }
       }
 
       // Search nearby for hash match to tolerate local edits around anchors
       for (let delta = 1; delta <= ANCHOR_HASH_SEARCH_RADIUS; delta++) {
         for (const d of [lineNum - delta, lineNum + delta]) {
           if (d >= 0 && d < lines.length && computeLineHash(lines[d]) === expectedHash) {
-            return d
+            return { lineIdx: d, confidence: 'nearby' }
           }
         }
       }
@@ -786,9 +913,10 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
     const strippedNeedle = stripMarkdownFormatting(needle)
     const matches: number[] = []
     for (let i = 0; i < lines.length; i++) {
+      if (isCommentLine(lines[i])) continue // skip metadata comment lines
       if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
     }
-    if (matches.length === 1) return matches[0]
+    if (matches.length === 1) return { lineIdx: matches[0], confidence: 'text' }
     if (matches.length > 1) {
       // If line number is available, keep the closest matching occurrence.
       const lineMatch = memo.anchor.match(/^L(\d+)/)
@@ -803,26 +931,30 @@ export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
             bestDist = dist
           }
         }
-        return best
+        return { lineIdx: best, confidence: 'text' }
       }
-      return matches[0]
+      return { lineIdx: matches[0], confidence: 'text' }
     }
   }
 
   // Last resort: line-number-only fallback (clamped to valid range)
-  // Prevents memos from being pushed to end-of-file when hash/text are stale
   if (memo.anchor) {
     const lineMatch = memo.anchor.match(/^L(\d+)/)
     if (lineMatch) {
       const lineNum = parseInt(lineMatch[1], 10) - 1
-      return Math.max(0, Math.min(lineNum, lines.length - 1))
+      return { lineIdx: Math.max(0, Math.min(lineNum, lines.length - 1)), confidence: 'line_number' }
     }
   }
 
-  // Final fallback: keep memo inside document body instead of drifting to EOF metadata area.
-  // If body has lines but anchor metadata is missing/corrupted, pin to first line.
-  if (lines.length > 0) return 0
-  return -1
+  // Final fallback: orphaned memos go to end of document (not start)
+  // so they don't disrupt the beginning of the document content
+  if (lines.length > 0) return { lineIdx: lines.length - 1, confidence: 'fallback' }
+  return { lineIdx: -1, confidence: 'fallback' }
+}
+
+/** Find the best line index for a memo based on its anchor */
+export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
+  return findMemoAnchorLineWithConfidence(lines, memo).lineIdx
 }
 
 // ─── Helper utilities ───

@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.4.2): finalize document action, real-time external sync, memo dedup and backslash escape fixes.
+> Latest (v1.5.0): bulk approve, anchor confidence warnings, encoding fixes, and phantom annotation cleanup.
 
 ## How It Works
 

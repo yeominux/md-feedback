@@ -1,5 +1,6 @@
 import type { Checkpoint } from './types'
-import { extractCheckpoints, serializeCheckpoint } from './markdown-roundtrip'
+import { extractCheckpoints } from './markdown-roundtrip'
+import { serializeCheckpoint } from './document-writer'
 import { splitDocument } from './document-writer'
 import { generateId } from './id'
 

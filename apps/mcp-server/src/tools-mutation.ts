@@ -272,6 +272,19 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
 
         // Update bodyEndIdx
         existingResponse.bodyEndIdx = start + newResponseLines.length - 1
+
+        // Shift all subsequent responses' indices by the delta
+        const delta = newResponseLines.length - count
+        if (delta !== 0) {
+          for (const r of parts.responses) {
+            if (r === existingResponse) continue
+            if (r.bodyStartIdx > start) {
+              r.bodyStartIdx += delta
+              r.bodyEndIdx += delta
+            }
+          }
+        }
+
         parts.body = bodyLines.join('\n')
       } else {
         // Insert new response after the memo's anchor line
@@ -672,7 +685,8 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         if (op.type === 'text_replace') {
           // Swap before/after to reverse
           if (parts.body.includes(op.after)) {
-            parts.body = parts.body.split(op.after).join(op.before)
+            const result = replaceOccurrence(parts.body, op.after, op.before, 1)
+            if (result.replaced) parts.body = result.output
           }
         }
         // file_patch and file_create are not automatically reversible
@@ -738,7 +752,31 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       const stagedFileWrites = new Map<string, string>()
       const originalFiles = new Map<string, string>()
 
-      for (const op of operations) {
+      // Separate body text_replace ops (need position-aware ordering) from other ops
+      const bodyTextOps: Array<{ idx: number; op: typeof operations[0]; position: number }> = []
+      const otherOps: Array<{ idx: number; op: typeof operations[0] }> = []
+
+      for (let idx = 0; idx < operations.length; idx++) {
+        const op = operations[idx]
+        const scope = op.scope ?? 'body'
+        if (op.action === 'text_replace' && scope === 'body' && op.oldText) {
+          const pos = parts.body.indexOf(op.oldText)
+          bodyTextOps.push({ idx, op, position: pos })
+        } else {
+          otherOps.push({ idx, op })
+        }
+      }
+
+      // Sort body text_replace ops by position descending (bottom-to-top)
+      bodyTextOps.sort((a, b) => b.position - a.position)
+
+      // Process: body text ops first (reverse order), then other ops in original order
+      const orderedOps = [
+        ...bodyTextOps.map(b => b.op),
+        ...otherOps.map(o => o.op),
+      ]
+
+      for (const op of orderedOps) {
         const memo = parts.memos.find(m => m.id === op.memoId)
         if (!memo) {
           throw new MemoNotFoundError(op.memoId)

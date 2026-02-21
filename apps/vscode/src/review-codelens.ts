@@ -83,6 +83,33 @@ export async function updateMemoStatusInDocument(
   await document.save()
 }
 
+/** Approve all needs_review memos in the document at once */
+export async function approveAllNeedsReview(uri: vscode.Uri): Promise<number> {
+  const document = await vscode.workspace.openTextDocument(uri)
+  const raw = document.getText()
+  const parts = splitDocument(raw)
+
+  const needsReview = parts.memos.filter(m => m.status === 'needs_review')
+  if (needsReview.length === 0) return 0
+
+  const now = new Date().toISOString()
+  for (const memo of needsReview) {
+    memo.status = 'done'
+    memo.updatedAt = now
+  }
+
+  const updated = mergeDocument(parts)
+  const edit = new vscode.WorkspaceEdit()
+  const fullRange = new vscode.Range(
+    document.positionAt(0),
+    document.positionAt(raw.length),
+  )
+  edit.replace(uri, fullRange, updated)
+  await vscode.workspace.applyEdit(edit)
+  await document.save()
+  return needsReview.length
+}
+
 /** Find the nearest needs_review memo to the cursor and apply a status */
 export async function updateNearestMemo(newStatus: string, rejectReason?: string): Promise<void> {
   const editor = vscode.window.activeTextEditor
