@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.5.0] - 2026-02-21
+## [1.4.2] - 2026-02-21
 
 ### Changed
 - **Finalize Document** replaces "Copy clean markdown" — the button now saves the cleaned document directly to the file (removing all annotations, checkpoints, and metadata) instead of copying to clipboard
