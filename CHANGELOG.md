@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.0] - 2026-02-21
+
+### Changed
+- **Finalize Document** replaces "Copy clean markdown" — the button now saves the cleaned document directly to the file (removing all annotations, checkpoints, and metadata) instead of copying to clipboard
+
+### Fixed
+- Webview now reflects external file changes (e.g. from AI agent tools) in near real-time instead of requiring a panel toggle to refresh
+- Duplicate memos no longer accumulate at the bottom of a document after repeated save/load cycles
+- Backslash characters no longer double on every editor round-trip (e.g. `C:\folder` stays `C:\folder` instead of becoming `C:\\folder`)
+- Memo positions remain stable across save/load cycles when the document is edited around them
+
 ## [1.4.1] - 2026-02-21
 
 ### Changed
