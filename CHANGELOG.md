@@ -81,7 +81,7 @@
 
 ### Changed
 - "Plan Cursor" section renamed to "Current Task" with human-readable memo text
-- Task descriptions now show quoted memo text instead of internal IDs
+- Task descriptions now show quoted memo text instead of technical IDs
 - Auto-checkpoints are collapsed by default — only named checkpoints are shown
 - Checkpoint stats show only relevant counts (e.g. "2 fix" instead of "2 fix · 0 Q · 0 HL")
 - Gate override controls moved behind a "More..." button to reduce clutter
@@ -363,7 +363,7 @@ Stability improvements — fixes data corruption bugs.
 - "Show Onboarding" command was not visible in the command palette
 
 ### Improved
-- Smaller install size (internal docs removed from published package)
+- Smaller install size (development-only docs removed from published package)
 
 ## [0.9.7] - 2026-02-16
 
