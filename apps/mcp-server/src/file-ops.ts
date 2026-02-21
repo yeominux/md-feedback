@@ -3,6 +3,7 @@ import { resolve, isAbsolute, dirname, join } from 'path'
 import { randomBytes } from 'node:crypto'
 import { FileNotFoundError, FileReadError, FileWriteError } from './errors.js'
 import { withFileLock } from './file-mutex.js'
+import type { MemoImpl, Checkpoint, PlanCursor, SidecarMetadata } from '@md-feedback/shared'
 
 const MAX_SNAPSHOTS = 20
 
@@ -107,6 +108,105 @@ export async function appendProgress(mdFilePath: string, entry: ProgressEntry): 
     writeFileSync(tmpPath, JSON.stringify(entries, null, 2), 'utf-8')
     renameSync(tmpPath, progressPath)
   })
+}
+
+// ─── Operational metadata sidecar (.md-feedback/operational-meta.json) ───
+
+interface OperationalMeta {
+  impls: MemoImpl[]
+  checkpoints: Checkpoint[]
+  cursor: PlanCursor | null
+}
+
+/** Write canonical sidecar metadata to .md-feedback/metadata.json (atomic). */
+export function writeMetadataSidecar(mdFilePath: string, metadata: SidecarMetadata): void {
+  const sidecar = ensureSidecar(mdFilePath)
+  const metadataPath = join(sidecar, 'metadata.json')
+  const tmpPath = `${metadataPath}.tmp-${randomBytes(6).toString('hex')}`
+  try {
+    writeFileSync(tmpPath, JSON.stringify(metadata, null, 2), 'utf-8')
+    renameSync(tmpPath, metadataPath)
+  } catch (err) {
+    try { unlinkSync(tmpPath) } catch { /* ignore */ }
+    throw new FileWriteError(metadataPath, err instanceof Error ? err.message : String(err))
+  }
+}
+
+/** Read canonical sidecar metadata from .md-feedback/metadata.json.
+ *  Compatibility: also reads legacy operational-meta.json and fills missing impl/checkpoint entries. */
+export function readMetadataSidecar(mdFilePath: string): SidecarMetadata | null {
+  const resolved = resolvePath(mdFilePath)
+  const metadataPath = join(dirname(resolved), '.md-feedback', 'metadata.json')
+
+  let primary: SidecarMetadata | null = null
+  if (existsSync(metadataPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(metadataPath, 'utf-8')) as Partial<SidecarMetadata>
+      primary = {
+        version: '1.0',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+        impls: Array.isArray(parsed.impls) ? parsed.impls : [],
+        artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts : [],
+        dependencies: Array.isArray(parsed.dependencies) ? parsed.dependencies : [],
+        checkpoints: Array.isArray(parsed.checkpoints) ? parsed.checkpoints : [],
+      }
+    } catch {
+      primary = null
+    }
+  }
+
+  const legacy = readOperationalMeta(mdFilePath)
+  if (!primary && !legacy) return null
+
+  if (!primary) {
+    return {
+      version: '1.0',
+      updatedAt: new Date().toISOString(),
+      impls: legacy?.impls || [],
+      artifacts: [],
+      dependencies: [],
+      checkpoints: legacy?.checkpoints || [],
+    }
+  }
+
+  if (!legacy) return primary
+
+  const dedupById = <T extends { id: string }>(base: T[], fallback: T[]): T[] => {
+    const ids = new Set(base.map(item => item.id))
+    return [...base, ...fallback.filter(item => !ids.has(item.id))]
+  }
+
+  return {
+    ...primary,
+    impls: dedupById(primary.impls, legacy.impls || []),
+    checkpoints: dedupById(primary.checkpoints, legacy.checkpoints || []),
+  }
+}
+
+/** Write operational metadata to .md-feedback/operational-meta.json (atomic). */
+export function writeOperationalMeta(mdFilePath: string, data: OperationalMeta): void {
+  const sidecar = ensureSidecar(mdFilePath)
+  const metaPath = join(sidecar, 'operational-meta.json')
+  const tmpPath = `${metaPath}.tmp-${randomBytes(6).toString('hex')}`
+  try {
+    writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8')
+    renameSync(tmpPath, metaPath)
+  } catch (err) {
+    try { unlinkSync(tmpPath) } catch { /* ignore */ }
+    throw new FileWriteError(metaPath, err instanceof Error ? err.message : String(err))
+  }
+}
+
+/** Read operational metadata from .md-feedback/operational-meta.json. Returns null if missing. */
+export function readOperationalMeta(mdFilePath: string): OperationalMeta | null {
+  const resolved = resolvePath(mdFilePath)
+  const metaPath = join(dirname(resolved), '.md-feedback', 'operational-meta.json')
+  if (!existsSync(metaPath)) return null
+  try {
+    return JSON.parse(readFileSync(metaPath, 'utf-8'))
+  } catch {
+    return null
+  }
 }
 
 /** Writes a transaction record to .md-feedback/transactions/. Returns transaction file path. */
