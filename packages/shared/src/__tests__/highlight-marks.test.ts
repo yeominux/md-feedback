@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { extractHighlightMarks, stripHighlightMarks, convertMemosToHtml } from '../markdown-roundtrip'
+import { splitDocument, findMemoAnchorLine } from '../document-writer'
+import type { MemoV2 } from '../types'
 
 describe('highlight marks — extractHighlightMarks', () => {
   it('extracts a single highlight mark', () => {
@@ -167,5 +169,247 @@ AI says hello.
     // Simulate second roundtrip — text should remain identical
     const marks2 = extractHighlightMarks(md)
     expect(marks2[0].text).toBe(marks[0].text) // no extra backslashes
+  })
+})
+
+// ─── Real-world reproduction: phantom memo recovery from orphaned HIGHLIGHT_MARKs ───
+
+describe('HIGHLIGHT_MARK recovery — phantom memo from deleted content', () => {
+  // Real-world scenario: A MEMO_IMPL apply operation deleted email draft content from the
+  // document body, but the HIGHLIGHT_MARKs for those deleted paragraphs remain at EOF.
+  // splitDocument's recovery loop should NOT create memo_recovered_* memos from these
+  // orphaned marks because the anchored content no longer exists in the body.
+
+  const realWorldDocument = `# Document Title
+
+## Section with content
+Some text here about graduation requirements.
+
+## Email section (was deleted by apply)
+> ~~메일 초안 삭제~~ — 확인 완료로 불필요
+
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="교수님께 보낼 메일 초안:" anchor="교수님께 보낼 메일 초안:" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="제목: 졸업프로젝트 관련 문의" anchor="제목: 졸업프로젝트 관련 문의" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="교수님 안녕하세요" anchor="교수님 안녕하세요" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="본문 내용 작성" anchor="본문 내용 작성" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="감사합니다" anchor="감사합니다" -->
+<!-- USER_MEMO
+  id="realMemo1"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="이건 진짜 내 메모"
+  anchorText="Some text here about graduation requirements."
+  anchor="L4|00000000"
+  createdAt="2026-02-21T10:00:00.000Z"
+  updatedAt="2026-02-21T10:00:00.000Z"
+-->`
+
+  it('should NOT create phantom memo_recovered_* from HIGHLIGHT_MARKs whose content was deleted', () => {
+    const parts = splitDocument(realWorldDocument)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    // BUG: Currently creates 5 phantom memos from the orphaned HIGHLIGHT_MARKs
+    // whose anchor text (email draft paragraphs) was deleted from the body.
+    // Expected: 0 phantom memos — the original content no longer exists.
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('should preserve the real user memo without burying it under phantom memos', () => {
+    const parts = splitDocument(realWorldDocument)
+
+    // The real user memo should always be present
+    const realMemo = parts.memos.find(m => m.id === 'realMemo1')
+    expect(realMemo).toBeDefined()
+    expect(realMemo!.text).toBe('이건 진짜 내 메모')
+    expect(realMemo!.type).toBe('question')
+
+    // BUG: Phantom memos outnumber real memos, burying the user's actual memo.
+    // The total memo count should be exactly 1 (the real memo).
+    expect(parts.memos).toHaveLength(1)
+  })
+
+  it('anchorText should never contain raw HTML comment text', () => {
+    const parts = splitDocument(realWorldDocument)
+
+    for (const memo of parts.memos) {
+      // BUG: Recovered phantom memos can get anchorText like
+      // '<!-- HIGHLIGHT_MARK color="#fca5a5" text="교수님께 보낼 메...'
+      // because findMemoAnchorLineWithConfidence matches the HIGHLIGHT_MARK comment line.
+      expect(memo.anchorText).not.toContain('<!-- HIGHLIGHT_MARK')
+      expect(memo.anchorText).not.toContain('<!-- USER_MEMO')
+      expect(memo.anchorText).not.toContain('<!-- MEMO_IMPL')
+    }
+  })
+})
+
+describe('HIGHLIGHT_MARK recovery — content fully absent from body', () => {
+  // Simpler reproduction: HIGHLIGHT_MARK anchor text is completely absent from the body.
+  // Recovery should not create a phantom memo with empty/comment-based anchor.
+
+  it('should not recover memo when HIGHLIGHT_MARK anchor text is absent from body', () => {
+    const input = `# Title
+
+Remaining content only.
+
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="deleted paragraph text" anchor="deleted paragraph text" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    // BUG: Recovery creates a phantom memo even though "deleted paragraph text"
+    // does not exist in the body. The bodyLines.findIndex search at line 528
+    // may still match the HIGHLIGHT_MARK comment line itself since it contains
+    // the anchor text as an attribute value.
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('should not recover when multiple HIGHLIGHT_MARKs reference absent content', () => {
+    const input = `# Title
+
+Only this content remains.
+
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="first deleted line" anchor="first deleted line" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="second deleted line" anchor="second deleted line" -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="third deleted question" anchor="third deleted question" -->`
+
+    const parts = splitDocument(input)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    // BUG: Currently creates 3 phantom memos from marks whose content is gone.
+    expect(recovered).toHaveLength(0)
+  })
+})
+
+describe('findMemoAnchorLine — should not match HTML comment lines', () => {
+  it('should not return index of a HIGHLIGHT_MARK comment line', () => {
+    // Simulate bodyLines that include HIGHLIGHT_MARK comments (as currently happens)
+    const lines = [
+      '# Title',
+      '',
+      'Real body content.',
+      '<!-- HIGHLIGHT_MARK color="#fca5a5" text="Real body content." anchor="Real body content." -->',
+    ]
+    const memo: MemoV2 = {
+      id: 'test1',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'recovered-highlight',
+      color: 'red',
+      text: 'Fix this',
+      anchorText: 'Real body content.',
+      anchor: '',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    const idx = findMemoAnchorLine(lines, memo)
+    // Should match the actual content line (index 2), not the comment line (index 3)
+    expect(idx).toBe(2)
+    // BUG: If the comment line is accidentally matched, the anchorText refresh
+    // would produce raw HTML comment content.
+    expect(lines[idx]).not.toContain('<!-- HIGHLIGHT_MARK')
+  })
+
+  it('should not return index of a USER_MEMO comment line', () => {
+    const lines = [
+      '# Title',
+      'Target line here.',
+      '<!-- USER_MEMO id="m1" type="fix" text="Target line here." -->',
+    ]
+    const memo: MemoV2 = {
+      id: 'test2',
+      type: 'fix',
+      status: 'open',
+      owner: 'human',
+      source: 'generic',
+      color: 'red',
+      text: 'Fix',
+      anchorText: 'Target line here.',
+      anchor: '',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    const idx = findMemoAnchorLine(lines, memo)
+    // Should match line 1 (body content), not line 2 (comment)
+    expect(idx).toBe(1)
+    expect(lines[idx]).not.toContain('<!--')
+  })
+})
+
+describe('HIGHLIGHT_MARK recovery — real-world with MEMO_IMPL', () => {
+  // Full real-world scenario: MEMO_IMPL applied a deletion, consuming the original memo.
+  // HIGHLIGHT_MARKs from the deleted content remain orphaned at EOF.
+  // A separate user question memo exists and should not be buried.
+
+  const fullDocument = `# 졸업 프로젝트 계획
+
+## 할 일 목록
+Some text here about graduation requirements.
+
+## 메일 섹션
+> ~~메일 초안 삭제~~ — 확인 완료로 불필요
+
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="교수님께 보낼 메일 초안:" anchor="교수님께 보낼 메일 초안:" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="제목: 졸업프로젝트 관련 문의" anchor="제목: 졸업프로젝트 관련 문의" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="본문 내용" anchor="본문 내용" -->
+<!-- USER_MEMO
+  id="userQuestion1"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="이 섹션 필요한가요?"
+  anchorText="Some text here about graduation requirements."
+  anchor="L4|00000000"
+  createdAt="2026-02-21T10:00:00.000Z"
+  updatedAt="2026-02-21T10:00:00.000Z"
+-->
+<!-- MEMO_IMPL
+  id="impl_1"
+  memoId="deletedMemo1"
+  status="applied"
+  operations="[]"
+  summary="메일 초안 삭제"
+  appliedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+  it('should not create phantom memos from orphaned HIGHLIGHT_MARKs after MEMO_IMPL apply', () => {
+    const parts = splitDocument(fullDocument)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+
+    // BUG: 3 phantom memos are created from the stale HIGHLIGHT_MARKs.
+    expect(recovered).toHaveLength(0)
+  })
+
+  it('should preserve the real user question memo', () => {
+    const parts = splitDocument(fullDocument)
+
+    const realMemo = parts.memos.find(m => m.id === 'userQuestion1')
+    expect(realMemo).toBeDefined()
+    expect(realMemo!.type).toBe('question')
+    expect(realMemo!.color).toBe('blue')
+    expect(realMemo!.text).toBe('이 섹션 필요한가요?')
+  })
+
+  it('should correctly parse the MEMO_IMPL', () => {
+    const parts = splitDocument(fullDocument)
+
+    expect(parts.impls).toHaveLength(1)
+    expect(parts.impls[0].memoId).toBe('deletedMemo1')
+    expect(parts.impls[0].status).toBe('applied')
+  })
+
+  it('total memo count should only include real user memos', () => {
+    const parts = splitDocument(fullDocument)
+
+    // Only the real user memo should be present
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].id).toBe('userQuestion1')
   })
 })
