@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.0] - 2026-02-21
+
+### Added
+- **Approve All**: New status bar button to bulk-approve all pending review annotations in one click
+- Annotations with uncertain anchor positions now show a warning icon so you can verify placement
+
+### Fixed
+- Annotation text containing quotes, ampersands, or special characters no longer gets corrupted after saving
+- All annotation metadata (type, owner, source, timestamps) is now preserved when editing in the review panel
+- AI agent batch operations no longer corrupt each other when multiple changes target the same document
+- AI agent rollback now correctly reverts only the intended change instead of all matching text
+- AI agent responses no longer shift out of position when multiple responses exist in the same document
+- Orphaned annotations (with broken anchor references) now appear at the end of the document instead of the top
+- Duplicate "recovered" annotations no longer appear when the AI edits both the anchor text and the annotation
+- Annotation ordering is now deterministic, reducing unnecessary changes in version control
+- The review panel now asks for confirmation before discarding unsaved edits when the file changes externally
+- Backslash escaping now handles additional markdown characters correctly
+- File locking no longer gets stuck when a previous operation was interrupted
+
+### Improved
+- Progress indicator now shows both applied and resolved counts for clearer status tracking
+
 ## [1.4.2] - 2026-02-21
 
 ### Changed
