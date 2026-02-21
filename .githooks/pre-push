@@ -17,8 +17,7 @@ do
   do
     case "$PATHNAME" in
       docs/architecture/*|docs/pr/*|operational/*|.md-feedback/*|AGENTS.md|CLAUDE.md|RELEASE_NOTES.md|README_MCP_SETUP.md|mcp-config*.json|run_mcp.bat)
-        MATCHED="${MATCHED}${PATHNAME}
-"
+        MATCHED="${MATCHED}${PATHNAME}\n"
         ;;
     esac
   done <<EOF
@@ -28,7 +27,7 @@ EOF
   if [ -n "$MATCHED" ]; then
     echo ""
     echo "✗ Push blocked: local-only files detected in $LOCAL_REF"
-    echo "$MATCHED" | sed 's/^/  - /'
+    printf "%b" "$MATCHED" | sed '/^$/d; s/^/  - /'
     echo ""
     echo "Remove these files from the branch before pushing."
     BLOCKED=1
