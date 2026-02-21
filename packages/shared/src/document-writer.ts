@@ -7,8 +7,8 @@
  * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor
  */
 
-import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation, AnchorConfidence } from './types'
-import { colorToType, isResolved, HEX_TO_COLOR_NAME } from './types'
+import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation, AnchorConfidence, SidecarMetadata, MergeResult } from './types'
+import { colorToType, isResolved, HEX_TO_COLOR_NAME, emptySidecarMetadata } from './types'
 import { generateId } from './id'
 import { parseJsonStrict } from './errors'
 
@@ -81,6 +81,13 @@ const ARTIFACT_END_RE = /^-->$/
 const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
 const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
 const ANCHOR_HASH_SEARCH_RADIUS = 10
+
+/** Minimum anchor text length for reliable text-based matching.
+ *  Short strings (e.g. "3", "OK") match too many lines and cause misplacement. */
+export const MIN_ANCHOR_TEXT_LENGTH = 8
+/** Maximum number of text matches before falling back to line-number anchor.
+ *  Too many matches indicate ambiguous anchor text. */
+const MAX_TEXT_MATCHES_CONFIDENT = 3
 
 /** Check if a line is a metadata comment (HIGHLIGHT_MARK, USER_MEMO, MEMO_IMPL, etc.)
  *  that should be excluded from content-matching operations. */
@@ -160,7 +167,7 @@ function parseAttrs(lines: string[]): Record<string, string> {
 
 // ─── splitDocument ───
 
-export function splitDocument(markdown: string): DocumentParts {
+export function splitDocument(markdown: string, sidecar?: SidecarMetadata | null): DocumentParts {
   let frontmatter = ''
   let body = markdown
 
@@ -541,6 +548,12 @@ export function splitDocument(markdown: string): DocumentParts {
 
     const anchorText = markAnchor || markText
 
+    // Reject contaminated anchorText (double-encoded attribute markup)
+    if (anchorText.includes('anchorText=') || anchorText.includes('<!-- ')) continue
+
+    // Reject too-short anchors (unreliable text matching)
+    if (anchorText.length < MIN_ANCHOR_TEXT_LENGTH) continue
+
     const searchNeedle = anchorText.slice(0, 40)
     const strippedNeedle = stripMarkdownFormatting(searchNeedle)
     // Exclude comment/metadata lines from anchor search — prevents matching HIGHLIGHT_MARKs themselves
@@ -602,7 +615,7 @@ export function splitDocument(markdown: string): DocumentParts {
     return false
   })
 
-  return {
+  const parsed: DocumentParts = {
     frontmatter,
     body: bodyLines.join('\n'),
     memos: cleanMemos,
@@ -614,6 +627,20 @@ export function splitDocument(markdown: string): DocumentParts {
     gates,
     cursor,
   }
+
+  if (!sidecar) return parsed
+
+  const dedupById = <T extends { id: string }>(inline: T[], external: T[]): T[] => {
+    const inlineIds = new Set(inline.map(item => item.id))
+    return [...inline, ...external.filter(item => !inlineIds.has(item.id))]
+  }
+
+  parsed.impls = dedupById(parsed.impls, sidecar.impls || [])
+  parsed.artifacts = dedupById(parsed.artifacts, sidecar.artifacts || [])
+  parsed.dependencies = dedupById(parsed.dependencies, sidecar.dependencies || [])
+  parsed.checkpoints = dedupById(parsed.checkpoints, sidecar.checkpoints || [])
+
+  return parsed
 }
 
 // ─── stale HIGHLIGHT_MARK cleanup ───
@@ -643,7 +670,14 @@ function removeStaleHighlightMarks(body: string): string {
 
 // ─── mergeDocument ───
 
-export function mergeDocument(parts: DocumentParts): string {
+export interface MergeOptions {
+  /** When true, MEMO_IMPL, CHECKPOINT, and PLAN_CURSOR are excluded from output.
+   *  GATE, USER_MEMO, MEMO_ARTIFACT, MEMO_DEPENDENCY are always kept. */
+  stripOperationalMeta?: boolean
+}
+
+export function mergeDocument(parts: DocumentParts, options?: MergeOptions): string {
+  const stripMeta = options?.stripOperationalMeta ?? false
   const sections: string[] = []
 
   // Frontmatter
@@ -659,38 +693,99 @@ export function mergeDocument(parts: DocumentParts): string {
   sections.push(bodyWithMemos)
 
   // Implementation records (sorted by ID for stable git output)
-  const sortedImpls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
-  for (const impl of sortedImpls) {
-    sections.push(serializeMemoImpl(impl))
+  if (!stripMeta) {
+    const sortedImpls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
+    for (const impl of sortedImpls) {
+      sections.push(serializeMemoImpl(impl))
+    }
   }
 
-  // Artifacts (sorted by ID for stable git output)
+  // Artifacts — always kept (semantic data)
   const sortedArtifacts = [...(parts.artifacts || [])].sort((a, b) => a.id.localeCompare(b.id))
   for (const art of sortedArtifacts) {
     sections.push(serializeMemoArtifact(art))
   }
 
-  // Dependencies (sorted by ID for stable git output)
+  // Dependencies — always kept (semantic data)
   const sortedDeps = [...(parts.dependencies || [])].sort((a, b) => a.id.localeCompare(b.id))
   for (const dep of sortedDeps) {
     sections.push(serializeMemoDependency(dep))
   }
 
-  // Gates
+  // Gates — always kept (state visibility)
   for (const gate of parts.gates) {
     sections.push(serializeGate(gate))
   }
 
   // Checkpoints
-  for (const cp of parts.checkpoints) {
-    sections.push(serializeCheckpoint(cp))
+  if (!stripMeta) {
+    for (const cp of parts.checkpoints) {
+      sections.push(serializeCheckpoint(cp))
+    }
   }
 
   // Plan cursor (always at end)
+  if (!stripMeta && parts.cursor) {
+    sections.push(serializeCursor(parts.cursor))
+  }
+
+  return sections.join('\n\n') + '\n'
+}
+
+/** Merge DocumentParts into markdown + canonical sidecar metadata.
+ *  Inline output keeps: USER_MEMO, GATE, PLAN_CURSOR, REVIEW_RESPONSE, HIGHLIGHT_MARK.
+ *  Sidecar output keeps: MEMO_IMPL, MEMO_ARTIFACT, MEMO_DEPENDENCY, CHECKPOINT. */
+export function mergeDocumentWithSidecar(parts: DocumentParts): MergeResult {
+  const sections: string[] = []
+
+  if (parts.frontmatter) {
+    sections.push(parts.frontmatter.trimEnd())
+  }
+
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+  const bodyWithMemos = reinsertMemosAndResponses(cleanBody, parts.memos, parts.responses || [])
+  sections.push(bodyWithMemos)
+
+  for (const gate of parts.gates) {
+    sections.push(serializeGate(gate))
+  }
+
   if (parts.cursor) {
     sections.push(serializeCursor(parts.cursor))
   }
 
+  const markdown = sections.join('\n\n') + '\n'
+
+  const impls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const artifacts = [...(parts.artifacts || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const dependencies = [...(parts.dependencies || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const checkpoints = [...(parts.checkpoints || [])].sort((a, b) => a.id.localeCompare(b.id))
+
+  const hasHeavyMeta = impls.length > 0 || artifacts.length > 0 || dependencies.length > 0 || checkpoints.length > 0
+  if (!hasHeavyMeta) {
+    return { markdown, sidecar: null }
+  }
+
+  const sidecar = emptySidecarMetadata()
+  sidecar.impls = impls
+  sidecar.artifacts = artifacts
+  sidecar.dependencies = dependencies
+  sidecar.checkpoints = checkpoints
+  sidecar.updatedAt = new Date().toISOString()
+
+  return { markdown, sidecar }
+}
+
+/** Export clean body + frontmatter only (all metadata removed).
+ *  For user-facing document export. */
+export function exportCleanBody(parts: DocumentParts): string {
+  const sections: string[] = []
+  if (parts.frontmatter) {
+    sections.push(parts.frontmatter.trimEnd())
+  }
+  // Strip HIGHLIGHT_MARKs and return plain body
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+  sections.push(cleanBody)
   return sections.join('\n\n') + '\n'
 }
 
@@ -910,31 +1005,39 @@ export function findMemoAnchorLineWithConfidence(lines: string[], memo: MemoV2):
   // Fallback: search by anchorText content match (with markdown-stripped fuzzy matching)
   if (memo.anchorText) {
     const needle = memo.anchorText.trim()
-    const strippedNeedle = stripMarkdownFormatting(needle)
-    const matches: number[] = []
-    for (let i = 0; i < lines.length; i++) {
-      if (isCommentLine(lines[i])) continue // skip metadata comment lines
-      if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
-    }
-    if (matches.length === 1) return { lineIdx: matches[0], confidence: 'text' }
-    if (matches.length > 1) {
-      // If line number is available, keep the closest matching occurrence.
-      const lineMatch = memo.anchor.match(/^L(\d+)/)
-      if (lineMatch) {
-        const lineNum = parseInt(lineMatch[1], 10) - 1
-        let best = matches[0]
-        let bestDist = Math.abs(matches[0] - lineNum)
-        for (const idx of matches.slice(1)) {
-          const dist = Math.abs(idx - lineNum)
-          if (dist < bestDist) {
-            best = idx
-            bestDist = dist
-          }
-        }
-        return { lineIdx: best, confidence: 'text' }
+
+    // Skip text fallback for too-short anchors — they match too many lines
+    if (needle.length >= MIN_ANCHOR_TEXT_LENGTH) {
+      const strippedNeedle = stripMarkdownFormatting(needle)
+      const matches: number[] = []
+      for (let i = 0; i < lines.length; i++) {
+        if (isCommentLine(lines[i])) continue // skip metadata comment lines
+        if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
       }
-      return { lineIdx: matches[0], confidence: 'text' }
+
+      // Too many matches → ambiguous anchor, skip to line-number fallback
+      if (matches.length >= 1 && matches.length <= MAX_TEXT_MATCHES_CONFIDENT) {
+        if (matches.length === 1) return { lineIdx: matches[0], confidence: 'text' }
+        // If line number is available, keep the closest matching occurrence.
+        const lineMatch = memo.anchor.match(/^L(\d+)/)
+        if (lineMatch) {
+          const lineNum = parseInt(lineMatch[1], 10) - 1
+          let best = matches[0]
+          let bestDist = Math.abs(matches[0] - lineNum)
+          for (const idx of matches.slice(1)) {
+            const dist = Math.abs(idx - lineNum)
+            if (dist < bestDist) {
+              best = idx
+              bestDist = dist
+            }
+          }
+          return { lineIdx: best, confidence: 'text' }
+        }
+        return { lineIdx: matches[0], confidence: 'text' }
+      }
+      // matches.length > MAX_TEXT_MATCHES_CONFIDENT → fall through to line-number fallback
     }
+    // needle.length < MIN_ANCHOR_TEXT_LENGTH → fall through to line-number fallback
   }
 
   // Last resort: line-number-only fallback (clamped to valid range)
@@ -978,6 +1081,145 @@ function findAnchorLineIdx(bodyLines: string[]): number {
 /** Generate body hash (djb2, 8 hex chars) for Plan Cursor */
 export function generateBodyHash(body: string): string {
   return computeLineHash(body)
+}
+
+// ─── Comment integrity validation ───
+
+/** Validate that HTML comments in markdown are properly nested and closed.
+ *  Skips fenced code blocks (``` ... ```).
+ *  Returns { valid, errors[] } where errors include line numbers. */
+export function validateCommentIntegrity(markdown: string): { valid: boolean; errors: string[] } {
+  const lines = markdown.split('\n')
+  const errors: string[] = []
+  let inComment = false
+  let commentStartLine = -1
+  let inFencedBlock = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+
+    // Toggle fenced code block state
+    if (trimmed.startsWith('```')) {
+      inFencedBlock = !inFencedBlock
+      continue
+    }
+
+    // Skip content inside fenced code blocks
+    if (inFencedBlock) continue
+
+    // Scan for comment open/close tokens within the line
+    let pos = 0
+    const line = lines[i]
+    while (pos < line.length) {
+      if (!inComment) {
+        const openIdx = line.indexOf('<!--', pos)
+        if (openIdx === -1) break
+        // Check if the comment closes on the same line
+        const closeIdx = line.indexOf('-->', openIdx + 4)
+        if (closeIdx !== -1) {
+          // Self-contained comment on one line — skip past it
+          pos = closeIdx + 3
+          continue
+        }
+        // Multi-line comment opened
+        inComment = true
+        commentStartLine = i + 1
+        pos = openIdx + 4
+      } else {
+        // Inside a comment — look for nested open or close
+        const nestedOpenIdx = line.indexOf('<!--', pos)
+        const closeIdx = line.indexOf('-->', pos)
+
+        if (closeIdx !== -1 && (nestedOpenIdx === -1 || closeIdx < nestedOpenIdx)) {
+          // Comment closed
+          inComment = false
+          pos = closeIdx + 3
+        } else if (nestedOpenIdx !== -1) {
+          // Nested comment open detected
+          errors.push(`Nested comment at line ${i + 1} (outer comment opened at line ${commentStartLine})`)
+          pos = nestedOpenIdx + 4
+        } else {
+          break
+        }
+      }
+    }
+  }
+
+  if (inComment) {
+    errors.push(`Unclosed comment opened at line ${commentStartLine}`)
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/** Attempt to repair nested comments by extracting inner USER_MEMO blocks
+ *  outside the enclosing comment. Returns repaired markdown or null if unfixable. */
+export function repairNestedComments(markdown: string): string | null {
+  const lines = markdown.split('\n')
+  const result: string[] = []
+  const extracted: string[] = []
+  let inComment = false
+  let inFencedBlock = false
+  let nestedMemoLines: string[] = []
+  let collectingNested = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+
+    if (trimmed.startsWith('```')) {
+      inFencedBlock = !inFencedBlock
+      result.push(lines[i])
+      continue
+    }
+
+    if (inFencedBlock) {
+      result.push(lines[i])
+      continue
+    }
+
+    if (!inComment) {
+      const openIdx = lines[i].indexOf('<!--')
+      if (openIdx !== -1 && lines[i].indexOf('-->', openIdx + 4) === -1) {
+        inComment = true
+      }
+      result.push(lines[i])
+    } else {
+      // Inside a comment
+      if (trimmed.startsWith('<!-- USER_MEMO')) {
+        // Nested memo detected — extract it
+        collectingNested = true
+        nestedMemoLines = [lines[i]]
+      } else if (collectingNested) {
+        nestedMemoLines.push(lines[i])
+        if (trimmed === '-->') {
+          // End of nested memo — but we need to check if this is the nested memo's end
+          // or the outer comment's end. Since nested memo's --> is inside outer comment,
+          // this closes the outer comment in the original broken markup.
+          // Extract the memo and close the outer comment instead.
+          extracted.push(...nestedMemoLines)
+          collectingNested = false
+          nestedMemoLines = []
+          inComment = false
+        }
+      } else if (trimmed.includes('-->')) {
+        inComment = false
+        result.push(lines[i])
+      } else {
+        result.push(lines[i])
+      }
+    }
+  }
+
+  if (extracted.length === 0) return null // nothing to repair
+
+  // Append extracted memos after the body
+  const repaired = [...result, ...extracted].join('\n')
+
+  // Re-validate — if still broken, return null
+  const check = validateCommentIntegrity(repaired)
+  if (!check.valid) return null
+
+  return repaired
 }
 
 function decodeHighlightAttr(s: string): string {

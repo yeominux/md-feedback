@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { splitDocument } from '@md-feedback/shared'
 import { registerTools } from './tools'
+import { readMetadataSidecar, readOperationalMeta } from './file-ops'
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }>
 
@@ -868,7 +869,10 @@ Anchor line
     const rolledBack = splitDocument(readFileSync(file, 'utf-8'))
     expect(rolledBack.body).toContain('Anchor line')
     expect(rolledBack.body).not.toContain('Updated line')
-    expect(rolledBack.impls[rolledBack.impls.length - 1]?.status).toBe('reverted')
+    // impls may be in sidecar (operational-meta.json) instead of inline
+    const sidecar = readMetadataSidecar(file) ?? readOperationalMeta(file)
+    const allImpls = [...rolledBack.impls, ...((sidecar as { impls?: Array<{ status?: string }> } | null)?.impls ?? [])]
+    expect(allImpls[allImpls.length - 1]?.status).toBe('reverted')
   })
 
   it('respond_to_memo returns MEMO_NOT_FOUND when memo does not exist', async () => {

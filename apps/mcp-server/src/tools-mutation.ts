@@ -1,14 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { appendProgress, writeSnapshot, writeTransaction } from './file-ops.js'
+import { appendProgress, writeSnapshot, writeTransaction, readMetadataSidecar, writeMetadataSidecar } from './file-ops.js'
 import { createCheckpoint } from '@md-feedback/shared'
-import { splitDocument, mergeDocument, generateBodyHash, findMemoAnchorLine, computeLineHash } from '@md-feedback/shared'
+import { splitDocument, mergeDocument, mergeDocumentWithSidecar, generateBodyHash, findMemoAnchorLine, computeLineHash, validateCommentIntegrity, repairNestedComments } from '@md-feedback/shared'
 import { generateId } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
-import type { DocumentParts, MemoStatus, MemoType, MemoColor, MemoV2, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
+import type { MemoStatus, MemoType, MemoColor, MemoV2, MemoImpl, MemoArtifact, ImplOperation, TextReplaceOp, FilePatchOp, FileCreateOp } from '@md-feedback/shared'
 import { existsSync, unlinkSync } from 'node:fs'
 import { withFileLock } from './file-mutex.js'
-import { AnchorNotFoundError, MemoNotFoundError, OperationValidationError } from './errors.js'
+import { AnchorNotFoundError, CommentIntegrityError, MemoNotFoundError, OperationValidationError } from './errors.js'
 import { assertMemoActionAllowed } from './policy.js'
 import {
   advanceWorkflowPhase,
@@ -21,7 +21,41 @@ import {
 import type { MutationToolContext } from './tools-runtime.js'
 
 export function registerMutationTools(server: McpServer, ctx: MutationToolContext): void {
-  const { safeRead, safeWrite, wrapTool, ensureDefaultGate, updateCursorFromMemos, applyUnifiedDiff } = ctx
+  const { safeRead, safeWrite, splitWithSidecar, mergeAndWrite, wrapTool, ensureDefaultGate, updateCursorFromMemos, applyUnifiedDiff } = ctx
+  const readParts = (file: string) => {
+    if (typeof splitWithSidecar === 'function') return splitWithSidecar(file)
+    const markdown = safeRead(file)
+    return splitDocument(markdown, readMetadataSidecar(file))
+  }
+  const writeParts = (file: string, parts: Parameters<typeof mergeDocumentWithSidecar>[0]) => {
+    if (typeof mergeAndWrite === 'function') {
+      mergeAndWrite(file, parts)
+      return
+    }
+    const merged = mergeDocumentWithSidecar(parts)
+    if (merged.sidecar) writeMetadataSidecar(file, merged.sidecar)
+    safeWrite(file, merged.markdown)
+  }
+
+  /** Guard comment integrity — auto-repair on preflight, throw on postflight failure. */
+  const guardCommentIntegrity = (markdown: string, phase: 'preflight' | 'postflight'): string => {
+    const check = validateCommentIntegrity(markdown)
+    if (check.valid) return markdown
+    if (phase === 'preflight') {
+      const repaired = repairNestedComments(markdown)
+      if (repaired !== null) return repaired
+      // Could not auto-repair — throw
+      throw new CommentIntegrityError(
+        `Preflight comment integrity check failed (auto-repair unsuccessful): ${check.errors.join('; ')}`,
+        { phase, errors: check.errors },
+      )
+    }
+    // Postflight failure — always throw
+    throw new CommentIntegrityError(
+      `Postflight comment integrity check failed: ${check.errors.join('; ')}`,
+      { phase, errors: check.errors },
+    )
+  }
   const replaceOccurrence = (
     source: string,
     target: string,
@@ -122,8 +156,10 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     async ({ file, note }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'create_checkpoint')
       const markdown = safeRead(file)
-      const { checkpoint, updatedMarkdown } = createCheckpoint(markdown, note)
-      safeWrite(file, updatedMarkdown)
+      const { checkpoint } = createCheckpoint(markdown, note)
+      const parts = readParts(file)
+      parts.checkpoints.push(checkpoint)
+      writeParts(file, parts)
       return {
         content: [{
           type: 'text' as const,
@@ -146,8 +182,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, anchorText, type, text, occurrence }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'create_annotation')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       // Find anchor text in body — exact match preferred, longest match wins on tie
       const bodyLines = parts.body.split('\n')
@@ -227,8 +262,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // Auto-update cursor
       updateCursorFromMemos(parts, memo.id, `Created ${type}: "${text.slice(0, 50)}"`)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -250,8 +284,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, response }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'respond_to_memo')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -328,8 +361,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         parts.gates = evaluateAllGates(parts.gates, parts.memos)
       }
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -357,8 +389,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, status, owner }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'update_memo_status')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -378,8 +409,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // T2-L1: Auto-update cursor based on memo resolution progress
       updateCursorFromMemos(parts, memoId)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -402,8 +432,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, taskId, step, nextAction }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'update_cursor')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       // Validate taskId exists in memos
       if (parts.memos.length > 0 && !parts.memos.some(m => m.id === taskId)) {
@@ -421,8 +450,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
         updatedAt: new Date().toISOString(),
       }
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -453,8 +481,10 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, action, dryRun, oldText, newText, occurrence, replaceAll, scope, targetFile, patch, content: fileContent }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'apply_memo')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const rawMarkdown = safeRead(file)
+      const markdown = guardCommentIntegrity(rawMarkdown, 'preflight')
+      const sidecarMeta = readMetadataSidecar(file)
+      const parts = splitDocument(markdown, sidecarMeta)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -550,8 +580,10 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // Auto-update cursor
       updateCursorFromMemos(parts, memoId)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      const merged = mergeDocumentWithSidecar(parts)
+      guardCommentIntegrity(merged.markdown, 'postflight')
+      if (merged.sidecar) writeMetadataSidecar(file, merged.sidecar)
+      safeWrite(file, merged.markdown)
 
       return {
         content: [{
@@ -573,8 +605,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, files: artifactFiles }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'link_artifacts')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -590,8 +621,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
 
       parts.artifacts.push(artifact)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -614,8 +644,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, status, message }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'update_memo_progress')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -641,8 +670,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // Auto-update cursor
       updateCursorFromMemos(parts, memoId)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -664,8 +692,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     async ({ file, memoId }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'rollback_memo')
       consumeHighRiskApproval(file, 'rollback_memo', 'Rollback is high-risk because it can revert prior implementation state.')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
 
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
@@ -707,8 +734,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // Auto-update cursor
       updateCursorFromMemos(parts, memoId)
 
-      const updated = mergeDocument(parts)
-      safeWrite(file, updated)
+      writeParts(file, parts)
 
       return {
         content: [{
@@ -745,8 +771,10 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     async ({ file, operations }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'batch_apply')
       consumeHighRiskApproval(file, 'batch_apply', 'Batch apply is high-risk because it can modify multiple files in one transaction.')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const rawMarkdown = safeRead(file)
+      const markdown = guardCommentIntegrity(rawMarkdown, 'preflight')
+      const sidecarMeta = readMetadataSidecar(file)
+      const parts = splitDocument(markdown, sidecarMeta)
 
       const results: Array<{ memoId: string; implId: string; status: string }> = []
       const stagedFileWrites = new Map<string, string>()
@@ -882,7 +910,8 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
       // Auto-update cursor
       updateCursorFromMemos(parts, operations[0]?.memoId || '')
 
-      const updated = mergeDocument(parts)
+      const merged = mergeDocumentWithSidecar(parts)
+      guardCommentIntegrity(merged.markdown, 'postflight')
 
       originalFiles.set(file, markdown)
       for (const targetFile of stagedFileWrites.keys()) {
@@ -899,11 +928,13 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
 
       const writtenFiles: string[] = []
       try {
+        // Write sidecar first (additive) before stripping inline copies
+        if (merged.sidecar) writeMetadataSidecar(file, merged.sidecar)
         for (const [targetFile, content] of stagedFileWrites.entries()) {
           safeWrite(targetFile, content)
           writtenFiles.push(targetFile)
         }
-        safeWrite(file, updated)
+        safeWrite(file, merged.markdown)
         writtenFiles.push(file)
       } catch (commitErr) {
         const rollbackErrors: string[] = []
@@ -972,8 +1003,7 @@ export function registerMutationTools(server: McpServer, ctx: MutationToolContex
     },
     async ({ file, memoId, severity }) => withFileLock(file, async () => wrapTool(async () => {
       assertWorkflowToolAllowed(file, 'set_memo_severity')
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
       const memo = parts.memos.find(m => m.id === memoId)
       if (!memo) {
         throw new MemoNotFoundError(memoId)
