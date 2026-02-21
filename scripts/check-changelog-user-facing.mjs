@@ -97,7 +97,7 @@ for (let i = 0; i < sections.length; i++) {
     if (matchInBody >= 0) {
       const lineNo = findBodyLineNumber(changelog, current.headerEnd, matchInBody)
       failures.push(
-        `[${current.version}] line ${lineNo}: contains internal operational wording (${re}).`
+        `[${current.version}] line ${lineNo}: contains internal/private wording (${re}).`
       )
     }
   }

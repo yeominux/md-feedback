@@ -113,7 +113,7 @@ function validateSubject(subject, label) {
   if (allowedMergePatterns.some(re => re.test(subject))) return null
 
   if (bannedPatterns.some(re => re.test(subject))) {
-    return `${label}: "${subject}" (contains internal-operational wording)`
+    return `${label}: "${subject}" (contains internal/private wording)`
   }
 
   if (tooGenericPatterns.some(re => re.test(subject))) {
