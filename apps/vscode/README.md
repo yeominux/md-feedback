@@ -178,3 +178,5 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 Developers using AI coding assistants who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
 
 More questions and advanced guidance: [MCP Server docs](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme) and [GitHub Issues](https://github.com/yeominux/md-feedback/issues).
+
+<!-- CHECKPOINT id="ckpt_mlvu3huf_x91v2r" time="2026-02-21T04:44:02.199Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->

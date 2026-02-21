@@ -22,6 +22,10 @@ const banned = [
   /\brelease branch synchronization\b/i,
   /\bproduct operations?\b/i,
   /\bmerge dev\b/i,
+  // Meta-commentary about internal process — not customer-facing
+  /\bcustomer[- ]focused\b/i,
+  /\buser[- ]facing\b/i,
+  /\brelease reliability\b/i,
 ]
 
 let failed = false
