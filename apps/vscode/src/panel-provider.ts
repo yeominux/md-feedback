@@ -22,6 +22,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   private preservedDependencies: MemoDependency[] = []
   private previousGateStatuses = new Map<string, string>()
   private previousNeedsReviewCount = 0
+  private _webviewIsDirty = false
 
   /** Fired after the first annotation edit has been applied to the document */
   private readonly _onFirstAnnotationApplied = new vscode.EventEmitter<void>()
@@ -40,6 +41,10 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
   public isLatestEditFromWebview(): boolean {
     return this.lastWebviewEditVersion === this.editVersion
   }
+
+  /** Whether the webview has unsaved changes (set via editor.dirty/editor.clean messages) */
+  public get webviewIsDirty(): boolean { return this._webviewIsDirty }
+  public set webviewIsDirty(value: boolean) { this._webviewIsDirty = value }
 
   public clearWebviewEditMarker(): void {
     this.lastWebviewEditVersion = 0
@@ -108,6 +113,7 @@ export class MdFeedbackPanelProvider implements vscode.WebviewViewProvider {
       getMcpSetupDone: () => this.context.globalState.get('md-feedback.mcpSetupDone', false),
       setMcpSetupDone: (value) => this.context.globalState.update('md-feedback.mcpSetupDone', value),
       fireFirstAnnotationApplied: () => this._onFirstAnnotationApplied.fire(),
+      setWebviewIsDirty: (value) => { this._webviewIsDirty = value },
     })
   }
 

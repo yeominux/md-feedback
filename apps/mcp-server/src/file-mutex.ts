@@ -1,9 +1,10 @@
 import path from 'node:path'
-import { openSync, closeSync, unlinkSync } from 'node:fs'
+import { openSync, closeSync, unlinkSync, statSync } from 'node:fs'
 
 const locks = new Map<string, Promise<void>>()
 const FILE_LOCK_TIMEOUT_MS = 5000
 const FILE_LOCK_POLL_MS = 20
+const STALE_LOCK_AGE_MS = 30_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -21,6 +22,19 @@ async function acquireFileLock(lockPath: string, timeoutMs = FILE_LOCK_TIMEOUT_M
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
       if (code !== 'EEXIST') throw err
+
+      // Stale lock detection: remove lock files older than STALE_LOCK_AGE_MS
+      try {
+        const stat = statSync(lockPath)
+        if (Date.now() - stat.mtimeMs > STALE_LOCK_AGE_MS) {
+          try { unlinkSync(lockPath) } catch { /* another process may have removed it */ }
+          continue
+        }
+      } catch {
+        // Lock file was removed between EEXIST and stat — retry immediately
+        continue
+      }
+
       if (Date.now() - start > timeoutMs) {
         throw new Error(`File lock timeout for ${lockPath}`)
       }
