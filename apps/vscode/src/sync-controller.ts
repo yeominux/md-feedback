@@ -14,7 +14,7 @@ type DocumentState = {
 const DEFAULT_AUTO_CHECKPOINT_INTERVAL_MS = 600_000
 const DEFAULT_SECTION_TRACK_DEBOUNCE_MS = 3000
 const DEFAULT_EDITOR_SWITCH_DEBOUNCE_MS = 150
-const DEFAULT_FILE_WATCH_DEBOUNCE_MS = 500
+const DEFAULT_FILE_WATCH_DEBOUNCE_MS = 150
 
 type TimingConfig = {
   autoCheckpointIntervalMs: number
@@ -58,6 +58,7 @@ export class SyncController implements vscode.Disposable {
   private currentDocumentUri: vscode.Uri | undefined
   private fileWatcher: vscode.FileSystemWatcher | undefined
   private fileWatchDebounce: ReturnType<typeof setTimeout> | undefined
+  private echoGuardTimer: ReturnType<typeof setTimeout> | undefined
   private skipNextFileWatch = false
   private readonly disposables: vscode.Disposable[] = []
   private readonly docStates = new Map<string, DocumentState>()
@@ -92,6 +93,15 @@ export class SyncController implements vscode.Disposable {
       const isWebviewEdit = this.panelProvider.isLatestEditFromWebview()
       if (isWebviewEdit) {
         this.skipNextFileWatch = true
+        // Auto-clear echo-loop guards after 1s — only the immediate
+        // file-watcher event from this same edit should be suppressed.
+        // Without this, external edits (e.g. MCP tools) are blocked
+        // until the user toggles panel visibility.
+        if (this.echoGuardTimer) clearTimeout(this.echoGuardTimer)
+        this.echoGuardTimer = setTimeout(() => {
+          this.skipNextFileWatch = false
+          this.panelProvider.clearWebviewEditMarker()
+        }, 1000)
         return
       }
 
@@ -203,6 +213,7 @@ export class SyncController implements vscode.Disposable {
     if (this.checkpointTimer) clearInterval(this.checkpointTimer)
     if (this.sectionTrackTimer) clearTimeout(this.sectionTrackTimer)
     if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
+    if (this.echoGuardTimer) clearTimeout(this.echoGuardTimer)
     if (this.fileWatcher) { this.fileWatcher.dispose(); this.fileWatcher = undefined }
     while (this.disposables.length) {
       const item = this.disposables.pop()
