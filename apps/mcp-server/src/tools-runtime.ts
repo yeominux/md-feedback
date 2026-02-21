@@ -87,10 +87,11 @@ export function createToolRuntime(options: ToolRuntimeOptions = {}): ToolRuntime
 
   function updateCursorFromMemos(parts: DocumentParts, taskId: string, nextAction?: string): void {
     const resolvedCount = parts.memos.filter(m => isResolved(m.status)).length
+    const appliedCount = parts.memos.filter(m => m.status !== 'open').length
     const openMemos = parts.memos.filter(m => !isResolved(m.status))
     parts.cursor = {
       taskId,
-      step: `${resolvedCount}/${parts.memos.length} resolved`,
+      step: `${appliedCount} applied, ${resolvedCount}/${parts.memos.length} resolved`,
       nextAction: nextAction ?? (
         openMemos.length === 0
           ? 'All annotations resolved — review complete'

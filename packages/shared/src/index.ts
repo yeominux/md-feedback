@@ -9,7 +9,7 @@ export * from './document-writer'
 export * from './handoff-generator'
 export * from './gate-evaluator'
 
-// Export markdown-roundtrip and checkpoint separately to avoid duplicate serializeCheckpoint
+// Export markdown-roundtrip (serializeCheckpoint now comes from document-writer via export *)
 export {
   convertMemosToHtml,
   extractMemos,
@@ -17,7 +17,6 @@ export {
   extractMemosV2,
   generateReviewSummary,
   extractCheckpoints,
-  serializeCheckpoint,
   extractHighlightMarks,
   stripHighlightMarks,
 } from './markdown-roundtrip'
