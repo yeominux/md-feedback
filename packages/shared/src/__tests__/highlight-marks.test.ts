@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { extractHighlightMarks, stripHighlightMarks, convertMemosToHtml } from '../markdown-roundtrip'
-import { splitDocument, findMemoAnchorLine } from '../document-writer'
+import { splitDocument, mergeDocument, findMemoAnchorLine } from '../document-writer'
 import type { MemoV2 } from '../types'
 
 describe('highlight marks — extractHighlightMarks', () => {
@@ -411,5 +411,173 @@ Some text here about graduation requirements.
     // Only the real user memo should be present
     expect(parts.memos).toHaveLength(1)
     expect(parts.memos[0].id).toBe('userQuestion1')
+  })
+})
+
+// ─── Legacy phantom memo cleanup: pre-existing memo_recovered_* USER_MEMOs ───
+
+describe('Legacy phantom memo cleanup — persisted memo_recovered_* from old code', () => {
+  // Real-world scenario: The old code created memo_recovered_* USER_MEMOs from stale
+  // HIGHLIGHT_MARKs and they were persisted in the file. When the file is opened with
+  // updated code, these phantom memos should be discarded if their anchor text references
+  // deleted content.
+
+  it('should discard persisted memo_recovered_* whose anchorText references deleted content', () => {
+    const doc = `# Title
+
+Remaining content only.
+
+<!-- USER_MEMO
+  id="memo_recovered_abc123"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="교수님께 보낼 메일 초안:"
+  anchorText="교수님께 보낼 메일 초안:"
+  anchor="L99|deadbeef"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+    const parts = splitDocument(doc)
+    // "교수님께 보낼 메일 초안:" does not exist in body → phantom should be discarded
+    expect(parts.memos).toHaveLength(0)
+  })
+
+  it('should discard persisted memo_recovered_* with corrupted HTML comment anchorText', () => {
+    const doc = `# Title
+
+Some content.
+
+<!-- USER_MEMO
+  id="memo_recovered_def456"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="Some fix"
+  anchorText="<!-- HIGHLIGHT_MARK color=&quot;#fca5a5&quot; text=&quot;Some fix&quot;"
+  anchor="L3|00000000"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+    const parts = splitDocument(doc)
+    // anchorText contains raw HTML comment → corrupted phantom should be discarded
+    expect(parts.memos).toHaveLength(0)
+  })
+
+  it('should keep valid recovered-highlight memos whose anchorText exists in body', () => {
+    const doc = `# Title
+
+Some important content here.
+
+<!-- USER_MEMO
+  id="memo_recovered_valid1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="Fix this"
+  anchorText="Some important content here."
+  anchor="L3|00000000"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+    const parts = splitDocument(doc)
+    // anchorText matches actual body content → should be kept
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].id).toBe('memo_recovered_valid1')
+  })
+
+  it('should keep real user memos while discarding phantom recovered ones', () => {
+    const doc = `# Title
+
+Some text here about graduation requirements.
+
+## Deleted section
+> ~~메일 초안 삭제~~ — 확인 완료로 불필요
+
+<!-- USER_MEMO
+  id="realUserMemo"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="이건 진짜 내 메모"
+  anchorText="Some text here about graduation requirements."
+  anchor="L3|00000000"
+  createdAt="2026-02-21T10:00:00.000Z"
+  updatedAt="2026-02-21T10:00:00.000Z"
+-->
+<!-- USER_MEMO
+  id="memo_recovered_phantom1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="교수님께 보낼 메일 초안:"
+  anchorText="교수님께 보낼 메일 초안:"
+  anchor="L99|deadbeef"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->
+<!-- USER_MEMO
+  id="memo_recovered_phantom2"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="제목: 졸업프로젝트 관련 문의"
+  anchorText="제목: 졸업프로젝트 관련 문의"
+  anchor="L99|deadbeef"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+    const parts = splitDocument(doc)
+    // Only the real user memo should remain; 2 phantom memos discarded
+    expect(parts.memos).toHaveLength(1)
+    expect(parts.memos[0].id).toBe('realUserMemo')
+    expect(parts.memos[0].source).toBe('vscode')
+  })
+
+  it('should clean phantom memos AND stale HIGHLIGHT_MARKs in one merge cycle', () => {
+    const doc = `# Title
+
+Remaining content only.
+
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="deleted paragraph" anchor="deleted paragraph" -->
+<!-- USER_MEMO
+  id="memo_recovered_stale1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="deleted paragraph"
+  anchorText="deleted paragraph"
+  anchor="L99|deadbeef"
+  createdAt="2026-02-21T09:00:00.000Z"
+  updatedAt="2026-02-21T09:00:00.000Z"
+-->`
+
+    // splitDocument discards the phantom memo
+    const parts = splitDocument(doc)
+    expect(parts.memos).toHaveLength(0)
+
+    // mergeDocument cleans up the stale HIGHLIGHT_MARK
+    const merged = mergeDocument(parts)
+    expect(merged).not.toContain('HIGHLIGHT_MARK')
+    expect(merged).not.toContain('memo_recovered_stale1')
+    expect(merged).toContain('Remaining content only.')
   })
 })
