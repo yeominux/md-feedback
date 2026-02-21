@@ -27,6 +27,8 @@ scripts/test-mcp-manual.mjs
 *HANDOFF*.md
 *RELEASING*.md
 *RELEASE-PLAN*.md
+docs/pr/
+docs/architecture/sidecar-pr-execution-plan.md
 AGENTS.md
 CLAUDE.md
 .cursorrules
