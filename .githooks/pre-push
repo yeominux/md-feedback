@@ -1,0 +1,41 @@
+#!/bin/sh
+# Block pushes that include local-only operational/architecture artifacts.
+
+set -u
+
+BLOCKED=0
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA
+do
+  # Skip branch/tag delete operations.
+  if [ "$LOCAL_SHA" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  MATCHED=""
+  while read -r PATHNAME
+  do
+    case "$PATHNAME" in
+      docs/architecture/*|docs/pr/*|operational/*|.md-feedback/*|AGENTS.md|CLAUDE.md|RELEASE_NOTES.md|README_MCP_SETUP.md|mcp-config*.json|run_mcp.bat)
+        MATCHED="${MATCHED}${PATHNAME}\n"
+        ;;
+    esac
+  done <<EOF
+$(git ls-tree -r --name-only "$LOCAL_SHA")
+EOF
+
+  if [ -n "$MATCHED" ]; then
+    echo ""
+    echo "✗ Push blocked: local-only files detected in $LOCAL_REF"
+    printf "%b" "$MATCHED" | sed '/^$/d; s/^/  - /'
+    echo ""
+    echo "Remove these files from the branch before pushing."
+    BLOCKED=1
+  fi
+done
+
+if [ "$BLOCKED" -ne 0 ]; then
+  exit 1
+fi
+
+exit 0
