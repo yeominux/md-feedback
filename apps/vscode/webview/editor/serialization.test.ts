@@ -43,10 +43,10 @@ describe('serializeWithMemos — anchorText preservation', () => {
     expect(result).toContain('id="m1"')
   })
 
-  it('omits anchorText when data-memo-anchor is absent', () => {
+  it('outputs empty anchorText when data-memo-anchor is absent', () => {
     const input = '<div data-memo-block data-memo-id="m1" data-memo-text="Fix" data-memo-color="red" data-memo-status="open">memo: Fix</div>'
     const result = serializeWithMemos(input)
-    expect(result).not.toContain('anchorText')
+    expect(result).toContain('anchorText=""')
     expect(result).toContain('id="m1"')
   })
 })

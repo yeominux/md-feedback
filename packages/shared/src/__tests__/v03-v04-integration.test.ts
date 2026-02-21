@@ -305,6 +305,82 @@ Review this carefully.
       expect(parts2.memos[0].text).toContain('quotes')
     })
 
+    it('v0.3 memo with ampersands survives v0.3 → v0.4 → v0.4 roundtrip', () => {
+      const doc = `# Plan
+
+Check A & B here.
+<!-- USER_MEMO id="amp1" color="red" status="open" : Fix A & B & C -->`
+
+      // v0.3 → split → merge (v0.4)
+      const parts1 = splitDocument(doc)
+      expect(parts1.memos[0].text).toBe('Fix A & B & C')
+      const merged1 = mergeDocument(parts1)
+
+      // v0.4 → split → merge (v0.4) — must NOT double-encode
+      const parts2 = splitDocument(merged1)
+      expect(parts2.memos[0].text).toBe('Fix A & B & C')
+      const merged2 = mergeDocument(parts2)
+
+      // Third roundtrip — still stable
+      const parts3 = splitDocument(merged2)
+      expect(parts3.memos[0].text).toBe('Fix A & B & C')
+
+      // No double-encoding markers
+      expect(merged2).not.toContain('&amp;amp;')
+    })
+
+    it('v0.3 memo with comment close --> survives transition', () => {
+      const doc = `# Plan
+
+Content here.
+<!-- USER_MEMO id="cmt1" color="red" status="open" : See section A --\\> then B -->`
+
+      const parts1 = splitDocument(doc)
+      // v0.3 parser extracts text after " : " up to " -->"
+      // The text content depends on how the v0.3 parser handles this
+      const merged1 = mergeDocument(parts1)
+      const parts2 = splitDocument(merged1)
+
+      // After roundtrip through v0.4, the memo should still exist and be parseable
+      expect(parts2.memos).toHaveLength(1)
+      expect(parts2.memos[0].id).toBe('cmt1')
+    })
+
+    it('v0.4 fields (type, owner, source, timestamps) survive multiple roundtrips', () => {
+      const doc = `# Plan
+
+Content here.
+<!-- USER_MEMO
+  id="fields1"
+  type="question"
+  status="open"
+  owner="reviewer"
+  source="mcp"
+  color="blue"
+  text="Is this correct?"
+  anchorText="Content here."
+  anchor="L3|00000000"
+  createdAt="2026-01-15T10:30:00.000Z"
+  updatedAt="2026-01-15T11:00:00.000Z"
+-->`
+
+      // Round 1
+      const parts1 = splitDocument(doc)
+      expect(parts1.memos[0].type).toBe('question')
+      expect(parts1.memos[0].owner).toBe('reviewer')
+      expect(parts1.memos[0].source).toBe('mcp')
+      expect(parts1.memos[0].createdAt).toBe('2026-01-15T10:30:00.000Z')
+
+      const merged1 = mergeDocument(parts1)
+
+      // Round 2 — all fields preserved
+      const parts2 = splitDocument(merged1)
+      expect(parts2.memos[0].type).toBe('question')
+      expect(parts2.memos[0].owner).toBe('reviewer')
+      expect(parts2.memos[0].source).toBe('mcp')
+      expect(parts2.memos[0].createdAt).toBe('2026-01-15T10:30:00.000Z')
+    })
+
     it('table-embedded memo (B-1) handled in convertMemosToHtml', () => {
       const doc = `| Header 1 | Header 2 |
 |----------|----------|
