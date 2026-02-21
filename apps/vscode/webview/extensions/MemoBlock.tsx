@@ -66,10 +66,11 @@ export const MemoBlock = Node.create({
     return {
       markdown: {
         serialize(state: any, node: any) {
-          const { memoId, text, color, status } = node.attrs
+          const { memoId, text, color, status, anchorText } = node.attrs
           const escaped = (text || '').replace(/-->/g, '--\u200B>')
           const statusAttr = status && status !== 'open' ? ` status="${status}"` : ''
-          state.write(`<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr} : ${escaped} -->`)
+          const anchorAttr = anchorText ? ` anchorText="${(anchorText as string).replace(/"/g, '&quot;')}"` : ''
+          state.write(`<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr}${anchorAttr} : ${escaped} -->`)
           state.closeBlock(node)
         },
         parse: {},
