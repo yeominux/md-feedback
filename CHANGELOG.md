@@ -3,8 +3,10 @@
 ## [1.4.1] - 2026-02-21
 
 ### Changed
-- Rewrote all release notes and documentation in clearer, customer-focused language
 - Updated demo video to accurately reflect the latest review card design, approval flow, and progress tracking
+
+### Fixed
+- Clicking a memo in the Details drawer now correctly scrolls to the memo card in the editor
 
 ## [1.4.0] - 2026-02-21
 
@@ -183,16 +185,8 @@
 
 ## [1.3.2] - 2026-02-18
 
-Review flow is clearer in the editor, and release reliability has been improved.
-
 ### Fixed
 - Demo now correctly shows approval happening in the editor, not the sidebar
-
-### Added
-- GitHub Releases are now created automatically from changelog when a new version is published
-
-### Improved
-- README and Marketplace descriptions updated to reflect the current review flow
 
 ## [1.3.1] - 2026-02-18
 
@@ -250,15 +244,11 @@ Human control over AI work — approve, reject, override, and see what changes b
 
 ## [1.1.1] - 2026-02-17
 
-Demo GIF now shows in README — on GitHub, npm, and VS Code Marketplace.
-
 ### Added
-- Animated demo GIF in README
-- GitHub Actions workflow for auto-rendering demo
+- Animated demo showing the full annotation and review flow
 
 ### Improved
-- README now lists all v1.1.0 features
-- Security policy updated for v1.1.x
+- Security policy updated
 
 ## [1.1.0] - 2026-02-17
 
