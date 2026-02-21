@@ -83,8 +83,7 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 
 4. **Done** — MCP-compatible agents read annotations directly. If your agent is export-only (for example current Copilot flow), use Export.
 
-> **Node.js 18+ required** for MCP (`npx`).
-> Claude path: `.claude/mcp.json`  
+> **Node.js 18+ required** for MCP (`npx`). Claude path: `.claude/mcp.json`\
 > Cursor path: `.cursor/mcp.json`
 
 > **Try it now:** Install from [Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode), open any `.md` file, and press `2` to add your first Fix annotation.
@@ -92,18 +91,23 @@ This is the MCP-first path. If you use export-based workflow, run export after s
 ## Use Cases
 
 ### Vibe Coding Workflow
+
 Write a plan in markdown. Review it with MD Feedback. Let your AI agent build exactly what you reviewed. The plan is the contract — annotations are the instructions.
 
 ### AI Plan Review
+
 An AI agent generates an implementation plan. You review it with highlights, fixes, and questions before the agent writes any code. Catch errors at design time, not after implementation.
 
 ### Session Continuity
+
 Working with AI across multiple sessions? Handoffs preserve every decision, open question, and key context point. The next session starts where the last one ended.
 
 ### Team Plan Review
+
 Annotations are HTML comments in the markdown file. They survive git commits, PRs, and branch merges. Share reviewed plans with your team through your normal version control workflow.
 
 ### Quality Gate Enforcement
+
 Set conditions that must be met before the agent proceeds. Gates auto-evaluate based on annotation resolution status — blocked, proceed, or done.
 
 ## Design Philosophy
@@ -116,8 +120,7 @@ Set conditions that must be met before the agent proceeds. Gates auto-evaluate b
 
 ## VS Code Settings
 
-You can customize MD Feedback from VS Code Settings via `md-feedback.*`.
-Advanced timing and performance tuning options are available for large workspaces.
+You can customize MD Feedback from VS Code Settings via `md-feedback.*`. Advanced timing and performance tuning options are available for large workspaces.
 
 ## MCP Server
 
@@ -135,7 +138,7 @@ npx md-feedback
 { "command": "npx", "args": ["-y", "md-feedback", "--workspace=/path/to/project"] }
 ```
 
-Windows example: `{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=C:\\\\work\\\\my-project"] }`  
+Windows example: `{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=C:\\\\work\\\\my-project"] }`\
 Or via environment variable: `MD_FEEDBACK_WORKSPACE=/path/to/project`
 
 For full details, see [MCP Server documentation](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme).
@@ -175,5 +178,3 @@ Yes. MD Feedback is free for personal and non-commercial use under the [SUL-1.0]
 Developers using AI coding assistants who want to review plans before implementation, preserve context across sessions, and give agents structured feedback instead of unstructured chat messages.
 
 More questions and advanced guidance: [MCP Server docs](https://github.com/yeominux/md-feedback/tree/main/apps/mcp-server#readme) and [GitHub Issues](https://github.com/yeominux/md-feedback/issues).
-
-
