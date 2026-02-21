@@ -6,11 +6,12 @@ export function appendMissedMemos(
   const appendMemos: string[] = []
   ed.state.doc.descendants((node: any) => {
     if (node.type.name !== 'memoBlock') return
-    const { memoId, text, color, status } = node.attrs
+    const { memoId, text, color, status, anchorText } = node.attrs
     if (!memoId || md.includes(`id="${memoId}"`)) return
     const escaped = (text || '').replace(/-->/g, '--\u200B>')
     const statusAttr = status && status !== 'open' ? ` status="${status}"` : ''
-    const comment = `<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr} : ${escaped} -->`
+    const anchorAttr = anchorText ? ` anchorText="${escAttr(anchorText)}"` : ''
+    const comment = `<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr}${anchorAttr} : ${escaped} -->`
     appendMemos.push(comment)
   })
   if (appendMemos.length > 0) {
@@ -47,17 +48,34 @@ export function serializeWithMemos(markdown: string): string {
       const text = match.match(/data-memo-text="([^"]*)"/)
       const color = match.match(/data-memo-color="([^"]*)"/)
       const status = match.match(/data-memo-status="([^"]*)"/)
+      const anchor = match.match(/data-memo-anchor="([^"]*)"/)
       if (id && color) {
         const memoText = text ? decodeHtmlEntities(text[1]).replace(/\n/g, ' ').trim() : ''
         const statusAttr = status && status[1] !== 'open' ? ` status="${status[1]}"` : ''
-        return `<!-- USER_MEMO id="${id[1]}" color="${color[1]}"${statusAttr} : ${memoText} -->`
+        const anchorAttr = anchor && anchor[1] ? ` anchorText="${anchor[1]}"` : ''
+        return `<!-- USER_MEMO id="${id[1]}" color="${color[1]}"${statusAttr}${anchorAttr} : ${memoText} -->`
       }
       // Preserve original HTML if extraction fails — never silently delete memos
       return match
     },
   )
 
+  // Collapse accumulated backslash escapes from prosemirror-markdown's esc()
+  // which doubles backslashes on every save/load cycle (C:\folder → C:\\folder → C:\\\\folder).
+  // Preserve code blocks as-is.
+  result = collapseBackslashes(result)
+
   return result
+}
+
+/** Collapse excessive backslash escaping outside fenced code blocks */
+export function collapseBackslashes(md: string): string {
+  const parts = md.split(/(^```[\s\S]*?^```)/gm)
+  return parts.map((part, i) => {
+    if (i % 2 === 1) return part // code block — preserve
+    // Collapse double+ escaped backslashes before markdown special chars
+    return part.replace(/\\{2,}([`*~\[\]_\\])/g, '\\$1')
+  }).join('')
 }
 
 function escAttr(s: string): string {

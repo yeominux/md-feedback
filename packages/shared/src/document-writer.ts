@@ -33,8 +33,8 @@ export function computeLineHash(line: string): string {
 
 // ─── Regex patterns ───
 
-// v0.3 single-line: <!-- USER_MEMO id="abc" color="red" status="done" : text -->
-const MEMO_V3_RE = /^<!-- USER_MEMO\s+id="([^"]+)"(?:\s+color="([^"]+)")?(?:\s+status="([^"]+)")?\s*:\s*(.*?)\s*-->$/
+// v0.3 single-line: <!-- USER_MEMO id="abc" color="red" status="done" anchorText="..." : text -->
+const MEMO_V3_RE = /^<!-- USER_MEMO\s+id="([^"]+)"(?:\s+color="([^"]+)")?(?:\s+status="([^"]+)")?(?:\s+anchorText="([^"]*)")?\s*:\s*(.*?)\s*-->$/
 
 // v0.4 multi-line: <!-- USER_MEMO\n  id="abc"\n  type="fix"\n  ...  \n-->
 const MEMO_V4_START_RE = /^<!-- USER_MEMO\s*$/
@@ -164,6 +164,10 @@ export function splitDocument(markdown: string): DocumentParts {
   let cursor: PlanCursor | null = null
   let openResponse: ReviewResponse | null = null
 
+  // Track seen memo IDs to prevent duplicate memos from appendMissedMemos / serialization edge cases.
+  // The FIRST occurrence has the correct anchor (adjacent to body line); later duplicates at EOF have wrong anchors.
+  const seenMemoIds = new Set<string>()
+
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
@@ -194,7 +198,9 @@ export function splitDocument(markdown: string): DocumentParts {
     // ── v0.3 single-line memo ──
     const v3Match = trimmed.match(MEMO_V3_RE)
     if (v3Match) {
-      const anchorText = findAnchorAbove(bodyLines)
+      if (seenMemoIds.has(v3Match[1])) { i++; continue }
+      seenMemoIds.add(v3Match[1])
+      const v3AnchorText = v3Match[4] ? unescAttrValue(v3Match[4]) : findAnchorAbove(bodyLines)
       const anchorLine = findAnchorLineIdx(bodyLines)
       const memoColor = (v3Match[2] || 'red') as MemoColor
       const memoStatus = (v3Match[3] as MemoV2['status']) || 'open'
@@ -205,8 +211,8 @@ export function splitDocument(markdown: string): DocumentParts {
         owner: 'human',
         source: 'generic',
         color: memoColor,
-        text: v3Match[4].replace(/--\u200B>/g, '-->'),
-        anchorText: anchorText || '',
+        text: v3Match[5].replace(/--\u200B>/g, '-->'),
+        anchorText: v3AnchorText || '',
         anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${computeLineHash(bodyLines[anchorLine] || '')}` : '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -225,6 +231,8 @@ export function splitDocument(markdown: string): DocumentParts {
       }
       i++ // skip -->
       const a = parseAttrs(attrLines)
+      if (a.id && seenMemoIds.has(a.id)) continue
+      if (a.id) seenMemoIds.add(a.id)
       const anchorText = a.anchorText || findAnchorAbove(bodyLines) || ''
       // Refresh anchor using persisted anchor/hash/anchorText (not last seen body line).
       // This avoids collapsing all EOF metadata memos onto the same trailing body line.
@@ -490,6 +498,8 @@ export function splitDocument(markdown: string): DocumentParts {
     const now = new Date().toISOString()
 
     const recoveredId = `memo_recovered_${computeLineHash(`${memoColor}|${anchorText}|${markText}`)}`
+    if (seenMemoIds.has(recoveredId)) continue
+    seenMemoIds.add(recoveredId)
     memos.push({
       id: recoveredId,
       type: colorToType(memoColor),
