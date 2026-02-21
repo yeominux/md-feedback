@@ -1,5 +1,5 @@
-import { readMarkdownFile, writeMarkdownFile } from './file-ops.js'
-import { generateBodyHash, type DocumentParts, isResolved } from '@md-feedback/shared'
+import { readMarkdownFile, writeMarkdownFile, readMetadataSidecar, writeMetadataSidecar } from './file-ops.js'
+import { generateBodyHash, type DocumentParts, isResolved, splitDocument, mergeDocumentWithSidecar } from '@md-feedback/shared'
 import { generateId } from '@md-feedback/shared'
 import { createFileSafety, validateFilePath } from './file-safety.js'
 import { FileSafetyError, PatchApplyError, serializeToolError } from './errors.js'
@@ -12,6 +12,8 @@ export type ToolErrorResult = { content: ToolText[]; isError: true }
 export interface ToolRuntime {
   safeRead: (file: string) => string
   safeWrite: (file: string, content: string) => void
+  splitWithSidecar: (file: string) => DocumentParts
+  mergeAndWrite: (file: string, parts: DocumentParts) => void
   listDocuments: (options?: { annotatedOnly?: boolean; maxFiles?: number }) => string[]
   wrapTool: <T extends ToolResult>(fn: () => Promise<T>) => Promise<T | ToolErrorResult>
   ensureDefaultGate: (parts: DocumentParts) => void
@@ -19,10 +21,10 @@ export interface ToolRuntime {
   applyUnifiedDiff: (original: string, patch: string, fileLabel: string) => string
 }
 
-export type QueryToolContext = Pick<ToolRuntime, 'safeRead' | 'wrapTool' | 'listDocuments'>
+export type QueryToolContext = Pick<ToolRuntime, 'safeRead' | 'splitWithSidecar' | 'wrapTool' | 'listDocuments'>
 export type MutationToolContext = Pick<
   ToolRuntime,
-  'safeRead' | 'safeWrite' | 'wrapTool' | 'ensureDefaultGate' | 'updateCursorFromMemos' | 'applyUnifiedDiff'
+  'safeRead' | 'safeWrite' | 'splitWithSidecar' | 'mergeAndWrite' | 'wrapTool' | 'ensureDefaultGate' | 'updateCursorFromMemos' | 'applyUnifiedDiff'
 >
 
 interface ToolRuntimeOptions {
@@ -44,6 +46,20 @@ export function createToolRuntime(options: ToolRuntimeOptions = {}): ToolRuntime
     const check = validateFilePath(safety, file)
     if (!check.safe) throw new FileSafetyError(check.reason!, { file })
     writeMarkdownFile(file, content)
+  }
+
+  function splitWithSidecar(file: string): DocumentParts {
+    const markdown = safeRead(file)
+    const sidecar = readMetadataSidecar(file)
+    return splitDocument(markdown, sidecar)
+  }
+
+  function mergeAndWrite(file: string, parts: DocumentParts): void {
+    const merged = mergeDocumentWithSidecar(parts)
+    if (merged.sidecar) {
+      writeMetadataSidecar(file, merged.sidecar)
+    }
+    safeWrite(file, merged.markdown)
   }
 
   function listDocuments(options?: { annotatedOnly?: boolean; maxFiles?: number }): string[] {
@@ -167,6 +183,8 @@ export function createToolRuntime(options: ToolRuntimeOptions = {}): ToolRuntime
   return {
     safeRead,
     safeWrite,
+    splitWithSidecar,
+    mergeAndWrite,
     listDocuments,
     wrapTool,
     ensureDefaultGate,

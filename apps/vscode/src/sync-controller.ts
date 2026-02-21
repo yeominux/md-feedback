@@ -57,6 +57,7 @@ export class SyncController implements vscode.Disposable {
   private lastTrackedSection: string | undefined
   private currentDocumentUri: vscode.Uri | undefined
   private fileWatcher: vscode.FileSystemWatcher | undefined
+  private metadataWatcher: vscode.FileSystemWatcher | undefined
   private fileWatchDebounce: ReturnType<typeof setTimeout> | undefined
   private echoGuardTimer: ReturnType<typeof setTimeout> | undefined
   private skipNextFileWatch = false
@@ -215,6 +216,7 @@ export class SyncController implements vscode.Disposable {
     if (this.fileWatchDebounce) clearTimeout(this.fileWatchDebounce)
     if (this.echoGuardTimer) clearTimeout(this.echoGuardTimer)
     if (this.fileWatcher) { this.fileWatcher.dispose(); this.fileWatcher = undefined }
+    if (this.metadataWatcher) { this.metadataWatcher.dispose(); this.metadataWatcher = undefined }
     while (this.disposables.length) {
       const item = this.disposables.pop()
       if (item) item.dispose()
@@ -374,6 +376,7 @@ export class SyncController implements vscode.Disposable {
   private watchFile(uri: vscode.Uri): void {
     // Dispose previous watcher
     if (this.fileWatcher) { this.fileWatcher.dispose(); this.fileWatcher = undefined }
+    if (this.metadataWatcher) { this.metadataWatcher.dispose(); this.metadataWatcher = undefined }
 
     // createFileSystemWatcher needs a glob — watch the specific file by name in its parent dir
     const fileName = vscode.workspace.asRelativePath(uri, false).split(/[\\/]/).pop()!
@@ -382,6 +385,17 @@ export class SyncController implements vscode.Disposable {
     )
 
     this.fileWatcher.onDidChange(() => {
+      this.handleExternalFileChange()
+    })
+
+    // Also watch sidecar metadata changes written by MCP tools.
+    this.metadataWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.joinPath(uri, '..', '.md-feedback'), 'metadata.json'),
+    )
+    this.metadataWatcher.onDidChange(() => {
+      this.handleExternalFileChange()
+    })
+    this.metadataWatcher.onDidCreate(() => {
       this.handleExternalFileChange()
     })
   }

@@ -9,6 +9,7 @@ export type ToolErrorCode =
   | 'OPERATION_INVALID'
   | 'ANCHOR_NOT_FOUND'
   | 'HANDOFF_INVALID'
+  | 'COMMENT_INTEGRITY'
 
 export class ToolError extends Error {
   constructor(
@@ -91,6 +92,13 @@ export class AnchorNotFoundError extends ToolError {
       ...(details ?? {}),
     })
     this.name = 'AnchorNotFoundError'
+  }
+}
+
+export class CommentIntegrityError extends ToolError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('COMMENT_INTEGRITY', message, details)
+    this.name = 'CommentIntegrityError'
   }
 }
 

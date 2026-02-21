@@ -3,7 +3,7 @@ import { convertMemosToHtml, normalizeHighlights, extractHighlightMarks, stripHi
 import { splitDocument } from '@md-feedback/shared'
 import { evaluateAllGates } from '@md-feedback/shared'
 import { isResolved, parseJsonWithBom } from '@md-feedback/shared'
-import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency } from '@md-feedback/shared'
+import type { Gate, Checkpoint, PlanCursor, MemoImpl, MemoArtifact, MemoDependency, SidecarMetadata } from '@md-feedback/shared'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -31,6 +31,52 @@ interface WorkflowSidecar {
 
 interface SeveritySidecar {
   overrides: Record<string, 'blocking' | 'non_blocking'>
+}
+
+function readMetadataSidecarForVscode(document: vscode.TextDocument): SidecarMetadata | null {
+  try {
+    const sidecarDir = join(dirname(document.uri.fsPath), '.md-feedback')
+    const metadataPath = join(sidecarDir, 'metadata.json')
+    const legacyPath = join(sidecarDir, 'operational-meta.json')
+
+    let primary: SidecarMetadata | null = null
+    if (existsSync(metadataPath)) {
+      const parsed = parseJsonWithBom<Partial<SidecarMetadata>>(readFileSync(metadataPath, 'utf-8'))
+      primary = {
+        version: '1.0',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+        impls: Array.isArray(parsed.impls) ? parsed.impls : [],
+        artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts : [],
+        dependencies: Array.isArray(parsed.dependencies) ? parsed.dependencies : [],
+        checkpoints: Array.isArray(parsed.checkpoints) ? parsed.checkpoints : [],
+      }
+    }
+
+    if (!existsSync(legacyPath)) return primary
+    const legacy = parseJsonWithBom<{ impls?: MemoImpl[]; checkpoints?: Checkpoint[] }>(readFileSync(legacyPath, 'utf-8'))
+    if (!primary) {
+      return {
+        version: '1.0',
+        updatedAt: new Date().toISOString(),
+        impls: legacy.impls ?? [],
+        artifacts: [],
+        dependencies: [],
+        checkpoints: legacy.checkpoints ?? [],
+      }
+    }
+
+    const dedupById = <T extends { id: string }>(base: T[], fallback: T[]): T[] => {
+      const ids = new Set(base.map(x => x.id))
+      return [...base, ...fallback.filter(x => !ids.has(x.id))]
+    }
+    return {
+      ...primary,
+      impls: dedupById(primary.impls, legacy.impls ?? []),
+      checkpoints: dedupById(primary.checkpoints, legacy.checkpoints ?? []),
+    }
+  } catch {
+    return null
+  }
 }
 
 function readWorkflowSidecar(document: vscode.TextDocument): WorkflowSidecar | null {
@@ -75,7 +121,8 @@ export function sendDocumentToWebview(
   const raw = document.getText()
 
   try {
-    const parts = splitDocument(raw)
+    const metadataSidecar = readMetadataSidecarForVscode(document)
+    const parts = splitDocument(raw, metadataSidecar)
 
     // Preserve metadata for restoration on save
     setPreservedFrontmatter(parts.frontmatter)
@@ -139,9 +186,10 @@ export function sendStatusInfo(
   sourceDocument?: vscode.TextDocument,
 ): void {
   try {
-    const parts = splitDocument(raw)
-    const gates = evaluateAllGates(parts.gates, parts.memos)
     const sidecarDoc = sourceDocument ?? getActiveMarkdownDocument()
+    const metadataSidecar = sidecarDoc ? readMetadataSidecarForVscode(sidecarDoc) : null
+    const parts = splitDocument(raw, metadataSidecar)
+    const gates = evaluateAllGates(parts.gates, parts.memos)
     const workflow = sidecarDoc ? readWorkflowSidecar(sidecarDoc) : null
     const severity = sidecarDoc ? readSeveritySidecar(sidecarDoc) : { overrides: {} }
 

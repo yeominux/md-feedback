@@ -19,7 +19,11 @@ import { getPolicySnapshot } from './policy.js'
 import { getMemoSeverityStatus, getWorkflowState } from './workflow.js'
 
 export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolContext): void {
-  const { safeRead, wrapTool, listDocuments } = ctx
+  const { safeRead, splitWithSidecar, wrapTool, listDocuments } = ctx
+  const readParts = (file: string) => {
+    if (typeof splitWithSidecar === 'function') return splitWithSidecar(file)
+    return splitDocument(safeRead(file))
+  }
 
   // ─── list_documents ───
   server.tool(
@@ -194,8 +198,7 @@ export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolCont
       file: z.string().describe('Path to the annotated markdown file'),
     },
     async ({ file }) => wrapTool(async () => {
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
       const annotations = parts.memos.map(m => ({
         id: m.id,
         type: m.type,
@@ -228,7 +231,7 @@ export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolCont
     },
     async ({ file, includeBody }) => wrapTool(async () => {
       const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
       const allSections = getAllSections(markdown)
       const reviewedSections = getSectionsWithAnnotations(markdown)
 
@@ -317,8 +320,7 @@ export function registerDocumentQueryTools(server: McpServer, ctx: QueryToolCont
       file: z.string().describe('Path to the annotated markdown file'),
     },
     async ({ file }) => wrapTool(async () => {
-      const markdown = safeRead(file)
-      const parts = splitDocument(markdown)
+      const parts = readParts(file)
       const gates = evaluateAllGates(parts.gates, parts.memos)
 
       return {
