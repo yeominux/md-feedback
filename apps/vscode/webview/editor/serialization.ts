@@ -1,4 +1,7 @@
-/** Append memos that tiptap-markdown failed to serialize (shared fallback) */
+import { escAttrValue, colorToType } from '@md-feedback/shared'
+
+/** Append memos that tiptap-markdown failed to serialize (shared fallback).
+ *  Outputs v0.4 multi-line format to preserve all fields through roundtrip. */
 export function appendMissedMemos(
   md: string,
   ed: { state: { doc: { descendants: (cb: (node: any) => void) => void } } },
@@ -6,13 +9,25 @@ export function appendMissedMemos(
   const appendMemos: string[] = []
   ed.state.doc.descendants((node: any) => {
     if (node.type.name !== 'memoBlock') return
-    const { memoId, text, color, status, anchorText } = node.attrs
-    if (!memoId || md.includes(`id="${memoId}"`)) return
-    const escaped = (text || '').replace(/-->/g, '--\u200B>')
-    const statusAttr = status && status !== 'open' ? ` status="${status}"` : ''
-    const anchorAttr = anchorText ? ` anchorText="${escAttr(anchorText)}"` : ''
-    const comment = `<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr}${anchorAttr} : ${escaped} -->`
-    appendMemos.push(comment)
+    const a = node.attrs
+    if (!a.memoId || md.includes(`id="${a.memoId}"`)) return
+    const lines = [
+      '<!-- USER_MEMO',
+      `  id="${escAttrValue(a.memoId)}"`,
+      `  type="${a.memoType || colorToType(a.color || 'red')}"`,
+      `  status="${a.status || 'open'}"`,
+      `  owner="${a.memoOwner || 'human'}"`,
+      `  source="${escAttrValue(a.memoSource || 'generic')}"`,
+      `  color="${a.color || 'red'}"`,
+      `  text="${escAttrValue(a.text || '')}"`,
+      `  anchorText="${escAttrValue(a.anchorText || '')}"`,
+      `  anchor="${escAttrValue(a.memoAnchorHash || '')}"`,
+      `  createdAt="${a.memoCreated || new Date().toISOString()}"`,
+      `  updatedAt="${a.memoUpdated || new Date().toISOString()}"`,
+    ]
+    if (a.rejectReason) lines.push(`  rejectReason="${escAttrValue(a.rejectReason)}"`)
+    lines.push('-->')
+    appendMemos.push(lines.join('\n'))
   })
   if (appendMemos.length > 0) {
     md = md.trimEnd() + '\n\n' + appendMemos.join('\n') + '\n'
@@ -40,23 +55,44 @@ export function serializeWithMemos(markdown: string): string {
       return match
     })
 
-  // Restore memo comments from memo block divs
+  // Restore memo comments from memo block divs (v0.4 multi-line format)
   result = result.replace(
     /<div\s[^>]*data-memo-block[^>]*>[\s\S]*?<\/div>/g,
     (match) => {
-      const id = match.match(/data-memo-id="([^"]*)"/)
-      const text = match.match(/data-memo-text="([^"]*)"/)
-      const color = match.match(/data-memo-color="([^"]*)"/)
-      const status = match.match(/data-memo-status="([^"]*)"/)
-      const anchor = match.match(/data-memo-anchor="([^"]*)"/)
-      if (id && color) {
-        const memoText = text ? decodeHtmlEntities(text[1]).replace(/\n/g, ' ').trim() : ''
-        const statusAttr = status && status[1] !== 'open' ? ` status="${status[1]}"` : ''
-        const anchorAttr = anchor && anchor[1] ? ` anchorText="${anchor[1]}"` : ''
-        return `<!-- USER_MEMO id="${id[1]}" color="${color[1]}"${statusAttr}${anchorAttr} : ${memoText} -->`
+      const get = (attr: string) => {
+        const m = match.match(new RegExp(`${attr}="([^"]*)"`))
+        return m ? decodeHtmlEntities(m[1]) : ''
       }
-      // Preserve original HTML if extraction fails — never silently delete memos
-      return match
+      const id = get('data-memo-id')
+      const color = get('data-memo-color')
+      if (!id || !color) return match // preserve original if extraction fails
+      const text = get('data-memo-text')
+      const status = get('data-memo-status') || 'open'
+      const anchorText = get('data-memo-anchor')
+      const memoType = get('data-memo-type') || colorToType(color)
+      const owner = get('data-memo-owner') || 'human'
+      const source = get('data-memo-source') || 'generic'
+      const created = get('data-memo-created') || new Date().toISOString()
+      const updated = get('data-memo-updated') || new Date().toISOString()
+      const anchorHash = get('data-memo-anchor-hash')
+      const reject = get('data-memo-reject')
+      const lines = [
+        '<!-- USER_MEMO',
+        `  id="${escAttrValue(id)}"`,
+        `  type="${memoType}"`,
+        `  status="${status}"`,
+        `  owner="${owner}"`,
+        `  source="${escAttrValue(source)}"`,
+        `  color="${color}"`,
+        `  text="${escAttrValue(text)}"`,
+        `  anchorText="${escAttrValue(anchorText)}"`,
+        `  anchor="${escAttrValue(anchorHash)}"`,
+        `  createdAt="${created}"`,
+        `  updatedAt="${updated}"`,
+      ]
+      if (reject) lines.push(`  rejectReason="${escAttrValue(reject)}"`)
+      lines.push('-->')
+      return lines.join('\n')
     },
   )
 
@@ -74,7 +110,7 @@ export function collapseBackslashes(md: string): string {
   return parts.map((part, i) => {
     if (i % 2 === 1) return part // code block — preserve
     // Collapse double+ escaped backslashes before markdown special chars
-    return part.replace(/\\{2,}([`*~\[\]_\\])/g, '\\$1')
+    return part.replace(/\\{2,}([`*~\[\]_\\()|.!#>\-])/g, '\\$1')
   }).join('')
 }
 

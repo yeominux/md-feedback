@@ -69,6 +69,8 @@ export const HUMAN_ONLY_STATUSES: MemoStatus[] = ['answered', 'done', 'failed', 
 
 export type MemoOwner = 'human' | 'agent' | 'tool'
 
+export type AnchorConfidence = 'exact' | 'nearby' | 'text' | 'line_number' | 'fallback'
+
 export interface MemoV2 {
   id: string
   type: MemoType
@@ -82,6 +84,7 @@ export interface MemoV2 {
   createdAt: string
   updatedAt: string
   rejectReason?: string        // human-provided reason when rejecting (wontfix)
+  anchorConfidence?: AnchorConfidence  // quality of anchor match on last parse
 }
 
 /**

@@ -37,6 +37,7 @@ export interface PanelViewContext {
   getMcpSetupDone: () => boolean
   setMcpSetupDone: (value: boolean) => Thenable<void>
   fireFirstAnnotationApplied: () => void
+  setWebviewIsDirty: (value: boolean) => void
 }
 
 export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelViewContext): void {
@@ -256,6 +257,45 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
           vscode.window.showWarningMessage(message)
+        }
+        break
+      }
+
+      case 'editor.dirty':
+        ctx.setWebviewIsDirty(true)
+        break
+
+      case 'editor.clean':
+        ctx.setWebviewIsDirty(false)
+        break
+
+      case 'memo.approveAll': {
+        const document = ctx.getCurrentDocument() ?? ctx.getActiveMarkdownDocument()
+        if (!document) break
+        const raw = document.getText()
+        const parts = splitDocument(raw)
+        const needsReview = parts.memos.filter(m => m.status === 'needs_review')
+        if (needsReview.length === 0) break
+        const now = new Date().toISOString()
+        for (const memo of needsReview) {
+          memo.status = 'done'
+          memo.updatedAt = now
+        }
+        const updated = mergeDocument(parts)
+        const myVersion = ctx.incrementEditVersion()
+        ctx.setLastWebviewEditVersion(myVersion)
+        const approveEdit = new vscode.WorkspaceEdit()
+        approveEdit.replace(
+          document.uri,
+          new vscode.Range(0, 0, document.lineCount, 0),
+          updated,
+        )
+        const success = await vscode.workspace.applyEdit(approveEdit)
+        if (success) {
+          try { await document.save() } catch { /* best-effort */ }
+          ctx.sendStatusInfo(updated)
+          ctx.sendDocumentToWebview(document)
+          vscode.window.showInformationMessage(`Approved ${needsReview.length} annotation${needsReview.length > 1 ? 's' : ''}.`)
         }
         break
       }

@@ -3,7 +3,7 @@ import Editor, { type EditorHandle } from './components/Editor'
 import { MetadataDrawer } from './components/MetadataDrawer'
 import { vscode } from './lib/vscode-api'
 import type { Checkpoint, Gate, MemoImpl, PlanCursor } from '@md-feedback/shared'
-import { FileText, X, Unplug, Settings2, FileCheck, Wand2 } from 'lucide-react'
+import { FileText, X, Unplug, Settings2, FileCheck, Wand2, CheckCheck } from 'lucide-react'
 import type { StatusSummary, MemoMap } from './types'
 
 // Global impls store for MemoBlock (TipTap nodes lack React context access)
@@ -236,8 +236,12 @@ export default function App() {
   // Called when editor content changes (annotations)
   const handleUpdate = useCallback((annotatedMarkdown: string) => {
     if (isLoadingRef.current) return
+    vscode.postMessage({ type: 'editor.dirty' })
     clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(() => sendEdit(annotatedMarkdown), 800)
+    debounceRef.current = window.setTimeout(() => {
+      sendEdit(annotatedMarkdown)
+      vscode.postMessage({ type: 'editor.clean' })
+    }, 800)
   }, [sendEdit])
 
   // Flush listener — immediately sends pending edits (used by status changes)
@@ -550,6 +554,18 @@ export default function App() {
             >
               {finalized ? <span className="status-bar__copied-check">&#10003;</span> : <FileCheck size={14} />}
             </button>
+
+            {/* Approve All — bulk approve needs_review memos */}
+            {hasNeedsReviewMemos && (
+              <button
+                className="status-bar__icon-btn"
+                onClick={() => vscode.postMessage({ type: 'memo.approveAll' })}
+                title={`Approve all ${statusSummary?.needsReviewMemos ?? 0} reviews`}
+                aria-label="Approve all reviews"
+              >
+                <CheckCheck size={14} />
+              </button>
+            )}
 
             {/* Approve CTA */}
             {showActionApproval && (
