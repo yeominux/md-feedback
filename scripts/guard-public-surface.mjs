@@ -16,6 +16,33 @@ const IGNORE_FILES = new Set([
   'guard-public-surface.mjs',
 ])
 
+// Strict allowlist: every tracked file on public branches must match one of
+// these patterns. New public paths require explicit policy updates.
+const ALLOWED_PATH_PATTERNS = [
+  /^apps\//,
+  /^packages\//,
+  /^scripts\//,
+  /^demos\//,
+  /^assets\//,
+  /^\.github\//,
+  /^\.githooks\//,
+  /^README(?:\.ko)?\.md$/i,
+  /^CHANGELOG\.md$/i,
+  /^CONTRIBUTING\.md$/i,
+  /^SECURITY\.md$/i,
+  /^PRIVACY\.md$/i,
+  /^PUBLISHING\.md$/i,
+  /^LICENSE$/i,
+  /^package\.json$/i,
+  /^pnpm-workspace\.yaml$/i,
+  /^pnpm-lock\.yaml$/i,
+  /^vitest\.config\.ts$/i,
+  /^\.gitignore$/i,
+  /^\.npmrc$/i,
+  /^\.mcp\.json$/i,
+  /^llms\.txt$/i,
+]
+
 // Always-blocked paths/files on public surface. This is independent from
 // secret-driven content scanning so CI always enforces baseline policy.
 const BLOCKED_PATH_PATTERNS = [
@@ -112,6 +139,10 @@ function blockedPathViolations(paths) {
   return paths.filter(filePath => BLOCKED_PATH_PATTERNS.some(re => re.test(filePath)))
 }
 
+function allowlistViolations(paths) {
+  return paths.filter(filePath => !ALLOWED_PATH_PATTERNS.some(re => re.test(filePath)))
+}
+
 const files = []
 walk(root, files)
 
@@ -120,6 +151,13 @@ const blockedFiles = blockedPathViolations(trackedFiles)
 if (blockedFiles.length > 0) {
   console.error('Public surface guard failed. Blocked path(s) are tracked:')
   for (const f of blockedFiles) console.error(`- ${f}`)
+  process.exit(1)
+}
+
+const nonAllowlisted = allowlistViolations(trackedFiles)
+if (nonAllowlisted.length > 0) {
+  console.error('Public surface guard failed. Non-allowlisted tracked file(s) found:')
+  for (const f of nonAllowlisted) console.error(`- ${f}`)
   process.exit(1)
 }
 
