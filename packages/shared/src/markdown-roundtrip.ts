@@ -1,6 +1,6 @@
 import type { Memo, MemoV2, ReviewHighlight, ReviewMemo, Checkpoint, HighlightMark } from './types'
 import { HEX_TO_COLOR_NAME } from './types'
-import { splitDocument } from './document-writer'
+import { splitDocument, unescAttrValue } from './document-writer'
 import { collectFeedbackItems } from './feedback-collector'
 import type { FloatingMemoInput } from './feedback-collector'
 import { truncateText } from './utils'
@@ -161,7 +161,7 @@ export function convertMemosToHtml(markdown: string): string {
       const attrs: Record<string, string> = {}
       for (const al of attrLines) {
         const m = al.trim().match(/^(\w+)="([^"]*)"$/)
-        if (m) attrs[m[1]] = m[2]
+        if (m) attrs[m[1]] = unescAttrValue(m[2])
       }
 
       const id = attrs.id || ''
@@ -172,7 +172,15 @@ export function convertMemosToHtml(markdown: string): string {
 
       const encText = escAttr(text)
       const encAnchor = escAttr(anchorText)
-      result.push(`<div data-memo-block data-memo-id="${id}" data-memo-text="${encText}" data-memo-color="${color}" data-memo-status="${status}" data-memo-anchor="${encAnchor}">memo: ${escHtml(text)}</div>`)
+      const memoType = attrs.type || ''
+      const memoOwner = attrs.owner || ''
+      const memoSource = attrs.source || ''
+      const memoCreated = attrs.createdAt || ''
+      const memoUpdated = attrs.updatedAt || ''
+      const anchorHash = attrs.anchor || ''
+      const rejectReason = attrs.rejectReason || ''
+      const anchorConfidence = attrs.anchorConfidence || ''
+      result.push(`<div data-memo-block data-memo-id="${id}" data-memo-text="${encText}" data-memo-color="${color}" data-memo-status="${status}" data-memo-anchor="${encAnchor}" data-memo-type="${escAttr(memoType)}" data-memo-owner="${escAttr(memoOwner)}" data-memo-source="${escAttr(memoSource)}" data-memo-created="${escAttr(memoCreated)}" data-memo-updated="${escAttr(memoUpdated)}" data-memo-anchor-hash="${escAttr(anchorHash)}" data-memo-reject="${escAttr(rejectReason)}" data-memo-confidence="${escAttr(anchorConfidence)}">memo: ${escHtml(text)}</div>`)
       continue
     }
 
@@ -348,7 +356,7 @@ export function extractMemos(annotatedMarkdown: string): { markdown: string; mem
       const attrs: Record<string, string> = {}
       for (const al of attrLines) {
         const am = al.trim().match(/^(\w+)="([^"]*)"$/)
-        if (am) attrs[am[1]] = am[2]
+        if (am) attrs[am[1]] = unescAttrValue(am[2])
       }
 
       let anchor: string | null = attrs.anchorText || null
@@ -550,8 +558,3 @@ export function extractCheckpoints(markdown: string): Checkpoint[] {
   return checkpoints
 }
 
-export function serializeCheckpoint(cp: Checkpoint): string {
-  const note = cp.note.replace(/"/g, '&quot;')
-  const sections = cp.sectionsReviewed.join(',')
-  return `<!-- CHECKPOINT id="${cp.id}" time="${cp.timestamp}" note="${note}" fixes=${cp.fixes} questions=${cp.questions} highlights=${cp.highlights} sections="${sections}" -->`
-}

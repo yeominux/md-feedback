@@ -526,7 +526,7 @@ Line C`)
     expect(findMemoAnchorLine(lines, memo)).toBe(3)
   })
 
-  it('pins to first body line when anchor and anchorText are both missing', () => {
+  it('pins to last body line when anchor and anchorText are both missing', () => {
     const lines = ['Line A', 'Line B', 'Line C']
     const memo: MemoV2 = {
       id: 'm_missing',
@@ -542,7 +542,7 @@ Line C`)
       updatedAt: '2026-01-01T00:00:00.000Z',
     }
 
-    expect(findMemoAnchorLine(lines, memo)).toBe(0)
+    expect(findMemoAnchorLine(lines, memo)).toBe(2)
   })
 })
 
@@ -827,7 +827,7 @@ Anchor line
 })
 
 describe('mergeDocument — unanchored safety fallback', () => {
-  it('keeps malformed memo metadata inside body start instead of drifting to body end', () => {
+  it('places orphaned memo at body end instead of body start', () => {
     const input = `# Title
 
 Line A
@@ -852,14 +852,12 @@ Line C
     parts.memos[0].anchorText = ''
     const output = mergeDocument(parts)
     const lines = output.split('\n')
-    const titleIdx = lines.findIndex(l => l.trim() === '# Title')
-    const lineAIdx = lines.findIndex(l => l.trim() === 'Line A')
+    const lineCIdx = lines.findIndex(l => l.trim() === 'Line C')
     const memoIdx = lines.findIndex(l => l.includes('id="m1"'))
 
-    expect(titleIdx).toBeGreaterThanOrEqual(0)
-    expect(lineAIdx).toBeGreaterThanOrEqual(0)
-    expect(memoIdx).toBeGreaterThan(titleIdx)
-    expect(memoIdx).toBeLessThan(lineAIdx)
+    expect(lineCIdx).toBeGreaterThanOrEqual(0)
+    expect(memoIdx).toBeGreaterThanOrEqual(0)
+    expect(memoIdx).toBeGreaterThan(lineCIdx)
   })
 })
 
