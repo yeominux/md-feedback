@@ -285,8 +285,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ onUpdate: onUpdateProp, 
         }
       })
       if (targetPos >= 0) {
-        const domAtPos = editor.view.domAtPos(targetPos)
-        const el = domAtPos.node instanceof Element ? domAtPos.node : domAtPos.node.parentElement
+        // Use nodeDOM for atom nodes — domAtPos returns the parent container,
+        // not the memo element itself, so scrollIntoView targets the wrong element.
+        const dom = editor.view.nodeDOM(targetPos)
+        const el = dom instanceof HTMLElement ? dom : (dom as Node | null)?.parentElement as HTMLElement | null
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
           el.classList.add('memo-highlight-flash')
