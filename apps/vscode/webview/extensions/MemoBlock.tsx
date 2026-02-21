@@ -1,8 +1,8 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MEMO_ACCENT, HIGHLIGHT_COLORS, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
-import { Pencil, X, ChevronDown, Check, Undo2 } from 'lucide-react'
+import { MEMO_ACCENT, HIGHLIGHT_COLORS, escAttrValue, colorToType, type MemoColor, type MemoStatus, type HighlightColor, type MemoImpl } from '@md-feedback/shared'
+import { Pencil, X, ChevronDown, Check, Undo2, AlertTriangle } from 'lucide-react'
 
 const STATUS_LABELS: Record<MemoStatus, { label: string; color: string; bg: string }> = {
   open:         { label: 'Open',      color: 'text-mf-status-open',           bg: 'bg-mf-status-open' },
@@ -27,12 +27,20 @@ export const MemoBlock = Node.create({
 
   addAttributes() {
     return {
-      memoId:     { default: '' },
-      text:       { default: '' },
-      color:      { default: 'red' as MemoColor },
-      anchorText: { default: '' },
-      status:     { default: 'open' as MemoStatus },
-      rejectReason: { default: '' },
+      memoId:          { default: '' },
+      text:            { default: '' },
+      color:           { default: 'red' as MemoColor },
+      anchorText:      { default: '' },
+      status:          { default: 'open' as MemoStatus },
+      rejectReason:    { default: '' },
+      // v0.4 fields preserved through TipTap roundtrip
+      memoType:          { default: '' },
+      memoOwner:         { default: '' },
+      memoSource:        { default: '' },
+      memoCreated:       { default: '' },
+      memoUpdated:       { default: '' },
+      memoAnchorHash:    { default: '' },
+      anchorConfidence:  { default: '' },
     }
   },
 
@@ -42,11 +50,19 @@ export const MemoBlock = Node.create({
       getAttrs: (el) => {
         const element = el as HTMLElement
         return {
-          memoId: element.getAttribute('data-memo-id') || '',
-          text:   element.getAttribute('data-memo-text') || '',
-          color:  element.getAttribute('data-memo-color') || 'red',
-          status: element.getAttribute('data-memo-status') || 'open',
-          anchorText: element.getAttribute('data-memo-anchor') || '',
+          memoId:         element.getAttribute('data-memo-id') || '',
+          text:           element.getAttribute('data-memo-text') || '',
+          color:          element.getAttribute('data-memo-color') || 'red',
+          status:         element.getAttribute('data-memo-status') || 'open',
+          anchorText:     element.getAttribute('data-memo-anchor') || '',
+          memoType:       element.getAttribute('data-memo-type') || '',
+          memoOwner:      element.getAttribute('data-memo-owner') || '',
+          memoSource:     element.getAttribute('data-memo-source') || '',
+          memoCreated:    element.getAttribute('data-memo-created') || '',
+          memoUpdated:    element.getAttribute('data-memo-updated') || '',
+          memoAnchorHash:  element.getAttribute('data-memo-anchor-hash') || '',
+          rejectReason:    element.getAttribute('data-memo-reject') || '',
+          anchorConfidence: element.getAttribute('data-memo-confidence') || '',
         }
       },
     }]
@@ -55,10 +71,19 @@ export const MemoBlock = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes(HTMLAttributes, {
       'data-memo-block': '',
-      'data-memo-id':    HTMLAttributes.memoId,
-      'data-memo-text':  HTMLAttributes.text,
-      'data-memo-color': HTMLAttributes.color,
+      'data-memo-id':     HTMLAttributes.memoId,
+      'data-memo-text':   HTMLAttributes.text,
+      'data-memo-color':  HTMLAttributes.color,
       'data-memo-status': HTMLAttributes.status || 'open',
+      'data-memo-anchor': HTMLAttributes.anchorText || '',
+      'data-memo-type':   HTMLAttributes.memoType || '',
+      'data-memo-owner':  HTMLAttributes.memoOwner || '',
+      'data-memo-source': HTMLAttributes.memoSource || '',
+      'data-memo-created':     HTMLAttributes.memoCreated || '',
+      'data-memo-updated':     HTMLAttributes.memoUpdated || '',
+      'data-memo-anchor-hash': HTMLAttributes.memoAnchorHash || '',
+      'data-memo-reject':      HTMLAttributes.rejectReason || '',
+      'data-memo-confidence':  HTMLAttributes.anchorConfidence || '',
     }), `memo: ${HTMLAttributes.text || ''}`]
   },
 
@@ -66,11 +91,24 @@ export const MemoBlock = Node.create({
     return {
       markdown: {
         serialize(state: any, node: any) {
-          const { memoId, text, color, status, anchorText } = node.attrs
-          const escaped = (text || '').replace(/-->/g, '--\u200B>')
-          const statusAttr = status && status !== 'open' ? ` status="${status}"` : ''
-          const anchorAttr = anchorText ? ` anchorText="${(anchorText as string).replace(/"/g, '&quot;')}"` : ''
-          state.write(`<!-- USER_MEMO id="${memoId}" color="${color}"${statusAttr}${anchorAttr} : ${escaped} -->`)
+          const a = node.attrs
+          const lines = [
+            '<!-- USER_MEMO',
+            `  id="${escAttrValue(a.memoId || '')}"`,
+            `  type="${a.memoType || colorToType(a.color || 'red')}"`,
+            `  status="${a.status || 'open'}"`,
+            `  owner="${a.memoOwner || 'human'}"`,
+            `  source="${escAttrValue(a.memoSource || 'generic')}"`,
+            `  color="${a.color || 'red'}"`,
+            `  text="${escAttrValue(a.text || '')}"`,
+            `  anchorText="${escAttrValue(a.anchorText || '')}"`,
+            `  anchor="${escAttrValue(a.memoAnchorHash || '')}"`,
+            `  createdAt="${a.memoCreated || new Date().toISOString()}"`,
+            `  updatedAt="${a.memoUpdated || new Date().toISOString()}"`,
+          ]
+          if (a.rejectReason) lines.push(`  rejectReason="${escAttrValue(a.rejectReason)}"`)
+          lines.push('-->')
+          state.write(lines.join('\n'))
           state.closeBlock(node)
         },
         parse: {},
@@ -583,13 +621,16 @@ function MemoBlockView({ node, updateAttributes, deleteNode, selected, editor }:
 
         {/* Footer: anchor + action buttons */}
         <div className="memo-card__footer">
-          {/* Anchor text */}
+          {/* Anchor text with confidence warning */}
           {node.attrs.anchorText && (
             <span
               className="memo-card__anchor"
               title="Scroll to highlight"
               onClick={handleScrollToHighlight}
             >
+              {(node.attrs.anchorConfidence === 'line_number' || node.attrs.anchorConfidence === 'fallback') && (
+                <AlertTriangle size={11} className="inline-block mr-1 text-amber-500" title="Anchor position may be inaccurate" />
+              )}
               {node.attrs.anchorText.slice(0, 40)}{node.attrs.anchorText.length > 40 ? '...' : ''}
             </span>
           )}

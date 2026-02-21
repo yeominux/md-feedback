@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { MdFeedbackPanelProvider } from './panel-provider'
 import { SyncController } from './sync-controller'
 import { registerExportCommands } from './export-commands'
-import { ReviewCodeLensProvider, updateMemoStatusInDocument, updateNearestMemo } from './review-codelens'
+import { ReviewCodeLensProvider, updateMemoStatusInDocument, updateNearestMemo, approveAllNeedsReview } from './review-codelens'
 import { computeLineHash, evaluateAllGates, generateBodyHash, generateId, mergeDocument, splitDocument } from '@md-feedback/shared'
 import type { MemoColor, MemoType, MemoV2 } from '@md-feedback/shared'
 
@@ -60,9 +60,10 @@ async function addAnnotationFromSelection(type: MemoType, color: MemoColor): Pro
   }
   parts.gates = evaluateAllGates(parts.gates, parts.memos)
   const resolvedCount = parts.memos.filter(m => ['answered', 'done', 'failed', 'wontfix'].includes(m.status)).length
+  const appliedCount = parts.memos.filter(m => m.status !== 'open').length
   parts.cursor = {
     taskId: memo.id,
-    step: `${resolvedCount}/${parts.memos.length} resolved`,
+    step: `${appliedCount} applied, ${resolvedCount}/${parts.memos.length} resolved`,
     nextAction: `Review: ${memo.id}`,
     lastSeenHash: generateBodyHash(parts.body),
     updatedAt: timestamp,
@@ -185,6 +186,23 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('md-feedback.annotateHighlight', () => addAnnotationFromSelection('highlight', 'yellow')),
     vscode.commands.registerCommand('md-feedback.annotateFix', () => addAnnotationFromSelection('fix', 'red')),
     vscode.commands.registerCommand('md-feedback.annotateQuestion', () => addAnnotationFromSelection('question', 'blue')),
+  )
+
+  // 10a. Approve All — bulk approve all needs_review memos
+  context.subscriptions.push(
+    vscode.commands.registerCommand('md-feedback.approveAll', async () => {
+      const editor = vscode.window.activeTextEditor
+      if (!editor || editor.document.languageId !== 'markdown') {
+        void vscode.window.showWarningMessage('Open a markdown file to approve.')
+        return
+      }
+      const count = await approveAllNeedsReview(editor.document.uri)
+      if (count > 0) {
+        void vscode.window.showInformationMessage(`Approved ${count} annotation${count > 1 ? 's' : ''}.`)
+      } else {
+        void vscode.window.showInformationMessage('No annotations need review.')
+      }
+    }),
   )
 
   // 10. One-time per version notice: extension update does not auto-update npm MCP package
