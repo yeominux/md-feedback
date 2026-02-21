@@ -17,7 +17,7 @@
 
 ![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.5.0): 일괄 승인, 앵커 신뢰도 경고, 인코딩 수정, 유령 어노테이션 자동 정리.
+> 최신(v1.5.1): 사이드카 런타임 통합, 메타데이터 안정성 개선, 릴리즈 가드 강화.
 
 ## 작동 방식
 
