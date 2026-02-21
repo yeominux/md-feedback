@@ -14,6 +14,7 @@
 - AI agent responses no longer shift out of position when multiple responses exist in the same document
 - Orphaned annotations (with broken anchor references) now appear at the end of the document instead of the top
 - Duplicate "recovered" annotations no longer appear when the AI edits both the anchor text and the annotation
+- Stale recovered annotations left over from previous sessions are now automatically cleaned up when you reopen the document
 - Annotation ordering is now deterministic, reducing unnecessary changes in version control
 - The review panel now asks for confirmation before discarding unsaved edits when the file changes externally
 - Backslash escaping now handles additional markdown characters correctly
