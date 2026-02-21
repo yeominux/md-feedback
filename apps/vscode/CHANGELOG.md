@@ -1,9 +1,19 @@
 # Changelog
 
+## [1.4.2] - 2026-02-21
+
+### Changed
+- **Finalize Document** replaces "Copy clean markdown" — the button now saves the cleaned document directly to the file (removing all annotations, checkpoints, and metadata) instead of copying to clipboard
+
+### Fixed
+- Webview now reflects external file changes (e.g. from AI agent tools) in near real-time instead of requiring a panel toggle to refresh
+- Duplicate memos no longer accumulate at the bottom of a document after repeated save/load cycles
+- Backslash characters no longer double on every editor round-trip (e.g. `C:\folder` stays `C:\folder` instead of becoming `C:\\folder`)
+- Memo positions remain stable across save/load cycles when the document is edited around them
+
 ## [1.4.1] - 2026-02-21
 
 ### Changed
-- Rewrote all release notes and documentation in clearer, customer-focused language
 - Updated demo video to accurately reflect the latest review card design, approval flow, and progress tracking
 
 ### Fixed
@@ -186,16 +196,8 @@
 
 ## [1.3.2] - 2026-02-18
 
-Review flow is clearer in the editor, and release reliability has been improved.
-
 ### Fixed
 - Demo now correctly shows approval happening in the editor, not the sidebar
-
-### Added
-- GitHub Releases are now created automatically from changelog when a new version is published
-
-### Improved
-- README and Marketplace descriptions updated to reflect the current review flow
 
 ## [1.3.1] - 2026-02-18
 
@@ -253,15 +255,11 @@ Human control over AI work — approve, reject, override, and see what changes b
 
 ## [1.1.1] - 2026-02-17
 
-Demo GIF now shows in README — on GitHub, npm, and VS Code Marketplace.
-
 ### Added
-- Animated demo GIF in README
-- GitHub Actions workflow for auto-rendering demo
+- Animated demo showing the full annotation and review flow
 
 ### Improved
-- README now lists all v1.1.0 features
-- Security policy updated for v1.1.x
+- Security policy updated
 
 ## [1.1.0] - 2026-02-17
 
