@@ -274,30 +274,41 @@ export function resolveWebviewView(webviewView: vscode.WebviewView, ctx: PanelVi
         }
         const raw = cleanDoc.getText()
         const parts = splitDocument(raw)
-        // Strip all md-feedback metadata: keep only the body text
+        // Build finalized document: frontmatter + clean body (no annotations/metadata)
         let clean = parts.body
-        // Remove v0.3 single-line memos
+        // splitDocument().body already strips metadata blocks (gates, checkpoints, cursor, impls, etc.)
+        // but inline annotations (memos, highlights, review responses) remain — strip them:
         clean = clean.replace(/<!-- USER_MEMO\s+id="[^"]*"[^>]*-->\n?/g, '')
-        // Remove v0.4 multi-line memos
         clean = clean.replace(/<!-- USER_MEMO\n[\s\S]*?-->\n?/g, '')
-        // Remove REVIEW_RESPONSE markers
         clean = clean.replace(/<!-- \/?REVIEW_RESPONSE[^>]*-->\n?/g, '')
-        // Remove HIGHLIGHT_MARK comments
         clean = stripHighlightMarks(clean)
-        // Remove CHECKPOINT comments
-        clean = clean.replace(/<!-- CHECKPOINT[^>]*-->\n?/g, '')
-        // Remove QUALITY_GATE blocks
-        clean = clean.replace(/<!-- QUALITY_GATE[\s\S]*?<!-- \/QUALITY_GATE -->\n?/g, '')
-        // Remove PLAN_CURSOR
-        clean = clean.replace(/<!-- PLAN_CURSOR[^>]*-->\n?/g, '')
-        // Remove IMPL / ARTIFACT / DEPENDENCY blocks
-        clean = clean.replace(/<!-- (?:IMPL|ARTIFACT|DEPENDENCY)[\s\S]*?<!-- \/(?:IMPL|ARTIFACT|DEPENDENCY) -->\n?/g, '')
-        // Collapse triple+ blank lines into double
         clean = clean.replace(/\n{3,}/g, '\n\n').trim()
 
-        await vscode.env.clipboard.writeText(clean)
-        vscode.window.showInformationMessage('Clean markdown copied!')
-        ctx.postMessage({ type: 'action.clean-copy.done' })
+        // Reconstruct with frontmatter
+        let finalized = ''
+        if (parts.frontmatter) {
+          finalized = parts.frontmatter.trimEnd() + '\n\n' + clean + '\n'
+        } else {
+          finalized = clean + '\n'
+        }
+
+        // Write back to the file
+        const edit = new vscode.WorkspaceEdit()
+        edit.replace(
+          cleanDoc.uri,
+          new vscode.Range(0, 0, cleanDoc.lineCount, 0),
+          finalized,
+        )
+        const success = await vscode.workspace.applyEdit(edit)
+        if (success) {
+          await cleanDoc.save()
+          vscode.window.showInformationMessage('Document finalized — annotations removed.')
+          ctx.postMessage({ type: 'action.clean-copy.done' })
+          // Refresh webview with the cleaned document
+          ctx.sendDocumentToWebview(cleanDoc)
+        } else {
+          vscode.window.showErrorMessage('Failed to finalize document.')
+        }
         break
       }
 
