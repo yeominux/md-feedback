@@ -48,19 +48,19 @@ Required environment tokens:
 - `VSCE_PAT` for VS Code Marketplace (`vsce publish`)
 - `OVSX_PAT` for Open VSX (`ovsx publish`)
 
-## CI Private Copy Policy Secrets
+## Private Gate Mode (Recommended)
 
-To keep internal wording policy out of public source, CI loads copy-policy regexes from secrets:
+To keep gate logic and policy fully out of this public repository, CI can call an external private gate endpoint.
 
-- `COPY_INTERNAL_PATTERNS`
-- `COPY_META_PATTERNS`
-- `COPY_INFRA_PATTERNS`
-- `GUARD_PATTERNS`
+Repository secrets:
 
-Each value is a comma-separated base64 list of regex sources.
+- `PRIVATE_GATES_ENFORCED` (`true` to enable strict mode)
+- `PRIVATE_GATES_ENDPOINT` (example: `https://private-gate.example.com/check`)
+- `PRIVATE_GATES_TOKEN` (bearer token used by CI client)
+- `GUARD_PATTERNS` (existing public-surface content guard patterns)
 
-Helper:
+Bootstrap helpers:
 
-- Encode values: `pnpm policy:encode "<regex1>" "<regex2>"`
-
-CI workflows enforce these secrets when `REQUIRE_PRIVATE_COPY_POLICY=true`.
+- Private service template: `scripts/private-gates-service-template.mjs`
+- Secret setup helper: `pnpm private-gates:setup -- --repo <owner/repo> --endpoint <url> --token <token> --enforced true`
+- Pattern encoder helper: `pnpm policy:encode "<regex1>" "<regex2>"`

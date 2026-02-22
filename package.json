@@ -21,6 +21,7 @@
     "check:release-body": "node scripts/check-release-body.mjs --file RELEASE_NOTES.md",
     "check:private-gates": "node scripts/request-private-gates.mjs",
     "policy:encode": "node scripts/encode-policy-patterns.mjs",
+    "private-gates:setup": "node scripts/setup-private-gates-secrets.mjs",
     "check:user-facing": "pnpm check-sync && pnpm check:docs && pnpm check:changelog",
     "guard:public-surface": "node scripts/guard-public-surface.mjs",
     "release:preflight": "pnpm check:user-facing && pnpm check:release-gates",
