@@ -47,3 +47,20 @@ Controlled by `apps/vscode/.vscodeignore`:
 Required environment tokens:
 - `VSCE_PAT` for VS Code Marketplace (`vsce publish`)
 - `OVSX_PAT` for Open VSX (`ovsx publish`)
+
+## CI Private Copy Policy Secrets
+
+To keep internal wording policy out of public source, CI loads copy-policy regexes from secrets:
+
+- `COPY_INTERNAL_PATTERNS`
+- `COPY_META_PATTERNS`
+- `COPY_INFRA_PATTERNS`
+- `GUARD_PATTERNS`
+
+Each value is a comma-separated base64 list of regex sources.
+
+Helper:
+
+- Encode values: `pnpm policy:encode "<regex1>" "<regex2>"`
+
+CI workflows enforce these secrets when `REQUIRE_PRIVATE_COPY_POLICY=true`.

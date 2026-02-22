@@ -19,6 +19,7 @@
     "check:commits": "node scripts/check-commit-messages.mjs",
     "check:pr-surface": "node scripts/check-pr-surface.mjs",
     "check:release-body": "node scripts/check-release-body.mjs --file RELEASE_NOTES.md",
+    "policy:encode": "node scripts/encode-policy-patterns.mjs",
     "check:user-facing": "pnpm check-sync && pnpm check:docs && pnpm check:changelog",
     "guard:public-surface": "node scripts/guard-public-surface.mjs",
     "release:preflight": "pnpm check:user-facing && pnpm check:release-gates",
