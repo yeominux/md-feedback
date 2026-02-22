@@ -526,11 +526,19 @@ export function splitDocument(markdown: string, sidecar?: SidecarMetadata | null
     return false
   }
 
+  // If a human-authored fix/question memo already exists for a color, skip
+  // auto-recovery for that color to avoid flooding with recovered fragments.
+  const hasAuthoritativeMemoByColor: Record<'red' | 'blue', boolean> = {
+    red: memos.some(m => m.color === 'red' && m.source !== 'recovered-highlight'),
+    blue: memos.some(m => m.color === 'blue' && m.source !== 'recovered-highlight'),
+  }
+
   HIGHLIGHT_MARK_RE.lastIndex = 0
   let markMatch: RegExpExecArray | null
   while ((markMatch = HIGHLIGHT_MARK_RE.exec(body)) !== null) {
     const memoColor = normalizeMemoColorFromHighlight(markMatch[1])
     if (memoColor !== 'red' && memoColor !== 'blue') continue
+    if (hasAuthoritativeMemoByColor[memoColor]) continue
 
     const markText = decodeHighlightAttr(markMatch[2]).trim()
     const markAnchor = decodeHighlightAttr(markMatch[3]).trim()
