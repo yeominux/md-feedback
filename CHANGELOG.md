@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.3] - 2026-02-22
+
+### Fixed
+- Selecting multiple paragraphs for a single highlight no longer creates separate annotations for each paragraph — they are now merged into one annotation as intended
+
 ## [1.5.2] - 2026-02-22
 
 ### Fixed
