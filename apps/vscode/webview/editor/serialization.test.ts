@@ -267,6 +267,7 @@ describe('serializeHighlightMarks', () => {
     expect(out).toContain('text="Red part"') // red standalone
   })
 
+
   it('merges same-color fragments within one block into a single mark', () => {
     const fakeEditor = {
       state: {

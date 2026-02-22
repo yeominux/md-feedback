@@ -17,6 +17,7 @@ const releaseTag = `v${version}`
 console.log(`Preparing release checks for ${releaseTag}`)
 
 run('node scripts/check-release-state.mjs')
+run('node scripts/check-commit-messages.mjs')
 run('node scripts/check-sync.mjs')
 run('node scripts/check-public-docs.mjs')
 run('node scripts/check-changelog-user-facing.mjs')

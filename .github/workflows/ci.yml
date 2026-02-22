@@ -1,7 +1,7 @@
 name: CI
 on:
   pull_request:
-    branches: [dev]
+    branches: [dev, main]
   push:
     branches: [dev]
 
@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PRIVATE_GATES_ENFORCED: ${{ secrets.PRIVATE_GATES_ENFORCED }}
+      PRIVATE_GATES_ENDPOINT: ${{ secrets.PRIVATE_GATES_ENDPOINT }}
+      PRIVATE_GATES_TOKEN: ${{ secrets.PRIVATE_GATES_TOKEN }}
+      GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -26,6 +31,7 @@ jobs:
       - run: pnpm check:pr-surface
       - run: pnpm check:user-facing
       - run: pnpm guard:public-surface
+      - run: pnpm check:private-gates
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
       - run: pnpm check:release-gates

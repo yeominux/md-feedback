@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.5.2): sidecar runtime unification, improved metadata stability, and release guard hardening.
+> Latest (v1.5.3): multi-paragraph highlights now merge into a single annotation as intended.
 
 ## How It Works
 

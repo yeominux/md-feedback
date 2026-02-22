@@ -152,6 +152,8 @@ if (ahead !== 0 || behind !== 0) {
   process.exit(1)
 }
 
+run('node scripts/check-commit-messages.mjs')
+
 // Step 2: Bump version in all package.json files
 console.log('\n── Step 2/7: Bump version ──')
 for (const file of pkgFiles) {

@@ -85,6 +85,7 @@ const FORBIDDEN_PATTERNS = raw
   .map(s => s.trim())
   .filter(Boolean)
   .map(e => new RegExp(Buffer.from(e, 'base64').toString(), 'i'))
+const isCi = process.env.GITHUB_ACTIONS === 'true'
 
 function isTextFile(filePath) {
   const base = filePath.split('/').pop() ?? filePath
@@ -131,7 +132,7 @@ function listTrackedFiles() {
       .map(s => s.trim().replaceAll('\\', '/'))
       .filter(Boolean)
   } catch {
-    return []
+    return null
   }
 }
 
@@ -147,14 +148,21 @@ const files = []
 walk(root, files)
 
 const trackedFiles = listTrackedFiles()
-const blockedFiles = blockedPathViolations(trackedFiles)
+if (trackedFiles === null) {
+  if (isCi) {
+    console.error('Public surface guard failed: unable to read tracked files (git ls-files).')
+    process.exit(1)
+  }
+  console.warn('Public surface guard warning: unable to read tracked files; path policy skipped in local environment.')
+}
+const blockedFiles = blockedPathViolations(trackedFiles ?? [])
 if (blockedFiles.length > 0) {
   console.error('Public surface guard failed. Blocked path(s) are tracked:')
   for (const f of blockedFiles) console.error(`- ${f}`)
   process.exit(1)
 }
 
-const nonAllowlisted = allowlistViolations(trackedFiles)
+const nonAllowlisted = allowlistViolations(trackedFiles ?? [])
 if (nonAllowlisted.length > 0) {
   console.error('Public surface guard failed. Non-allowlisted tracked file(s) found:')
   for (const f of nonAllowlisted) console.error(`- ${f}`)
@@ -178,6 +186,11 @@ for (const filePath of files) {
 if (violations.length > 0) {
   console.error('Public surface guard failed. Forbidden content detected:')
   for (const v of violations) console.error(`- ${v}`)
+  process.exit(1)
+}
+
+if (FORBIDDEN_PATTERNS.length === 0 && isCi) {
+  console.error('Public surface guard failed: GUARD_PATTERNS is not configured in CI.')
   process.exit(1)
 }
 

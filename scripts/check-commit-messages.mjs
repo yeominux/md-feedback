@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
+import {
+  COMMIT_PREFIX_PATTERNS,
+  GENERIC_TITLE_PATTERNS,
+  INTERNAL_WORDING_PATTERNS,
+  META_COPY_PATTERNS,
+  findFirstMatchingPattern,
+} from './public-language-policy.mjs'
 
 function runGit(args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
@@ -72,37 +79,20 @@ function detectRange(argv) {
 }
 
 const bannedPatterns = [
+  /\bprivate gates?\b/i,
+  /\benforced\b/i,
+  /\bendpoint\b/i,
+  /\btoken\b/i,
+  /\bsecret(?:s)?\b/i,
   /\bProduct operations and release quality update\b/i,
   /\bRelease branch synchronization\b/i,
   /\bMerge dev:\b/i,
-  /\bsolo shipping\b/i,
-  /\bdev\s*(->|→)\s*main\b/i,
-  /\brelease automation\b/i,
-  /\bbranch protection\b/i,
-  /\barchitecture\b/i,
-  /\boperational\b/i,
-  /\blocal-only\b/i,
-  // Conventional commit prefixes for internal ops — not user-facing
-  /^chore(\(.+?\))?:/i,
-  /^ci(\(.+?\))?:/i,
-  /^CI(\(.+?\))?:/,
+  ...INTERNAL_WORDING_PATTERNS,
+  ...META_COPY_PATTERNS,
+  ...COMMIT_PREFIX_PATTERNS,
 ]
 
-const tooGenericPatterns = [
-  /^update$/i,
-  /^updates$/i,
-  /^misc$/i,
-  /^wip$/i,
-  /^temp$/i,
-  // Generic filler messages that say nothing about what changed
-  /^customer[- ]facing reliability improvement$/i,
-  /^repository synchronization$/i,
-  /^product release integration$/i,
-  /^product quality refinement$/i,
-  /^customer documentation and onboarding update$/i,
-  /^new customer[- ]facing capability$/i,
-  /^security hardening for customer environments$/i,
-]
+const tooGenericPatterns = GENERIC_TITLE_PATTERNS
 
 const allowedMergePatterns = [
   /^Merge pull request #\d+/,
@@ -112,11 +102,12 @@ function validateSubject(subject, label) {
   if (!subject) return `${label}: empty subject`
   if (allowedMergePatterns.some(re => re.test(subject))) return null
 
-  if (bannedPatterns.some(re => re.test(subject))) {
-    return `${label}: "${subject}" (contains internal/private wording)`
+  const banned = findFirstMatchingPattern(subject, bannedPatterns)
+  if (banned) {
+    return `${label}: "${subject}" (contains internal/private wording: ${banned})`
   }
 
-  if (tooGenericPatterns.some(re => re.test(subject))) {
+  if (findFirstMatchingPattern(subject, tooGenericPatterns)) {
     return `${label}: "${subject}" (too generic; describe user-facing impact)`
   }
 

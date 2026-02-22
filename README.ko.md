@@ -17,7 +17,7 @@
 
 ![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.5.2): 사이드카 런타임 통합, 메타데이터 안정성 개선, 릴리즈 가드 강화.
+> 최신(v1.5.3): 여러 문단에 걸친 하이라이트가 의도대로 하나의 어노테이션으로 병합됩니다.
 
 ## 작동 방식
 

@@ -47,3 +47,20 @@ Controlled by `apps/vscode/.vscodeignore`:
 Required environment tokens:
 - `VSCE_PAT` for VS Code Marketplace (`vsce publish`)
 - `OVSX_PAT` for Open VSX (`ovsx publish`)
+
+## Private Gate Mode (Recommended)
+
+To keep gate logic and policy fully out of this public repository, CI can call an external private gate endpoint.
+
+Repository secrets:
+
+- `PRIVATE_GATES_ENFORCED` (`true` to enable strict mode)
+- `PRIVATE_GATES_ENDPOINT` (example: `https://private-gate.example.com/check`)
+- `PRIVATE_GATES_TOKEN` (bearer token used by CI client)
+- `GUARD_PATTERNS` (existing public-surface content guard patterns)
+
+Bootstrap helpers:
+
+- Private service template: `scripts/private-gates-service-template.mjs`
+- Secret setup helper: `pnpm private-gates:setup -- --repo <owner/repo> --endpoint <url> --token <token> --enforced true`
+- Pattern encoder helper: `pnpm policy:encode "<regex1>" "<regex2>"`
