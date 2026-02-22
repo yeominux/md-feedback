@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { serializeWithMemos, collapseBackslashes } from './serialization'
+import { serializeWithMemos, collapseBackslashes, serializeHighlightMarks } from './serialization'
 
 describe('collapseBackslashes', () => {
   it('collapses double-escaped backslashes before backslash (\\\\\\\\→ \\\\)', () => {
@@ -48,5 +48,46 @@ describe('serializeWithMemos — anchorText preservation', () => {
     const result = serializeWithMemos(input)
     expect(result).toContain('anchorText=""')
     expect(result).toContain('id="m1"')
+  })
+})
+
+describe('serializeHighlightMarks', () => {
+  it('merges same-color fragments within one block into a single mark', () => {
+    const fakeEditor = {
+      state: {
+        doc: {
+          descendants: (cb: (node: any) => void) => {
+            cb({
+              isTextblock: true,
+              textContent: '한 번에 묶어서 메모 하나',
+              forEach: (childCb: (child: any) => void) => {
+                childCb({
+                  isText: true,
+                  text: '한 번에',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#fca5a5' } }],
+                })
+                childCb({
+                  isText: true,
+                  text: '질문',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#93c5fd' } }],
+                })
+                childCb({
+                  isText: true,
+                  text: '묶어서',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#fca5a5' } }],
+                })
+              },
+            })
+          },
+        },
+      },
+    }
+
+    const out = serializeHighlightMarks('# T', fakeEditor as any)
+    const redMarks = (out.match(/color="#fca5a5"/g) || []).length
+    const blueMarks = (out.match(/color="#93c5fd"/g) || []).length
+    expect(redMarks).toBe(1)
+    expect(blueMarks).toBe(1)
+    expect(out).toContain('text="한 번에 묶어서"')
   })
 })
