@@ -1,14 +1,20 @@
 # Changelog
 
+## [1.5.2] - 2026-02-22
+
+### Fixed
+- Long paragraph Fix/Question annotations no longer spawn multiple `memo_recovered_*` entries from fragment-level highlights when a real memo already exists.
+- Highlight serialization now merges same-color fragments per text block, reducing noisy `HIGHLIGHT_MARK` fan-out in saved markdown.
+
 ## [1.5.1] - 2026-02-21
 
 ### Changed
-- Large operational metadata is now written to `.md-feedback/metadata.json` instead of being repeatedly appended to markdown body blocks, which keeps review documents easier to read.
+- Large review metadata is now written to `.md-feedback/metadata.json` instead of being repeatedly appended to markdown body blocks, which keeps review documents easier to read.
 
 ### Fixed
 - MCP document mutation and query tools now use a single sidecar-aware runtime path, reducing inconsistent behavior between tools.
 - VS Code document sync now reloads sidecar metadata consistently, including updates triggered by `.md-feedback/metadata.json` changes.
-- Legacy sidecar files (`operational-meta.json`) are still read for compatibility, while new writes are standardized to `metadata.json`.
+- Legacy sidecar files are still read for compatibility, while new writes are standardized to `metadata.json`.
 - Comment-integrity safeguards and anchor-confidence regressions are covered by expanded automated tests to prevent repeat corruption issues.
 - Focused test filtering commands are now stable with Vitest v4 name matching (`-t`) for reliable evidence-based verification.
 - Long paragraph Fix/Question annotations no longer spawn multiple `memo_recovered_*` entries from fragment-level highlights when a real memo already exists.
@@ -83,7 +89,7 @@
 
 ### Changed
 - "Plan Cursor" section renamed to "Current Task" with human-readable memo text
-- Task descriptions now show quoted memo text instead of internal IDs
+- Task descriptions now show quoted memo text instead of technical IDs
 - Auto-checkpoints are collapsed by default — only named checkpoints are shown
 - Checkpoint stats show only relevant counts (e.g. "2 fix" instead of "2 fix · 0 Q · 0 HL")
 - Gate override controls moved behind a "More..." button to reduce clutter
@@ -365,7 +371,7 @@ Stability improvements — fixes data corruption bugs.
 - "Show Onboarding" command was not visible in the command palette
 
 ### Improved
-- Smaller install size (internal docs removed from published package)
+- Smaller install size (development-only docs removed from published package)
 
 ## [0.9.7] - 2026-02-16
 
