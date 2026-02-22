@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.2] - 2026-02-22
+
+### Fixed
+- Long paragraph Fix/Question annotations no longer spawn multiple `memo_recovered_*` entries from fragment-level highlights when a real memo already exists.
+- Highlight serialization now merges same-color fragments per text block, reducing noisy `HIGHLIGHT_MARK` fan-out in saved markdown.
+
 ## [1.5.1] - 2026-02-21
 
 ### Changed
