@@ -12,11 +12,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      REQUIRE_PRIVATE_COPY_POLICY: ${{ secrets.COPY_POLICY_ENFORCED }}
-      COPY_INTERNAL_PATTERNS: ${{ secrets.COPY_INTERNAL_PATTERNS }}
-      COPY_META_PATTERNS: ${{ secrets.COPY_META_PATTERNS }}
-      COPY_INFRA_PATTERNS: ${{ secrets.COPY_INFRA_PATTERNS }}
-      GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
+      PRIVATE_GATES_ENFORCED: ${{ secrets.PRIVATE_GATES_ENFORCED }}
+      PRIVATE_GATES_ENDPOINT: ${{ secrets.PRIVATE_GATES_ENDPOINT }}
+      PRIVATE_GATES_TOKEN: ${{ secrets.PRIVATE_GATES_TOKEN }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -28,10 +26,7 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check:commits
-      - run: pnpm check:pr-surface
-      - run: pnpm check:user-facing
-      - run: pnpm guard:public-surface
+      - run: pnpm check:private-gates
       - run: pnpm check:release-gates
       - name: Verify npm package contents
         run: cd apps/mcp-server && npm pack --dry-run 2>&1 | grep -q "LICENSE" || (echo "LICENSE missing from npm package" && exit 1)
