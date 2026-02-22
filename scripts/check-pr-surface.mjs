@@ -61,6 +61,10 @@ function loadPrSurface() {
 const { title, body, source } = loadPrSurface()
 
 const banned = [
+  /\binternal\b/i,
+  /\barchitecture\b/i,
+  /\boperational\b/i,
+  /\blocal-only\b/i,
   /\bprivate gates?\b/i,
   /\benforced\b/i,
   /\bendpoint\b/i,
