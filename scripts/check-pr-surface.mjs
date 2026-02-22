@@ -1,51 +1,82 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs'
+import {
+  COMMIT_PREFIX_PATTERNS,
+  GENERIC_TITLE_PATTERNS,
+  INTERNAL_WORDING_PATTERNS,
+  META_COPY_PATTERNS,
+  findFirstMatchingPattern,
+} from './public-language-policy.mjs'
 
-const eventName = process.env.GITHUB_EVENT_NAME || ''
-const eventPath = process.env.GITHUB_EVENT_PATH || ''
+const argv = process.argv.slice(2)
 
-if (eventName !== 'pull_request') {
-  console.log(`PR surface check skipped (event: ${eventName || 'unknown'})`)
-  process.exit(0)
+function parseArg(name) {
+  const idx = argv.indexOf(name)
+  return idx >= 0 && argv[idx + 1] ? argv[idx + 1] : ''
 }
 
-if (!eventPath) {
-  console.error('PR surface check failed: GITHUB_EVENT_PATH is missing.')
-  process.exit(1)
+function getPrFromEventFile(path) {
+  try {
+    const payload = JSON.parse(readFileSync(path, 'utf8'))
+    return {
+      title: (payload?.pull_request?.title || '').trim(),
+      body: (payload?.pull_request?.body || '').trim(),
+    }
+  } catch (err) {
+    console.error(`PR surface check failed: could not parse event payload (${err.message}).`)
+    process.exit(1)
+  }
 }
 
-let payload
-try {
-  payload = JSON.parse(readFileSync(eventPath, 'utf8'))
-} catch (err) {
-  console.error(`PR surface check failed: could not parse event payload (${err.message}).`)
-  process.exit(1)
+function loadPrSurface() {
+  const explicitTitle = parseArg('--title')
+  const explicitBody = parseArg('--body')
+  const explicitBodyFile = parseArg('--body-file')
+  const explicitEventFile = parseArg('--event-file')
+
+  if (explicitTitle || explicitBody || explicitBodyFile) {
+    const bodyFromFile = explicitBodyFile
+      ? readFileSync(explicitBodyFile, 'utf8')
+      : ''
+    return {
+      title: explicitTitle.trim(),
+      body: (explicitBody || bodyFromFile).trim(),
+      source: 'args',
+    }
+  }
+
+  const eventName = process.env.GITHUB_EVENT_NAME || ''
+  const eventPath = explicitEventFile || process.env.GITHUB_EVENT_PATH || ''
+  if (eventName !== 'pull_request') {
+    return { title: '', body: '', source: `skip:${eventName || 'unknown'}` }
+  }
+  if (!eventPath) {
+    console.error('PR surface check failed: GITHUB_EVENT_PATH is missing.')
+    process.exit(1)
+  }
+  const parsed = getPrFromEventFile(eventPath)
+  return { ...parsed, source: 'github-event' }
 }
 
-const title = (payload?.pull_request?.title || '').trim()
-const body = (payload?.pull_request?.body || '').trim()
+const { title, body, source } = loadPrSurface()
 
 const banned = [
-  /\bdev\s*(->|→)\s*main\b/i,
   /\brelease sync\b/i,
-  /\bmerge dev\b/i,
-  /\binternal\b/i,
-  /\barchitecture\b/i,
-  /\boperational\b/i,
-  /\blocal-only\b/i,
-  /^chore(\(.+?\))?:/i,
-  /^ci(\(.+?\))?:/i,
+  ...INTERNAL_WORDING_PATTERNS,
+  ...META_COPY_PATTERNS,
+  ...COMMIT_PREFIX_PATTERNS,
 ]
 
-const generic = [
-  /^update$/i,
-  /^misc$/i,
-  /^wip$/i,
-  /^temp$/i,
-]
+const generic = GENERIC_TITLE_PATTERNS
 
 function hasBad(text) {
-  return banned.find(re => re.test(text)) || null
+  return findFirstMatchingPattern(text, banned)
+}
+
+if (source.startsWith('skip:')) {
+  const eventName = source.replace('skip:', '')
+  console.log(`PR surface check skipped (event: ${eventName || 'unknown'})`)
+  process.exit(0)
 }
 
 if (!title) {
@@ -60,7 +91,7 @@ if (titleBan) {
   process.exit(1)
 }
 
-if (generic.some(re => re.test(title))) {
+if (findFirstMatchingPattern(title, generic)) {
   console.error('PR surface check failed: title is too generic.')
   console.error(`- title: ${title}`)
   process.exit(1)

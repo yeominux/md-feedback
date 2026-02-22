@@ -26,10 +26,13 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check:commits
       - run: pnpm check:user-facing
       - run: pnpm guard:public-surface
         env:
           GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
+      - run: pnpm release:notes -- --output RELEASE_NOTES.md
+      - run: pnpm check:release-body
       - run: |
           if [[ "${GITHUB_REF_NAME}" == v* ]]; then
             RELEASE_TAG="${GITHUB_REF_NAME}" pnpm verify-release

@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs'
+import {
+  COMMIT_PREFIX_PATTERNS,
+  INTERNAL_WORDING_PATTERNS,
+  META_COPY_PATTERNS,
+} from './public-language-policy.mjs'
 
 const docs = [
   { path: 'README.md', name: 'Root README (GitHub)' },
@@ -8,24 +13,11 @@ const docs = [
 ]
 
 const banned = [
-  /\bfeat:\b/i,
-  /\bfix:\b/i,
-  /\bchore:\b/i,
-  /\brefactor:\b/i,
+  ...COMMIT_PREFIX_PATTERNS,
   /\bTODO\b/,
   /\bFIXME\b/,
-  /\bsolo shipping\b/i,
-  /\bupstream\b/i,
-  /\bdev\s*(->|→)\s*main\b/i,
-  /\brelease automation\b/i,
-  /\bbranch protection\b/i,
-  /\brelease branch synchronization\b/i,
-  /\bproduct operations?\b/i,
-  /\bmerge dev\b/i,
-  // Meta-commentary about internal process — not customer-facing
-  /\bcustomer[- ]focused\b/i,
-  /\buser[- ]facing\b/i,
-  /\brelease reliability\b/i,
+  ...INTERNAL_WORDING_PATTERNS,
+  ...META_COPY_PATTERNS,
 ]
 
 let failed = false

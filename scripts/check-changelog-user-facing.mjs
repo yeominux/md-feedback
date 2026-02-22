@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs'
+import {
+  CICD_INFRA_PATTERNS,
+  INTERNAL_WORDING_PATTERNS,
+  META_COPY_PATTERNS,
+} from './public-language-policy.mjs'
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 
@@ -34,30 +39,10 @@ const bannedTechnicalTerms = [
   /\bfix:\b/i,
   /\bsync-controller\b/i,
   /\bApp\.tsx\b/i,
-  // CI/CD infrastructure — not user-facing
-  /\bGitHub Actions\b/i,
-  /\bGitHub Releases?\s+(are|is|was|were|now)\b/i,
-  /\bCI\s*\/\s*CD\b/,
-  /\bCI pipeline\b/i,
-  /\bauto[- ]?render/i,
+  ...CICD_INFRA_PATTERNS,
 ]
 
-const bannedInternalOpsTerms = [
-  /\bsolo shipping\b/i,
-  /\bupstream\b/i,
-  /\bdev\s*(->|→)\s*main\b/i,
-  /\brelease automation\b/i,
-  /\bbranch protection\b/i,
-  /\brelease branch synchronization\b/i,
-  /\bproduct operations?\b/i,
-  /\bmerge dev\b/i,
-  // Meta-commentary — telling customers about internal process improvements
-  /\bcustomer[- ]focused\b/i,
-  /\buser[- ]facing\b/i,
-  /\brelease reliability\b/i,
-  /\b(rewrote|rewritten|refactored)\b.*\b(release notes?|documentation|changelog|copy)\b/i,
-  /\b(release notes?|documentation|changelog|copy)\b.*\b(rewrote|rewritten|refactored)\b/i,
-]
+const bannedInternalOpsTerms = [...INTERNAL_WORDING_PATTERNS, ...META_COPY_PATTERNS]
 
 function findBodyLineNumber(changelogText, sectionHeaderEnd, matchIndexInBody) {
   const absoluteIndex = sectionHeaderEnd + matchIndexInBody
