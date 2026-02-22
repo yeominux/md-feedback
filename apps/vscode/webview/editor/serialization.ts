@@ -133,7 +133,8 @@ export function serializeHighlightMarks(
   md: string,
   ed: { state: { doc: { descendants: (cb: (node: any, pos: number) => any) => void } } },
 ): string {
-  const marks: string[] = []
+  // Phase 1: Collect per-block highlight data in document order.
+  const blockEntries: { blockText: string; colorTexts: Map<string, string> }[] = []
 
   ed.state.doc.descendants((node: any) => {
     if (!node.isTextblock) return
@@ -155,14 +156,57 @@ export function serializeHighlightMarks(
       fragmentsByColor.get(color)!.push(child.text)
     })
 
+    const colorTexts = new Map<string, string>()
     for (const [color, texts] of fragmentsByColor.entries()) {
-      const mergedText = texts.join(' ').trim()
-      if (!mergedText) continue
-      marks.push(
-        `<!-- HIGHLIGHT_MARK color="${color}" text="${escAttr(mergedText)}" anchor="${escAttr(blockText.slice(0, 80))}" -->`,
-      )
+      const merged = texts.join(' ').trim()
+      if (merged) colorTexts.set(color, merged)
     }
+
+    // Record even blocks without highlights so they break adjacency.
+    blockEntries.push({ blockText, colorTexts })
   })
+
+  // Phase 2: Merge adjacent blocks that share the same highlight color.
+  // Adjacent = consecutive blocks where both have highlights of a given color,
+  // with no unhighlighted or differently-colored block in between.
+  const marks: string[] = []
+
+  // Track per-color running merge state.
+  const running: Map<string, { texts: string[]; anchor: string }> = new Map()
+
+  const flushColor = (color: string) => {
+    const r = running.get(color)
+    if (!r || r.texts.length === 0) return
+    marks.push(
+      `<!-- HIGHLIGHT_MARK color="${color}" text="${escAttr(r.texts.join(' '))}" anchor="${escAttr(r.anchor)}" -->`,
+    )
+    running.delete(color)
+  }
+
+  for (const entry of blockEntries) {
+    // For each color currently running, if this block does NOT have that color,
+    // flush the run (adjacency broken).
+    for (const color of [...running.keys()]) {
+      if (!entry.colorTexts.has(color)) {
+        flushColor(color)
+      }
+    }
+
+    // For each color in this block, extend or start a run.
+    for (const [color, text] of entry.colorTexts.entries()) {
+      const r = running.get(color)
+      if (r) {
+        r.texts.push(text)
+      } else {
+        running.set(color, { texts: [text], anchor: entry.blockText.slice(0, 80) })
+      }
+    }
+  }
+
+  // Flush remaining runs.
+  for (const color of [...running.keys()]) {
+    flushColor(color)
+  }
 
   if (marks.length > 0) {
     md = md.trimEnd() + '\n\n' + marks.join('\n') + '\n'
