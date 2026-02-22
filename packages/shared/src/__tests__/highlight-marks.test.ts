@@ -581,3 +581,186 @@ Remaining content only.
     expect(merged).toContain('Remaining content only.')
   })
 })
+
+describe('HIGHLIGHT_MARK recovery guard — skip when real memo already exists', () => {
+  it('does not create recovered red memos when a non-recovered red memo already exists', () => {
+    const doc = `# Title
+
+본문 첫 줄.
+
+<!-- USER_MEMO
+  id="real_fix_1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="red"
+  text="한 번에 남긴 실제 메모"
+  anchorText="본문 첫 줄."
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="문장1" anchor="본문 첫 줄." -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="문장2" anchor="본문 첫 줄." -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="문장3" anchor="본문 첫 줄." -->`
+
+    const parts = splitDocument(doc)
+    const recoveredRed = parts.memos.filter(m => m.source === 'recovered-highlight' && m.color === 'red')
+    expect(recoveredRed).toHaveLength(0)
+    expect(parts.memos.some(m => m.id === 'real_fix_1')).toBe(true)
+  })
+
+  it('does not create recovered blue memos when a non-recovered blue memo already exists', () => {
+    const doc = `# Title
+
+본문 첫 줄.
+
+<!-- USER_MEMO
+  id="real_q_1"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="한 번에 남긴 실제 질문 메모"
+  anchorText="본문 첫 줄."
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="질문문장1" anchor="본문 첫 줄." -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="질문문장2" anchor="본문 첫 줄." -->`
+
+    const parts = splitDocument(doc)
+    const recoveredBlue = parts.memos.filter(m => m.source === 'recovered-highlight' && m.color === 'blue')
+    expect(recoveredBlue).toHaveLength(0)
+    expect(parts.memos.some(m => m.id === 'real_q_1')).toBe(true)
+  })
+
+  it('still recovers when only recovered-highlight memos exist (no authoritative memo)', () => {
+    const doc = `# Title
+
+본문 첫 줄은 충분히 긴 문장입니다.
+
+<!-- USER_MEMO
+  id="old_recovered_1"
+  type="fix"
+  status="open"
+  owner="human"
+  source="recovered-highlight"
+  color="red"
+  text="예전 복구 메모"
+  anchorText="예전 복구 메모"
+  anchor="L10|deadbeef"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="본문 첫 줄은 충분히 긴 문장입니다." anchor="본문 첫 줄은 충분히 긴 문장입니다." -->`
+
+    const parts = splitDocument(doc)
+    const recoveredRed = parts.memos.filter(m => m.source === 'recovered-highlight' && m.color === 'red')
+    expect(recoveredRed.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('applies guard per color when fix and question memos coexist', () => {
+    const doc = `# Title
+
+본문 첫 줄은 충분히 긴 문장입니다.
+
+<!-- USER_MEMO
+  id="real_fix_mix"
+  type="fix"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="red"
+  text="실제 fix 메모"
+  anchorText="본문 첫 줄은 충분히 긴 문장입니다."
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- USER_MEMO
+  id="real_q_mix"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="실제 question 메모"
+  anchorText="본문 첫 줄은 충분히 긴 문장입니다."
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="red 조각 1" anchor="본문 첫 줄은 충분히 긴 문장입니다." -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="red 조각 2" anchor="본문 첫 줄은 충분히 긴 문장입니다." -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="blue 조각 1" anchor="본문 첫 줄은 충분히 긴 문장입니다." -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="blue 조각 2" anchor="본문 첫 줄은 충분히 긴 문장입니다." -->`
+
+    const parts = splitDocument(doc)
+    const recovered = parts.memos.filter(m => m.source === 'recovered-highlight')
+    expect(recovered).toHaveLength(0)
+    expect(parts.memos.some(m => m.id === 'real_fix_mix')).toBe(true)
+    expect(parts.memos.some(m => m.id === 'real_q_mix')).toBe(true)
+  })
+
+  it('prevents fragment-based recovered memos for long paragraph fix memo', () => {
+    const para = '이 문단은 졸업요건 계획을 한 번에 검토한 긴 문단이며 과목 우선순위와 시간표 제약을 함께 다룹니다.'
+    const doc = `# Title
+
+${para}
+
+<!-- USER_MEMO
+  id="real_fix_long"
+  type="fix"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="red"
+  text="긴 문단에 대한 실제 fix 메모"
+  anchorText="${para}"
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="졸업요건 계획" anchor="${para}" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="과목 우선순위" anchor="${para}" -->
+<!-- HIGHLIGHT_MARK color="#fca5a5" text="시간표 제약" anchor="${para}" -->`
+
+    const parts = splitDocument(doc)
+    const recoveredRed = parts.memos.filter(m => m.source === 'recovered-highlight' && m.color === 'red')
+    expect(recoveredRed).toHaveLength(0)
+    expect(parts.memos.some(m => m.id === 'real_fix_long')).toBe(true)
+  })
+
+  it('prevents fragment-based recovered memos for long paragraph question memo', () => {
+    const para = '이 문단은 장학금과 성적경고 조건을 함께 정리한 긴 문단이며 다음 학기 전략을 하나의 맥락으로 설명합니다.'
+    const doc = `# Title
+
+${para}
+
+<!-- USER_MEMO
+  id="real_question_long"
+  type="question"
+  status="open"
+  owner="human"
+  source="vscode"
+  color="blue"
+  text="긴 문단에 대한 실제 question 메모"
+  anchorText="${para}"
+  anchor="L3|00000000"
+  createdAt="2026-02-22T00:00:00.000Z"
+  updatedAt="2026-02-22T00:00:00.000Z"
+-->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="장학금 조건" anchor="${para}" -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="성적경고 조건" anchor="${para}" -->
+<!-- HIGHLIGHT_MARK color="#93c5fd" text="다음 학기 전략" anchor="${para}" -->`
+
+    const parts = splitDocument(doc)
+    const recoveredBlue = parts.memos.filter(m => m.source === 'recovered-highlight' && m.color === 'blue')
+    expect(recoveredBlue).toHaveLength(0)
+    expect(parts.memos.some(m => m.id === 'real_question_long')).toBe(true)
+  })
+})

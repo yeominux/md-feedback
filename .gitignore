@@ -49,6 +49,7 @@ smoke/
 .env*
 Thumbs.db
 .vsce/
+.backup/
 
 # Prevent token leaks
 apps/**/.npmrc

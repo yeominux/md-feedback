@@ -141,25 +141,25 @@ export function serializeHighlightMarks(
     const blockText: string = node.textContent
     if (!blockText) return
 
-    // Collect highlighted fragments, merging adjacent same-color spans
-    const fragments: { color: string; text: string }[] = []
+    // Collect highlighted fragments per color within the same block.
+    // This avoids emitting one HIGHLIGHT_MARK per tiny text fragment.
+    const fragmentsByColor: Map<string, string[]> = new Map()
 
     node.forEach((child: any) => {
       if (!child.isText || !child.text) return
       const hlMark = child.marks.find((m: any) => m.type.name === 'highlight')
       if (!hlMark) return
 
-      const last = fragments[fragments.length - 1]
-      if (last && last.color === hlMark.attrs.color) {
-        last.text += child.text
-      } else {
-        fragments.push({ color: hlMark.attrs.color, text: child.text })
-      }
+      const color = hlMark.attrs.color
+      if (!fragmentsByColor.has(color)) fragmentsByColor.set(color, [])
+      fragmentsByColor.get(color)!.push(child.text)
     })
 
-    for (const frag of fragments) {
+    for (const [color, texts] of fragmentsByColor.entries()) {
+      const mergedText = texts.join(' ').trim()
+      if (!mergedText) continue
       marks.push(
-        `<!-- HIGHLIGHT_MARK color="${frag.color}" text="${escAttr(frag.text)}" anchor="${escAttr(blockText.slice(0, 80))}" -->`,
+        `<!-- HIGHLIGHT_MARK color="${color}" text="${escAttr(mergedText)}" anchor="${escAttr(blockText.slice(0, 80))}" -->`,
       )
     }
   })
