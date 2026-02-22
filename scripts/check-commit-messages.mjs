@@ -79,6 +79,11 @@ function detectRange(argv) {
 }
 
 const bannedPatterns = [
+  /\bprivate gates?\b/i,
+  /\benforced\b/i,
+  /\bendpoint\b/i,
+  /\btoken\b/i,
+  /\bsecret(?:s)?\b/i,
   /\bProduct operations and release quality update\b/i,
   /\bRelease branch synchronization\b/i,
   /\bMerge dev:\b/i,
