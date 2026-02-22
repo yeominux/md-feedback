@@ -79,6 +79,9 @@ const bannedPatterns = [
   /\bdev\s*(->|→)\s*main\b/i,
   /\brelease automation\b/i,
   /\bbranch protection\b/i,
+  /\barchitecture\b/i,
+  /\boperational\b/i,
+  /\blocal-only\b/i,
   // Conventional commit prefixes for internal ops — not user-facing
   /^chore(\(.+?\))?:/i,
   /^ci(\(.+?\))?:/i,
@@ -110,7 +113,7 @@ function validateSubject(subject, label) {
   if (allowedMergePatterns.some(re => re.test(subject))) return null
 
   if (bannedPatterns.some(re => re.test(subject))) {
-    return `${label}: "${subject}" (contains internal-operational wording)`
+    return `${label}: "${subject}" (contains internal/private wording)`
   }
 
   if (tooGenericPatterns.some(re => re.test(subject))) {

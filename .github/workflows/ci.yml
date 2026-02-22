@@ -23,6 +23,7 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:commits
+      - run: pnpm check:pr-surface
       - run: pnpm check:user-facing
       - run: pnpm guard:public-surface
         env:
