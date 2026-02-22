@@ -198,6 +198,75 @@ describe('serializeHighlightMarks', () => {
     expect(blueMarks).toBe(2)
   })
 
+  it('handles document with no highlights (empty marks output)', () => {
+    const fakeEditor = {
+      state: {
+        doc: {
+          descendants: (cb: (node: any) => void) => {
+            cb({
+              isTextblock: true,
+              textContent: 'Plain paragraph',
+              forEach: (_childCb: (child: any) => void) => {
+                // no highlight marks
+              },
+            })
+          },
+        },
+      },
+    }
+
+    const out = serializeHighlightMarks('# Doc', fakeEditor as any)
+    expect(out).toBe('# Doc')
+    expect(out).not.toContain('HIGHLIGHT_MARK')
+  })
+
+  it('merges blue across blocks while flushing red when second block lacks it', () => {
+    // Block 1: blue + red, Block 2: blue only → blue merges, red flushes
+    const fakeEditor = {
+      state: {
+        doc: {
+          descendants: (cb: (node: any) => void) => {
+            cb({
+              isTextblock: true,
+              textContent: 'First block with both colors',
+              forEach: (childCb: (child: any) => void) => {
+                childCb({
+                  isText: true,
+                  text: 'Blue part',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#93c5fd' } }],
+                })
+                childCb({
+                  isText: true,
+                  text: 'Red part',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#fca5a5' } }],
+                })
+              },
+            })
+            cb({
+              isTextblock: true,
+              textContent: 'Second block blue only',
+              forEach: (childCb: (child: any) => void) => {
+                childCb({
+                  isText: true,
+                  text: 'More blue',
+                  marks: [{ type: { name: 'highlight' }, attrs: { color: '#93c5fd' } }],
+                })
+              },
+            })
+          },
+        },
+      },
+    }
+
+    const out = serializeHighlightMarks('# Doc', fakeEditor as any)
+    const blueMarks = (out.match(/color="#93c5fd"/g) || []).length
+    const redMarks = (out.match(/color="#fca5a5"/g) || []).length
+    expect(blueMarks).toBe(1) // merged across blocks
+    expect(redMarks).toBe(1) // flushed when block 2 lacks red
+    expect(out).toContain('text="Blue part More blue"') // blue merged
+    expect(out).toContain('text="Red part"') // red standalone
+  })
+
   it('merges same-color fragments within one block into a single mark', () => {
     const fakeEditor = {
       state: {
