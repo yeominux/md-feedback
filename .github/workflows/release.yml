@@ -19,6 +19,7 @@ jobs:
       PRIVATE_GATES_ENFORCED: ${{ secrets.PRIVATE_GATES_ENFORCED }}
       PRIVATE_GATES_ENDPOINT: ${{ secrets.PRIVATE_GATES_ENDPOINT }}
       PRIVATE_GATES_TOKEN: ${{ secrets.PRIVATE_GATES_TOKEN }}
+      GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -30,6 +31,9 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check:commits
+      - run: pnpm check:user-facing
+      - run: pnpm guard:public-surface
       - run: pnpm check:private-gates
       - run: pnpm release:notes -- --output RELEASE_NOTES.md
       - run: pnpm check:release-body
