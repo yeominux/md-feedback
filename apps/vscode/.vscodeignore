@@ -1,0 +1,14 @@
+src/**
+webview/**
+node_modules/**
+.gitignore
+tsconfig.json
+tsconfig.webview.json
+esbuild.mjs
+vite.config.ts
+tailwind.config.mjs
+postcss.config.mjs
+**/*.map
+*.bak
+*.vsix
+vitest.config.ts
