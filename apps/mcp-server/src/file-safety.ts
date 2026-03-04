@@ -65,8 +65,17 @@ export function validateFilePath(
   const resolved = path.resolve(config.workspaceRoot, filePath)
   const normalizedRoot = path.resolve(config.workspaceRoot)
 
+  // On Windows, drive letters are case-insensitive, so normalize before comparison
+  const isWithin = (child: string, parent: string): boolean => {
+    if (process.platform === 'win32') {
+      return child.toLowerCase().startsWith((parent + path.sep).toLowerCase())
+        || child.toLowerCase() === parent.toLowerCase()
+    }
+    return child.startsWith(parent + path.sep) || child === parent
+  }
+
   // Check: path traversal — is the resolved path within workspaceRoot?
-  if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
+  if (!isWithin(resolved, normalizedRoot)) {
     return { safe: false, reason: `Path "${filePath}" resolves outside workspace root` }
   }
 
@@ -75,7 +84,7 @@ export function validateFilePath(
     try {
       const realResolved = realpathSync(resolved)
       const realRoot = realpathSync(normalizedRoot)
-      if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+      if (!isWithin(realResolved, realRoot)) {
         return { safe: false, reason: `Path "${filePath}" resolves outside workspace via symlink` }
       }
     } catch { /* ENOENT — new file, skip */ }
