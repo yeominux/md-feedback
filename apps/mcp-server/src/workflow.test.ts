@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
-const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
-  ? process.env['TEMP']
-  : 'C:\\Windows\\Temp'
+const SAFE_TMPDIR = (() => {
+  const t = tmpdir()
+  if (!/[^\x00-\x7F]/.test(t)) return t
+  return process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp'
+})()
 import { resolveWorkflowEnforcementMode, getWorkflowState, readWorkflowState, advanceWorkflowPhase } from './workflow'
 
 describe('workflow', () => {

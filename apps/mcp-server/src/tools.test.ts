@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
-  ? process.env['TEMP']
-  : 'C:\\Windows\\Temp'
+import { tmpdir } from 'node:os'
+const SAFE_TMPDIR = (() => {
+  const t = tmpdir()
+  if (!/[^\x00-\x7F]/.test(t)) return t
+  return process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp'
+})()
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { splitDocument } from '@md-feedback/shared'
 import { registerTools } from './tools'

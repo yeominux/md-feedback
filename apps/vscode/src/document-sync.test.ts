@@ -3,9 +3,12 @@ import { mergeDocument, type DocumentParts, type Gate, type MemoV2 } from '@md-f
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
-  ? process.env['TEMP']
-  : 'C:\\Windows\\Temp'
+import { tmpdir } from 'node:os'
+const SAFE_TMPDIR = (() => {
+  const t = tmpdir()
+  if (!/[^\x00-\x7F]/.test(t)) return t
+  return process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp'
+})()
 
 vi.mock('vscode', () => ({
   window: {
