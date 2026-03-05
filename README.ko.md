@@ -9,7 +9,7 @@
 [![License: SUL-1.0](https://img.shields.io/badge/License-SUL--1.0-blue.svg)](./LICENSE)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/ymnseon8)
 
-**MD Feedback**은 AI 에이전트가 구현하기 전에 마크다운 계획서를 리뷰하기 위한 VS Code 확장 + MCP 서버입니다. 위계는 명확합니다: 먼저 마크다운 계획을 기준으로 진행하고, 그 다음 MCP로 어노테이션 메모를 반영합니다.
+**MD Feedback**은 AI 에이전트가 구현하기 전에 마크다운 계획서를 리뷰하기 위한 VS Code 확장 + MCP 서버입니다. Fix, Question, Highlight로 어노테이션을 남기면, AI 에이전트가 MCP를 통해 구조화된 피드백을 직접 읽습니다. 복사-붙여넣기 없이, 내보내기 없이, 세션 간 컨텍스트 손실 없이.
 
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)에서 설치 후 `.md` 계획서에서 텍스트를 선택하고 `1/2/3` 키로 리뷰하면 바로 사용할 수 있습니다.
 
@@ -17,7 +17,7 @@
 
 ![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.5.3): 여러 문단에 걸친 하이라이트가 의도대로 하나의 어노테이션으로 병합됩니다.
+> 최신(v1.5.4): Windows에서 드라이브 문자 대소문자 차이(`D:` vs `d:`)로 인한 FILE_SAFETY 오탐이 수정되었습니다.
 
 ## 작동 방식
 
@@ -29,9 +29,9 @@ Step 1  YOU        마크다운으로 계획서 작성
 Step 2  YOU        MD Feedback 사이드바에서 열기 → 하이라이트, 수정, 질문
           │         (1, 2, 3 누르기)
           │
-Step 3  AGENT      MCP 워크플로우로 마크다운 계획 기준 진행
+Step 3  AGENT      MCP로 어노테이션 읽기 — 내보내기 불필요
           │
-Step 4  AGENT      계획 하위에서 어노테이션 메모(Fix/Question) 반영
+Step 4  AGENT      수정 구현, 질문 답변
           │
 Step 5  YOU        AI 작업 검토 → 승인, 수정 요청, 또는 거부
           │
@@ -43,13 +43,13 @@ Step 7  AGENT      핸드오프 생성 → 다음 세션이 이어서 작업
 
 1–2, 5단계만 하면 됩니다. 나머지는 에이전트가 합니다.
 
-구현 워크플로우에는 MCP 연결이 필수입니다. Export/Share는 구현 경로가 아니라 공유/호환용 보조 기능입니다.
+MCP 우선 방식입니다. 내보내기 기반 워크플로우를 사용하면 2단계 후에 내보내기를 실행하세요.
 
 ## 주요 기능
 
 - **3가지 어노테이션 타입**: Highlight (읽기 표시), Fix (수정 필요), Question (설명 필요)
-- **28개 MCP 도구**로 에이전트 직접 연동
-- **선택적 공유/호환 내보내기(11개 도구)**: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
+- **27개 MCP 도구**로 에이전트 직접 연동
+- **11개 AI 도구로 내보내기**: Claude Code, Cursor, Copilot, Codex, Cline, Windsurf, Roo Code, Gemini, Antigravity, Generic, Handoff
 - **품질 게이트**: 어노테이션 해결 상태에 따른 자동 평가
 - **세션 핸드오프**: AI 에이전트 세션 간 컨텍스트 보존
 - **체크포인트**: 스냅샷으로 리뷰 진행 상황 추적
@@ -78,13 +78,13 @@ Step 7  AGENT      핸드오프 생성 → 다음 세션이 이어서 작업
 
 1. **설치** — [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yeominux.md-feedback-vscode)에서
 2. **먼저 어노테이션** — 마크다운에서 텍스트를 선택하고 `1`(하이라이트), `2`(수정), `3`(질문)
-3. **MCP 연결(필수)** — 첫 어노테이션 후 사이드바 `Connect AI`를 눌러 MCP 설정 추가:
+3. **선택: MCP 연결** — 첫 어노테이션 후 사이드바 `Connect AI`를 눌러 MCP 설정 추가:
 
 ```json
 { "mcpServers": { "md-feedback": { "command": "npx", "args": ["-y", "md-feedback"] } } }
 ```
 
-4. **완료** — MCP 연결 후 에이전트가 마크다운 메모를 직접 읽고 구현합니다.
+4. **완료** — MCP 지원 에이전트는 직접 읽고, export-only 에이전트(예: 현재 Copilot 흐름)는 Export를 사용합니다.
 
 > **MCP는 Node.js 18+ 필요** (`npx` 사용).
 > Claude 경로: `.claude/mcp.json`  
@@ -160,10 +160,10 @@ Windows 예시: `{ "command": "npx", "args": ["-y", "md-feedback", "--workspace=
 ## FAQ
 
 **MD Feedback이 뭔가요?**
-AI 에이전트가 구현하기 전에 마크다운 계획서를 리뷰하기 위한 VS Code 확장 + MCP 서버입니다. 텍스트를 선택하고 1(하이라이트), 2(수정), 3(질문)을 누르면 어노테이션이 마크다운 파일 안에 이식 가능한 HTML 코멘트로 저장됩니다. 공유용 컨텍스트는 11개 AI 도구로 내보낼 수 있고, 구현은 MCP 경로에서 에이전트가 직접 읽고 반영합니다.
+AI 에이전트가 구현하기 전에 마크다운 계획서를 리뷰하기 위한 VS Code 확장 + MCP 서버입니다. 텍스트를 선택하고 1(하이라이트), 2(수정), 3(질문)을 누르면 어노테이션이 마크다운 파일 안에 이식 가능한 HTML 코멘트로 저장됩니다. 11개 AI 도구로 내보내거나, MCP로 에이전트가 직접 읽습니다.
 
 **Claude Code / Cursor / Copilot에서 쓸 수 있나요?**
-네. Claude Code(`CLAUDE.md`), Cursor(`.cursor/rules/`), GitHub Copilot(`.github/copilot-instructions.md`) 등 11개 도구로 공유용 컨텍스트를 내보낼 수 있습니다. 실제 구현은 MCP를 통해 에이전트가 마크다운 메모를 직접 읽고 반영하는 경로를 권장합니다.
+네. Claude Code(`CLAUDE.md`), Cursor(`.cursor/rules/`), GitHub Copilot(`.github/copilot-instructions.md`) 등 11개 도구를 지원합니다. MCP를 사용하면 내보내기 없이 에이전트가 직접 읽습니다.
 
 **MCP가 뭐고 왜 중요한가요?**
 MCP(Model Context Protocol)는 AI 에이전트가 외부 도구와 상호작용할 수 있게 하는 프로토콜입니다. MD Feedback의 MCP 서버는 에이전트에게 어노테이션에 대한 직접 접근을 제공하여, 피드백을 읽고, 작업을 완료 표시하고, 게이트를 평가하고, 핸드오프를 자동으로 생성할 수 있습니다.
