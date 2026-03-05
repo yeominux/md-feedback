@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.5.3): multi-paragraph highlights now merge into a single annotation as intended.
+> Latest (v1.5.4): FILE_SAFETY false positive on Windows fixed — drive letter casing (`D:` vs `d:`) no longer triggers a path containment error.
 
 ## How It Works
 

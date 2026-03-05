@@ -17,7 +17,7 @@
 
 ![MD Feedback 데모: VS Code 사이드바에서 Fix, Question, Highlight로 마크다운 계획서에 어노테이션을 추가하고 AI 적용 결과를 리뷰하는 과정](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> 최신(v1.5.3): 여러 문단에 걸친 하이라이트가 의도대로 하나의 어노테이션으로 병합됩니다.
+> 최신(v1.5.4): Windows에서 드라이브 문자 대소문자 차이(`D:` vs `d:`)로 인한 FILE_SAFETY 오탐이 수정되었습니다.
 
 ## 작동 방식
 

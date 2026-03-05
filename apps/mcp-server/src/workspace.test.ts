@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+
+const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
+  ? process.env['TEMP']
+  : 'C:\\Windows\\Temp'
 import { listWorkspaceDocuments, resolveWorkspaceFrom } from './workspace'
 
 describe('resolveWorkspaceFrom', () => {
@@ -48,7 +51,7 @@ describe('resolveWorkspaceFrom', () => {
 
 describe('listWorkspaceDocuments', () => {
   it('lists markdown files in workspace and can filter annotated-only', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-workspace-test-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-workspace-test-'))
     try {
       writeFileSync(join(workspace, 'a.md'), '# A\n', 'utf-8')
       writeFileSync(join(workspace, 'b.md'), '# B\n<!-- USER_MEMO id="m1" color="red" status="open" : fix -->\n', 'utf-8')

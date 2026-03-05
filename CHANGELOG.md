@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4] - 2026-03-05
+
+### Fixed
+- FILE_SAFETY false positive on Windows when drive letter casing differs between
+  workspace root and incoming file path (`D:` vs `d:`). Path containment checks
+  are now case-insensitive on Windows. (Issue #2)
+
 ## [1.5.3] - 2026-02-22
 
 ### Fixed

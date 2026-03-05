@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+
+const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
+  ? process.env['TEMP']
+  : 'C:\\Windows\\Temp'
 import { resolveWorkflowEnforcementMode, getWorkflowState, readWorkflowState, advanceWorkflowPhase } from './workflow'
 
 describe('workflow', () => {
@@ -14,7 +17,7 @@ describe('workflow', () => {
   })
 
   it('reads workflow.json with UTF-8 BOM correctly', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-workflow-bom-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-workflow-bom-'))
     const file = join(workspace, 'review.md')
     writeFileSync(file, '# Title\n', 'utf-8')
     const sidecar = join(workspace, '.md-feedback')
@@ -41,7 +44,7 @@ describe('workflow', () => {
   })
 
   it('creates default scope state and advances sequentially', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-workflow-test-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-workflow-test-'))
     const file = join(workspace, 'review.md')
     writeFileSync(file, '# Title\n', 'utf-8')
     try {

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+
+const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
+  ? process.env['TEMP']
+  : 'C:\\Windows\\Temp'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { splitDocument } from '@md-feedback/shared'
 import { registerTools } from './tools'
@@ -26,7 +29,7 @@ describe('mcp-server tools', () => {
   let server: MockServer
 
   beforeEach(() => {
-    workspace = mkdtempSync(join(tmpdir(), 'md-feedback-tools-test-'))
+    workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-tools-test-'))
     server = new MockServer()
     registerTools(server as unknown as McpServer, workspace)
   })

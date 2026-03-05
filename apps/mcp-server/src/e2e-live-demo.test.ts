@@ -4,7 +4,10 @@
 import { describe, beforeEach, afterEach, expect, it } from 'vitest'
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync, mkdtempSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { tmpdir } from 'node:os'
+
+const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
+  ? process.env['TEMP']
+  : 'C:\\Windows\\Temp'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { splitDocument } from '@md-feedback/shared'
 import { registerTools } from './tools'
@@ -51,7 +54,7 @@ describe('E2E Live Demo', () => {
   let server: MockServer
 
   beforeEach(() => {
-    workspace = mkdtempSync(join(tmpdir(), 'md-feedback-e2e-live-'))
+    workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-e2e-live-'))
     testFile = join(workspace, 'e2e-live-demo.md')
     copyFileSync(origFile, testFile)
     server = new MockServer()

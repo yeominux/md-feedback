@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { mergeDocument, type DocumentParts, type Gate, type MemoV2 } from '@md-feedback/shared'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+
+const SAFE_TMPDIR = process.env['TEMP'] && !/[^\x00-\x7F]/.test(process.env['TEMP'])
+  ? process.env['TEMP']
+  : 'C:\\Windows\\Temp'
 
 vi.mock('vscode', () => ({
   window: {
@@ -101,7 +104,7 @@ describe('document-sync sendStatusInfo', () => {
   })
 
   it('includes workflow and blocking metadata from sidecar files', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-docsync-'))
     const mdFile = join(workspace, 'plan.md')
     const sidecar = join(workspace, '.md-feedback')
     mkdirSync(sidecar, { recursive: true })
@@ -150,7 +153,7 @@ describe('document-sync sendStatusInfo', () => {
   })
 
   it('uses provided source document sidecar when active editor is unavailable', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-srcdoc-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-docsync-srcdoc-'))
     const mdFile = join(workspace, 'plan.md')
     const sidecar = join(workspace, '.md-feedback')
     mkdirSync(sidecar, { recursive: true })
@@ -194,7 +197,7 @@ describe('document-sync sendStatusInfo', () => {
   })
 
   it('parses workflow sidecar with UTF-8 BOM and keeps approvalRequired visible', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'md-feedback-docsync-bom-'))
+    const workspace = mkdtempSync(join(SAFE_TMPDIR,'md-feedback-docsync-bom-'))
     const mdFile = join(workspace, 'plan.md')
     const sidecar = join(workspace, '.md-feedback')
     mkdirSync(sidecar, { recursive: true })
