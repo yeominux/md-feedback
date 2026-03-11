@@ -1,0 +1,1246 @@
+/**
+ * Document Writer — Split/Merge pipeline for annotated markdown
+ *
+ * splitDocument(): parse annotated markdown into structured DocumentParts
+ * mergeDocument(): reassemble DocumentParts back into markdown
+ *
+ * Preserves: frontmatter, memos (v0.3 + v0.4), checkpoints, gates, cursor
+ */
+
+import type { DocumentParts, MemoV2, Gate, PlanCursor, Checkpoint, MemoColor, ReviewResponse, MemoImpl, MemoArtifact, MemoDependency, ImplOperation, AnchorConfidence, SidecarMetadata, MergeResult } from './types'
+import { colorToType, isResolved, HEX_TO_COLOR_NAME, emptySidecarMetadata } from './types'
+import { generateId } from './id'
+import { parseJsonStrict } from './errors'
+
+// ─── Attribute escape/unescape (unified, handles &, ", newline, -->) ───
+
+export function escAttrValue(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;').replace(/-->/g, '--&#62;')
+}
+export function unescAttrValue(s: string): string {
+  return s.replace(/--&#62;/g, '-->').replace(/&#10;/g, '\n').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+}
+
+// ─── Hash utility (simple djb2, no crypto needed) ───
+
+export function computeLineHash(line: string): string {
+  let hash = 5381
+  for (let i = 0; i < line.length; i++) {
+    hash = ((hash << 5) + hash + line.charCodeAt(i)) >>> 0
+  }
+  return hash.toString(16).padStart(8, '0').slice(0, 8)
+}
+
+// ─── Regex patterns ───
+
+// v0.3 single-line: <!-- USER_MEMO id="abc" color="red" status="done" anchorText="..." : text -->
+const MEMO_V3_RE = /^<!-- USER_MEMO\s+id="([^"]+)"(?:\s+color="([^"]+)")?(?:\s+status="([^"]+)")?(?:\s+anchorText="([^"]*)")?\s*:\s*(.*?)\s*-->$/
+
+// v0.4 multi-line: <!-- USER_MEMO\n  id="abc"\n  type="fix"\n  ...  \n-->
+const MEMO_V4_START_RE = /^<!-- USER_MEMO\s*$/
+const MEMO_V4_END_RE = /^-->$/
+
+// Gate: <!-- GATE\n  id="gate-1"\n  ...  \n-->
+const GATE_START_RE = /^<!-- GATE\s*$/
+const GATE_END_RE = /^-->$/
+
+// Cursor: <!-- PLAN_CURSOR\n  ...  \n-->
+const CURSOR_START_RE = /^<!-- PLAN_CURSOR\s*$/
+const CURSOR_END_RE = /^-->$/
+
+// Checkpoint: <!-- CHECKPOINT id="..." ... -->
+const CHECKPOINT_RE = /^<!-- CHECKPOINT\s+id="([^"]+)"\s+time="([^"]+)"\s+note="([^"]*)"\s+fixes=(\d+)\s+questions=(\d+)\s+highlights=(\d+)\s+sections="([^"]*)" -->$/
+
+// Frontmatter: --- ... ---
+const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---\s*\n/
+
+// Legacy memo blocks
+const LEGACY_MEMO_START_RE = /^<!-- @memo\s+id="([^"]+)"(?:\s+color="([^"]+)")?(?:\s+date="([^"]+)")?\s*-->$/
+const LEGACY_MEMO_END_RE = /^<!-- @\/memo -->$/
+
+// MD Feedback banner comment
+const BANNER_START_RE = /^<!--$/
+const BANNER_CONTENT_RE = /MD Feedback/
+
+// Feedback notes wrapper
+const FEEDBACK_NOTES_RE = /^<!-- \/?(USER_FEEDBACK_NOTES|@\/?feedback-notes)\b.*-->$/
+
+// REVIEW_RESPONSE markers (open/close tags)
+const RESPONSE_OPEN_RE = /^<!-- REVIEW_RESPONSE\s+to="([^"]+)"\s*-->$/
+const RESPONSE_CLOSE_RE = /^<!-- \/REVIEW_RESPONSE\s*-->$/
+
+// MEMO_IMPL: <!-- MEMO_IMPL\n  id="..." memoId="..." ... \n-->
+const IMPL_START_RE = /^<!-- MEMO_IMPL\s*$/
+const IMPL_END_RE = /^-->$/
+
+// MEMO_ARTIFACT: <!-- MEMO_ARTIFACT\n  id="..." memoId="..." ... \n-->
+const ARTIFACT_START_RE = /^<!-- MEMO_ARTIFACT\s*$/
+const ARTIFACT_END_RE = /^-->$/
+
+// MEMO_DEPENDENCY: <!-- MEMO_DEPENDENCY id="..." from="..." to="..." type="..." -->
+const DEPENDENCY_RE = /^<!-- MEMO_DEPENDENCY\s+id="([^"]+)"\s+from="([^"]+)"\s+to="([^"]+)"\s+type="([^"]+)" -->$/
+const HIGHLIGHT_MARK_RE = /<!-- HIGHLIGHT_MARK color="([^"]*)" text="([^"]*)" anchor="([^"]*)" -->/g
+const ANCHOR_HASH_SEARCH_RADIUS = 10
+
+/** Minimum anchor text length for reliable text-based matching.
+ *  Short strings (e.g. "3", "OK") match too many lines and cause misplacement. */
+export const MIN_ANCHOR_TEXT_LENGTH = 8
+/** Maximum number of text matches before falling back to line-number anchor.
+ *  Too many matches indicate ambiguous anchor text. */
+const MAX_TEXT_MATCHES_CONFIDENT = 3
+
+/** Check if a line is a metadata comment (HIGHLIGHT_MARK, USER_MEMO, MEMO_IMPL, etc.)
+ *  that should be excluded from content-matching operations. */
+function isCommentLine(line: string): boolean {
+  const t = line.trim()
+  return (
+    t.startsWith('<!-- USER_MEMO') ||
+    t.startsWith('<!-- MEMO_IMPL') ||
+    t.startsWith('<!-- MEMO_ARTIFACT') ||
+    t.startsWith('<!-- GATE') ||
+    t.startsWith('<!-- CHECKPOINT') ||
+    t.startsWith('<!-- PLAN_CURSOR') ||
+    t.startsWith('<!-- MEMO_DEPENDENCY') ||
+    t.startsWith('<!-- HIGHLIGHT_MARK') ||
+    // Multi-line memo/impl continuation lines (attributes or closing -->)
+    (t.startsWith('id="') && !t.includes('<')) ||
+    t === '-->'
+  )
+}
+
+/** Strip markdown formatting to normalize body lines for anchor text matching.
+ *  Converts raw markdown → plain text approximating TipTap's node.textContent output.
+ *
+ *  Handles: blockquote, heading, list/task-list prefixes, bold, italic, strikethrough,
+ *  code spans, highlight (==), links, images, inline HTML tags, footnotes, inline math,
+ *  table pipes, backslash escapes. */
+export function stripMarkdownFormatting(s: string): string {
+  return s
+    // Block-level prefixes (order matters: strip outermost first)
+    .replace(/^(?:>\s*)+/, '')                   // blockquote: "> > text" → "text"
+    .replace(/^#+\s*/, '')                       // heading: "### text" → "text"
+    .replace(/^(\s*)[-*+]\s+\[[ xX]\]\s+/, '$1') // task list: "- [x] text" → "text"
+    .replace(/^(\s*)[-*+]\s+/, '$1')             // unordered list: "- text" → "text"
+    .replace(/^(\s*)\d+[.)]\s+/, '$1')           // ordered list: "1. text" → "text"
+    // Inline HTML tags (strip tags, keep content)
+    .replace(/<\/?(?:strong|em|b|i|u|s|del|ins|mark|code|kbd|sub|sup|span|a)\b[^>]*>/gi, '')
+    // Markdown images: ![alt](url) → alt
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Markdown links: [text](url) → text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Reference links: [text][ref] → text
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+    // Strikethrough: ~~text~~ → text
+    .replace(/~~([^~]+)~~/g, '$1')
+    // Highlight mark: ==text== → text
+    .replace(/==([^=]+)==/g, '$1')
+    // Code spans: `code` → code (handle double backticks too)
+    .replace(/``([^`]+)``/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    // Bold/italic (handle *** first, then ** and *)
+    .replace(/\*{3}([^*]+)\*{3}/g, '$1')        // ***bold italic***
+    .replace(/\*{2}([^*]+)\*{2}/g, '$1')         // **bold**
+    .replace(/(?<!\w)\*([^*]+)\*(?!\w)/g, '$1')   // *italic* (word boundary aware)
+    // Underscore bold/italic
+    .replace(/_{2}([^_]+)_{2}/g, '$1')            // __bold__
+    .replace(/(?<!\w)_([^_]+)_(?!\w)/g, '$1')     // _italic_
+    // Footnote references: [^1] → (removed)
+    .replace(/\[\^\w+\]/g, '')
+    // Inline math: $formula$ → formula (single $, not $$)
+    .replace(/(?<!\$)\$(?!\$)([^$]+)\$(?!\$)/g, '$1')
+    // Table cell delimiters: leading/trailing pipes
+    .replace(/^\|\s*/, '').replace(/\s*\|$/, '')
+    // Backslash escapes: \[ → [, \] → ], \* → *, etc.
+    .replace(/\\([[\](){}#*+\-.!|`~>_\\$^])/g, '$1')
+    .trim()
+}
+
+/** Parse attribute key="value" pairs from multi-line comment body */
+function parseAttrs(lines: string[]): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  for (const line of lines) {
+    const m = line.trim().match(/^(\w+)="([^"]*)"$/)
+    if (m) attrs[m[1]] = unescAttrValue(m[2])
+  }
+  return attrs
+}
+
+// ─── splitDocument ───
+
+export function splitDocument(markdown: string, sidecar?: SidecarMetadata | null): DocumentParts {
+  let frontmatter = ''
+  let body = markdown
+
+  // Extract frontmatter
+  const fmMatch = body.match(FRONTMATTER_RE)
+  if (fmMatch) {
+    frontmatter = fmMatch[0]
+    body = body.slice(fmMatch[0].length)
+  }
+
+  const lines = body.split('\n')
+  const bodyLines: string[] = []
+  const memos: MemoV2[] = []
+  const responses: ReviewResponse[] = []
+  const impls: MemoImpl[] = []
+  const artifacts: MemoArtifact[] = []
+  const dependencies: MemoDependency[] = []
+  const checkpoints: Checkpoint[] = []
+  const gates: Gate[] = []
+  let cursor: PlanCursor | null = null
+  let openResponse: ReviewResponse | null = null
+
+  // Track seen memo IDs to prevent duplicate memos from appendMissedMemos / serialization edge cases.
+  // The FIRST occurrence has the correct anchor (adjacent to body line); later duplicates at EOF have wrong anchors.
+  const seenMemoIds = new Set<string>()
+
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    // ── REVIEW_RESPONSE markers ──
+    const respOpenMatch = trimmed.match(RESPONSE_OPEN_RE)
+    if (respOpenMatch) {
+      openResponse = {
+        id: `resp_${respOpenMatch[1]}`,
+        to: respOpenMatch[1],
+        bodyStartIdx: bodyLines.length,
+        bodyEndIdx: -1,
+      }
+      i++
+      continue
+    }
+    if (RESPONSE_CLOSE_RE.test(trimmed)) {
+      if (openResponse) {
+        openResponse.bodyEndIdx = bodyLines.length - 1
+        responses.push(openResponse)
+        openResponse = null
+      }
+      i++
+      continue
+    }
+
+    // ── v0.3 single-line memo ──
+    const v3Match = trimmed.match(MEMO_V3_RE)
+    if (v3Match) {
+      if (seenMemoIds.has(v3Match[1])) { i++; continue }
+      seenMemoIds.add(v3Match[1])
+      const v3AnchorText = v3Match[4] ? unescAttrValue(v3Match[4]) : findAnchorAbove(bodyLines)
+      const anchorLine = findAnchorLineIdx(bodyLines)
+      const memoColor = (v3Match[2] || 'red') as MemoColor
+      const memoStatus = (v3Match[3] as MemoV2['status']) || 'open'
+      memos.push({
+        id: v3Match[1],
+        type: colorToType(memoColor),
+        status: memoStatus,
+        owner: 'human',
+        source: 'generic',
+        color: memoColor,
+        text: v3Match[5].replace(/--\u200B>/g, '-->'),
+        anchorText: v3AnchorText || '',
+        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${computeLineHash(bodyLines[anchorLine] || '')}` : '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      i++
+      continue
+    }
+
+    // ── v0.4 multi-line memo ──
+    if (MEMO_V4_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !MEMO_V4_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      if (a.id && seenMemoIds.has(a.id)) continue
+      if (a.id) seenMemoIds.add(a.id)
+      const anchorText = a.anchorText || findAnchorAbove(bodyLines) || ''
+      // Refresh anchor using persisted anchor/hash/anchorText (not last seen body line).
+      // This avoids collapsing all EOF metadata memos onto the same trailing body line.
+      const tmpMemo: MemoV2 = {
+        id: a.id || 'memo_parse_tmp',
+        type: (a.type as MemoV2['type']) || 'fix',
+        status: (a.status as MemoV2['status']) || 'open',
+        owner: (a.owner as MemoV2['owner']) || 'human',
+        source: a.source || 'generic',
+        color: (a.color || 'red') as MemoColor,
+        text: a.text || '',
+        anchorText,
+        anchor: a.anchor || '',
+        createdAt: a.createdAt || new Date().toISOString(),
+        updatedAt: a.updatedAt || new Date().toISOString(),
+      }
+      const { lineIdx: anchorLineIdx, confidence } = findMemoAnchorLineWithConfidence(bodyLines, tmpMemo)
+      const freshAnchor = anchorLineIdx >= 0
+        ? `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
+        : (a.anchor || '')
+      // Refresh anchorText when anchor line was found – keeps it in sync across
+      // save cycles so the dedup key matches HIGHLIGHT_MARK anchors after AI edits.
+      const freshAnchorText = anchorLineIdx >= 0 && !isCommentLine(bodyLines[anchorLineIdx])
+        ? bodyLines[anchorLineIdx].trim().slice(0, 80)
+        : anchorText
+      memos.push({
+        id: a.id || generateId('memo'),
+        type: (a.type as MemoV2['type']) || colorToType((a.color || 'red') as MemoColor),
+        status: (a.status as MemoV2['status']) || 'open',
+        owner: (a.owner as MemoV2['owner']) || 'human',
+        source: a.source || 'generic',
+        color: (a.color || 'red') as MemoColor,
+        text: a.text || '',
+        anchorText: freshAnchorText,
+        anchor: freshAnchor,
+        createdAt: a.createdAt || new Date().toISOString(),
+        updatedAt: a.updatedAt || new Date().toISOString(),
+        ...(a.rejectReason ? { rejectReason: a.rejectReason } : {}),
+        anchorConfidence: confidence,
+      })
+      continue
+    }
+
+    // ── Gate ──
+    if (GATE_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !GATE_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      const override = a.override as Gate['override'] | undefined
+      gates.push({
+        id: a.id || generateId('gate'),
+        type: (a.type as Gate['type']) || 'custom',
+        status: (a.status as Gate['status']) || 'blocked',
+        blockedBy: a.blockedBy ? a.blockedBy.split(',').map(s => s.trim()).filter(Boolean) : [],
+        canProceedIf: a.canProceedIf || '',
+        doneDefinition: a.doneDefinition || '',
+        ...(override ? { override } : {}),
+      })
+      continue
+    }
+
+    // ── Plan Cursor ──
+    if (CURSOR_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !CURSOR_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      cursor = {
+        taskId: a.taskId || '',
+        step: a.step || '',
+        nextAction: a.nextAction || '',
+        lastSeenHash: a.lastSeenHash || '',
+        updatedAt: a.updatedAt || new Date().toISOString(),
+      }
+      continue
+    }
+
+    // ── MEMO_IMPL ──
+    if (IMPL_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !IMPL_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      let operations: ImplOperation[] = []
+      try { operations = parseJsonStrict<ImplOperation[]>(a.operations || '[]', 'MEMO_IMPL.operations') } catch { /* best effort */ }
+      impls.push({
+        id: a.id || generateId('impl', { separator: '_' }),
+        memoId: a.memoId || '',
+        status: (a.status as MemoImpl['status']) || 'applied',
+        operations,
+        summary: a.summary || '',
+        appliedAt: a.appliedAt || new Date().toISOString(),
+      })
+      continue
+    }
+
+    // ── MEMO_ARTIFACT ──
+    if (ARTIFACT_START_RE.test(trimmed)) {
+      const attrLines: string[] = []
+      i++
+      while (i < lines.length && !ARTIFACT_END_RE.test(lines[i].trim())) {
+        attrLines.push(lines[i])
+        i++
+      }
+      i++ // skip -->
+      const a = parseAttrs(attrLines)
+      artifacts.push({
+        id: a.id || generateId('art', { separator: '_' }),
+        memoId: a.memoId || '',
+        files: a.files ? a.files.split(',').map(s => s.trim()).filter(Boolean) : [],
+        linkedAt: a.linkedAt || new Date().toISOString(),
+      })
+      continue
+    }
+
+    // ── MEMO_DEPENDENCY ──
+    const depMatch = trimmed.match(DEPENDENCY_RE)
+    if (depMatch) {
+      dependencies.push({
+        id: depMatch[1],
+        from: depMatch[2],
+        to: depMatch[3],
+        type: depMatch[4] as MemoDependency['type'],
+      })
+      i++
+      continue
+    }
+
+    // ── Checkpoint ──
+    const cpMatch = trimmed.match(CHECKPOINT_RE)
+    if (cpMatch) {
+      checkpoints.push({
+        id: cpMatch[1],
+        timestamp: cpMatch[2],
+        note: cpMatch[3],
+        fixes: parseInt(cpMatch[4], 10),
+        questions: parseInt(cpMatch[5], 10),
+        highlights: parseInt(cpMatch[6], 10),
+        sectionsReviewed: cpMatch[7] ? cpMatch[7].split(',') : [],
+      })
+      i++
+      continue
+    }
+
+    // ── Legacy memo blocks ──
+    const legacyMatch = trimmed.match(LEGACY_MEMO_START_RE)
+    if (legacyMatch) {
+      const memoLines: string[] = []
+      const anchorText = findAnchorAbove(bodyLines)
+      const anchorLine = findAnchorLineIdx(bodyLines)
+      i++
+      while (i < lines.length && !LEGACY_MEMO_END_RE.test(lines[i].trim())) {
+        memoLines.push(lines[i])
+        i++
+      }
+      i++ // skip <!-- @/memo -->
+      const text = memoLines
+        .map(l => l.replace(/^<!--\s*/, '').replace(/\s*-->$/, ''))
+        .join('\n').trim()
+      memos.push({
+        id: legacyMatch[1],
+        type: colorToType((legacyMatch[2] || 'red') as MemoColor),
+        status: 'open',
+        owner: 'human',
+        source: 'generic',
+        color: (legacyMatch[2] || 'red') as MemoColor,
+        text,
+        anchorText: anchorText || '',
+        anchor: anchorLine >= 0 ? `L${anchorLine + 1}|${computeLineHash(bodyLines[anchorLine] || '')}` : '',
+        createdAt: legacyMatch[3] || new Date().toISOString(),
+        updatedAt: legacyMatch[3] || new Date().toISOString(),
+      })
+      continue
+    }
+
+    // ── Banner comment (MD Feedback header) ──
+    if (BANNER_START_RE.test(trimmed) && i + 1 < lines.length && BANNER_CONTENT_RE.test(lines[i + 1])) {
+      while (i < lines.length && !lines[i].includes('-->')) i++
+      i++
+      continue
+    }
+
+    // ── Feedback notes wrapper ──
+    if (FEEDBACK_NOTES_RE.test(trimmed)) {
+      i++
+      continue
+    }
+
+    bodyLines.push(line)
+    i++
+  }
+
+  // Trim trailing empty lines from body
+  while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1].trim() === '') {
+    bodyLines.pop()
+  }
+
+  // Handle unclosed response
+  if (openResponse) {
+    openResponse.bodyEndIdx = bodyLines.length - 1
+    responses.push(openResponse)
+  }
+
+  // Auto-escalate: memos with a REVIEW_RESPONSE and status "open" → "needs_review"
+  // (Requires human approval via VS Code CodeLens to reach terminal status)
+  const respondedMemoIds = new Set(responses.map(r => r.to))
+  for (const memo of memos) {
+    if (memo.status === 'open' && respondedMemoIds.has(memo.id)) {
+      memo.status = 'needs_review'
+    }
+  }
+
+  // Recover missing fix/question memos from persisted highlight marks.
+  // If memo blocks are accidentally missing, MCP agents would otherwise see no actionable memos.
+  // Normalize dedup keys: strip leading markdown heading markers (### ) so
+  // "### Step 3: foo" and "Step 3: foo" match as the same anchor.
+  const stripHeadingPrefix = (s: string) => s.replace(/^#+\s*/, '').trim()
+
+  // Word-overlap Jaccard similarity for fuzzy dedup (prevents phantom memo_recovered_* memos
+  // when AI edits both anchor and memo text). Threshold 0.7 = 70% word overlap.
+  const FUZZY_DEDUP_THRESHOLD = 0.7
+  const toWords = (s: string) => new Set(s.toLowerCase().split(/\s+/).filter(Boolean))
+  const jaccardSimilarity = (a: Set<string>, b: Set<string>): number => {
+    if (a.size === 0 && b.size === 0) return 1
+    let intersection = 0
+    for (const w of a) { if (b.has(w)) intersection++ }
+    const union = a.size + b.size - intersection
+    return union === 0 ? 0 : intersection / union
+  }
+
+  // Build dedup keys from BOTH anchorText AND text for drift tolerance.
+  // When AI edits surrounding text, HIGHLIGHT_MARK anchor drifts from memo anchorText.
+  // Indexing by memo text as well catches cases where the highlighted text matches.
+  const existingMemoKeys = new Set<string>()
+  // Also keep word sets for fuzzy matching
+  const existingMemoWordSets: Array<{ color: string; words: Set<string> }> = []
+  for (const m of memos.filter(m => m.color === 'red' || m.color === 'blue')) {
+    const strippedAnchor = stripHeadingPrefix(m.anchorText)
+    const strippedText = stripHeadingPrefix(m.text)
+    existingMemoKeys.add(`${m.color}|${strippedAnchor}`)
+    if (m.text) existingMemoKeys.add(`${m.color}|${strippedText}`)
+    if (strippedAnchor) existingMemoWordSets.push({ color: m.color, words: toWords(strippedAnchor) })
+    if (strippedText) existingMemoWordSets.push({ color: m.color, words: toWords(strippedText) })
+  }
+
+  const fuzzyMatchesExisting = (color: string, text: string): boolean => {
+    if (!text) return false
+    const words = toWords(text)
+    for (const entry of existingMemoWordSets) {
+      if (entry.color === color && jaccardSimilarity(words, entry.words) >= FUZZY_DEDUP_THRESHOLD) return true
+    }
+    return false
+  }
+
+  // If a human-authored fix/question memo already exists for a color, skip
+  // auto-recovery for that color to avoid flooding with recovered fragments.
+  const hasAuthoritativeMemoByColor: Record<'red' | 'blue', boolean> = {
+    red: memos.some(m => m.color === 'red' && m.source !== 'recovered-highlight'),
+    blue: memos.some(m => m.color === 'blue' && m.source !== 'recovered-highlight'),
+  }
+
+  HIGHLIGHT_MARK_RE.lastIndex = 0
+  let markMatch: RegExpExecArray | null
+  while ((markMatch = HIGHLIGHT_MARK_RE.exec(body)) !== null) {
+    const memoColor = normalizeMemoColorFromHighlight(markMatch[1])
+    if (memoColor !== 'red' && memoColor !== 'blue') continue
+    if (hasAuthoritativeMemoByColor[memoColor]) continue
+
+    const markText = decodeHighlightAttr(markMatch[2]).trim()
+    const markAnchor = decodeHighlightAttr(markMatch[3]).trim()
+    if (!markText && !markAnchor) continue
+
+    // Try both block text (markAnchor) and highlighted text (markText) as dedup keys.
+    // markAnchor = current block text (drifts with edits); markText = highlighted span (more stable).
+    const anchorKey = markAnchor ? `${memoColor}|${stripHeadingPrefix(markAnchor)}` : ''
+    const textKey = markText ? `${memoColor}|${stripHeadingPrefix(markText)}` : ''
+    // Exact match
+    if ((anchorKey && existingMemoKeys.has(anchorKey)) || (textKey && existingMemoKeys.has(textKey))) continue
+    // Fuzzy match — catches cases where AI edits both anchor and memo text
+    if (fuzzyMatchesExisting(memoColor, stripHeadingPrefix(markAnchor)) ||
+        fuzzyMatchesExisting(memoColor, stripHeadingPrefix(markText))) continue
+
+    const anchorText = markAnchor || markText
+
+    // Reject contaminated anchorText (double-encoded attribute markup)
+    if (anchorText.includes('anchorText=') || anchorText.includes('<!-- ')) continue
+
+    // Reject too-short anchors (unreliable text matching)
+    if (anchorText.length < MIN_ANCHOR_TEXT_LENGTH) continue
+
+    const searchNeedle = anchorText.slice(0, 40)
+    const strippedNeedle = stripMarkdownFormatting(searchNeedle)
+    // Exclude comment/metadata lines from anchor search — prevents matching HIGHLIGHT_MARKs themselves
+    const anchorLineIdx = searchNeedle
+      ? bodyLines.findIndex(l => !isCommentLine(l) && (l.includes(searchNeedle) || stripMarkdownFormatting(l).includes(strippedNeedle)))
+      : -1
+
+    // Skip recovery for stale HIGHLIGHT_MARKs whose content was deleted from the body
+    if (anchorLineIdx < 0) continue
+
+    const anchor = `L${anchorLineIdx + 1}|${computeLineHash(bodyLines[anchorLineIdx] || '')}`
+    const now = new Date().toISOString()
+
+    const recoveredId = `memo_recovered_${computeLineHash(`${memoColor}|${anchorText}|${markText}`)}`
+    if (seenMemoIds.has(recoveredId)) continue
+    seenMemoIds.add(recoveredId)
+    memos.push({
+      id: recoveredId,
+      type: colorToType(memoColor),
+      status: 'open',
+      owner: 'human',
+      source: 'recovered-highlight',
+      color: memoColor,
+      text: markText,
+      anchorText,
+      anchor,
+      createdAt: now,
+      updatedAt: now,
+    })
+    if (anchorKey) existingMemoKeys.add(anchorKey)
+    if (textKey) existingMemoKeys.add(textKey)
+  }
+
+  // Clean up orphaned recovered-highlight memos: these were created by previous
+  // code runs from stale HIGHLIGHT_MARKs and persisted as USER_MEMOs.
+  // Discard them when their anchorText is corrupted (contains HTML comment markers)
+  // or references content that no longer exists in the body.
+  const nonCommentBodyLines = bodyLines.filter(l => !isCommentLine(l))
+  const contentText = nonCommentBodyLines.join('\n')
+  const strippedContentText = nonCommentBodyLines.map(l => stripMarkdownFormatting(l)).join('\n')
+  const cleanMemos = memos.filter(m => {
+    if (m.source !== 'recovered-highlight') return true
+    // Corrupted anchorText containing raw HTML comment content
+    if (m.anchorText.includes('<!-- HIGHLIGHT_MARK') ||
+        m.anchorText.includes('<!-- USER_MEMO') ||
+        m.anchorText.includes('<!-- MEMO_IMPL')) return false
+    // Phantom memos whose anchor was resolved only by line-number fallback
+    // (not by content match) are unreliable — discard them. The original
+    // anchorText was corrupted but anchor refresh healed it, making the
+    // corruption undetectable from the refreshed anchorText alone.
+    if (m.anchorConfidence === 'line_number' || m.anchorConfidence === 'fallback') return false
+    // AnchorText references content that was deleted from the body.
+    // Also check memo text when anchorText is empty (e.g. after anchor refresh
+    // set it to '' because the fallback landed on an empty line).
+    const needle = (m.anchorText.trim() || m.text.trim()).slice(0, 40)
+    if (!needle) return true
+    const strippedNeedle = stripMarkdownFormatting(needle)
+    if (contentText.includes(needle) || strippedContentText.includes(strippedNeedle)) return true
+    return false
+  })
+
+  const parsed: DocumentParts = {
+    frontmatter,
+    body: bodyLines.join('\n'),
+    memos: cleanMemos,
+    responses,
+    impls,
+    artifacts,
+    dependencies,
+    checkpoints,
+    gates,
+    cursor,
+  }
+
+  if (!sidecar) return parsed
+
+  const dedupById = <T extends { id: string }>(inline: T[], external: T[]): T[] => {
+    const inlineIds = new Set(inline.map(item => item.id))
+    return [...inline, ...external.filter(item => !inlineIds.has(item.id))]
+  }
+
+  parsed.impls = dedupById(parsed.impls, sidecar.impls || [])
+  parsed.artifacts = dedupById(parsed.artifacts, sidecar.artifacts || [])
+  parsed.dependencies = dedupById(parsed.dependencies, sidecar.dependencies || [])
+  parsed.checkpoints = dedupById(parsed.checkpoints, sidecar.checkpoints || [])
+
+  return parsed
+}
+
+// ─── stale HIGHLIGHT_MARK cleanup ───
+
+/** Remove HIGHLIGHT_MARK comments whose anchor text no longer exists in the body.
+ *  This prevents phantom memo recovery on subsequent splitDocument calls. */
+function removeStaleHighlightMarks(body: string): string {
+  const lines = body.split('\n')
+  // Collect non-comment body lines for content matching
+  const contentLines = lines.filter(l => !isCommentLine(l))
+  const contentText = contentLines.join('\n')
+
+  return lines.filter(line => {
+    HIGHLIGHT_MARK_RE.lastIndex = 0
+    const m = HIGHLIGHT_MARK_RE.exec(line.trim())
+    if (!m) return true // keep non-HIGHLIGHT_MARK lines
+
+    const markAnchor = decodeHighlightAttr(m[3]).trim()
+    const markText = decodeHighlightAttr(m[2]).trim()
+    const needle = (markAnchor || markText).slice(0, 40)
+    if (!needle) return true // keep marks with no searchable text
+
+    // Keep mark only if its anchor text exists in the actual body content
+    return contentText.includes(needle)
+  }).join('\n')
+}
+
+// ─── mergeDocument ───
+
+export interface MergeOptions {
+  /** When true, MEMO_IMPL, CHECKPOINT, and PLAN_CURSOR are excluded from output.
+   *  GATE, USER_MEMO, MEMO_ARTIFACT, MEMO_DEPENDENCY are always kept. */
+  stripOperationalMeta?: boolean
+}
+
+export function mergeDocument(parts: DocumentParts, options?: MergeOptions): string {
+  const stripMeta = options?.stripOperationalMeta ?? false
+  const sections: string[] = []
+
+  // Frontmatter
+  if (parts.frontmatter) {
+    sections.push(parts.frontmatter.trimEnd())
+  }
+
+  // Strip stale HIGHLIGHT_MARKs whose anchor text no longer exists in the body
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+
+  // Body with memos and response markers re-inserted at anchor positions
+  const bodyWithMemos = reinsertMemosAndResponses(cleanBody, parts.memos, parts.responses || [])
+  sections.push(bodyWithMemos)
+
+  // Implementation records (sorted by ID for stable git output)
+  if (!stripMeta) {
+    const sortedImpls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
+    for (const impl of sortedImpls) {
+      sections.push(serializeMemoImpl(impl))
+    }
+  }
+
+  // Artifacts — always kept (semantic data)
+  const sortedArtifacts = [...(parts.artifacts || [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const art of sortedArtifacts) {
+    sections.push(serializeMemoArtifact(art))
+  }
+
+  // Dependencies — always kept (semantic data)
+  const sortedDeps = [...(parts.dependencies || [])].sort((a, b) => a.id.localeCompare(b.id))
+  for (const dep of sortedDeps) {
+    sections.push(serializeMemoDependency(dep))
+  }
+
+  // Gates — always kept (state visibility)
+  for (const gate of parts.gates) {
+    sections.push(serializeGate(gate))
+  }
+
+  // Checkpoints
+  if (!stripMeta) {
+    for (const cp of parts.checkpoints) {
+      sections.push(serializeCheckpoint(cp))
+    }
+  }
+
+  // Plan cursor (always at end)
+  if (!stripMeta && parts.cursor) {
+    sections.push(serializeCursor(parts.cursor))
+  }
+
+  return sections.join('\n\n') + '\n'
+}
+
+/** Merge DocumentParts into markdown + canonical sidecar metadata.
+ *  Inline output keeps: USER_MEMO, GATE, PLAN_CURSOR, REVIEW_RESPONSE, HIGHLIGHT_MARK.
+ *  Sidecar output keeps: MEMO_IMPL, MEMO_ARTIFACT, MEMO_DEPENDENCY, CHECKPOINT. */
+export function mergeDocumentWithSidecar(parts: DocumentParts): MergeResult {
+  const sections: string[] = []
+
+  if (parts.frontmatter) {
+    sections.push(parts.frontmatter.trimEnd())
+  }
+
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+  const bodyWithMemos = reinsertMemosAndResponses(cleanBody, parts.memos, parts.responses || [])
+  sections.push(bodyWithMemos)
+
+  for (const gate of parts.gates) {
+    sections.push(serializeGate(gate))
+  }
+
+  if (parts.cursor) {
+    sections.push(serializeCursor(parts.cursor))
+  }
+
+  const markdown = sections.join('\n\n') + '\n'
+
+  const impls = [...(parts.impls || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const artifacts = [...(parts.artifacts || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const dependencies = [...(parts.dependencies || [])].sort((a, b) => a.id.localeCompare(b.id))
+  const checkpoints = [...(parts.checkpoints || [])].sort((a, b) => a.id.localeCompare(b.id))
+
+  const hasHeavyMeta = impls.length > 0 || artifacts.length > 0 || dependencies.length > 0 || checkpoints.length > 0
+  if (!hasHeavyMeta) {
+    return { markdown, sidecar: null }
+  }
+
+  const sidecar = emptySidecarMetadata()
+  sidecar.impls = impls
+  sidecar.artifacts = artifacts
+  sidecar.dependencies = dependencies
+  sidecar.checkpoints = checkpoints
+  sidecar.updatedAt = new Date().toISOString()
+
+  return { markdown, sidecar }
+}
+
+/** Export clean body + frontmatter only (all metadata removed).
+ *  For user-facing document export. */
+export function exportCleanBody(parts: DocumentParts): string {
+  const sections: string[] = []
+  if (parts.frontmatter) {
+    sections.push(parts.frontmatter.trimEnd())
+  }
+  // Strip HIGHLIGHT_MARKs and return plain body
+  const cleanBody = removeStaleHighlightMarks(parts.body)
+  sections.push(cleanBody)
+  return sections.join('\n\n') + '\n'
+}
+
+// ─── Serializers ───
+
+export function serializeMemoV2(memo: MemoV2): string {
+  const lines = [
+    '<!-- USER_MEMO',
+    `  id="${escAttrValue(memo.id)}"`,
+    `  type="${memo.type}"`,
+    `  status="${memo.status}"`,
+    `  owner="${memo.owner}"`,
+    `  source="${escAttrValue(memo.source)}"`,
+    `  color="${memo.color}"`,
+    `  text="${escAttrValue(memo.text)}"`,
+    `  anchorText="${escAttrValue(memo.anchorText)}"`,
+    `  anchor="${escAttrValue(memo.anchor)}"`,
+    `  createdAt="${memo.createdAt}"`,
+    `  updatedAt="${memo.updatedAt}"`,
+  ]
+  if (memo.rejectReason) {
+    lines.push(`  rejectReason="${escAttrValue(memo.rejectReason)}"`)
+  }
+  if (memo.anchorConfidence) {
+    lines.push(`  anchorConfidence="${memo.anchorConfidence}"`)
+  }
+  lines.push('-->')
+  return lines.join('\n')
+}
+
+export function serializeGate(gate: Gate): string {
+  const lines = [
+    '<!-- GATE',
+    `  id="${gate.id}"`,
+    `  type="${gate.type}"`,
+    `  status="${gate.status}"`,
+    `  blockedBy="${gate.blockedBy.join(',')}"`,
+    `  canProceedIf="${escAttrValue(gate.canProceedIf)}"`,
+    `  doneDefinition="${escAttrValue(gate.doneDefinition)}"`,
+  ]
+  if (gate.override) {
+    lines.push(`  override="${gate.override}"`)
+  }
+  lines.push('-->')
+  return lines.join('\n')
+}
+
+export function serializeCursor(cursor: PlanCursor): string {
+  return [
+    '<!-- PLAN_CURSOR',
+    `  taskId="${cursor.taskId}"`,
+    `  step="${cursor.step}"`,
+    `  nextAction="${escAttrValue(cursor.nextAction)}"`,
+    `  lastSeenHash="${cursor.lastSeenHash}"`,
+    `  updatedAt="${cursor.updatedAt}"`,
+    '-->',
+  ].join('\n')
+}
+
+export function serializeCheckpoint(cp: Checkpoint): string {
+  const sections = cp.sectionsReviewed.join(',')
+  return `<!-- CHECKPOINT id="${cp.id}" time="${cp.timestamp}" note="${escAttrValue(cp.note)}" fixes=${cp.fixes} questions=${cp.questions} highlights=${cp.highlights} sections="${sections}" -->`
+}
+
+export function serializeMemoImpl(impl: MemoImpl): string {
+  return [
+    '<!-- MEMO_IMPL',
+    `  id="${escAttrValue(impl.id)}"`,
+    `  memoId="${escAttrValue(impl.memoId)}"`,
+    `  status="${impl.status}"`,
+    `  operations="${escAttrValue(JSON.stringify(impl.operations))}"`,
+    `  summary="${escAttrValue(impl.summary)}"`,
+    `  appliedAt="${impl.appliedAt}"`,
+    '-->',
+  ].join('\n')
+}
+
+export function serializeMemoArtifact(art: MemoArtifact): string {
+  return [
+    '<!-- MEMO_ARTIFACT',
+    `  id="${escAttrValue(art.id)}"`,
+    `  memoId="${escAttrValue(art.memoId)}"`,
+    `  files="${art.files.join(',')}"`,
+    `  linkedAt="${art.linkedAt}"`,
+    '-->',
+  ].join('\n')
+}
+
+export function serializeMemoDependency(dep: MemoDependency): string {
+  return `<!-- MEMO_DEPENDENCY id="${dep.id}" from="${dep.from}" to="${dep.to}" type="${dep.type}" -->`
+}
+
+// ─── Block boundary detection ───
+
+/** Detect if a line is inside a contiguous block structure (blockquote or table)
+ *  and return the index of the last line in that block.
+ *  Memos should be inserted after the block ends to preserve markdown formatting. */
+function findBlockEnd(lines: string[], lineIdx: number): number {
+  const line = lines[lineIdx]
+
+  // Blockquote: line starts with > (possibly nested, with optional leading whitespace)
+  if (/^\s*>/.test(line)) {
+    let end = lineIdx
+    while (end + 1 < lines.length && /^\s*>/.test(lines[end + 1])) end++
+    return end
+  }
+
+  // Table: line matches table row pattern (starts with |, or is a separator like |---|)
+  if (/^\s*\|/.test(line)) {
+    let end = lineIdx
+    while (end + 1 < lines.length && /^\s*\|/.test(lines[end + 1])) end++
+    return end
+  }
+
+  // Not in a block — insert right after this line
+  return lineIdx
+}
+
+// ─── Anchor-based memo reinsertion ───
+
+function reinsertMemosAndResponses(body: string, memos: MemoV2[], responses: ReviewResponse[]): string {
+  if (memos.length === 0 && responses.length === 0) return body
+
+  const lines = body.split('\n')
+
+  // Build memo insertion map: lineIndex -> memos to insert after that line
+  // When anchor is inside a block structure, defer to after block end
+  const memoMap = new Map<number, MemoV2[]>()
+  const unanchored: MemoV2[] = []
+
+  for (const memo of memos) {
+    const { lineIdx, confidence } = findMemoAnchorLineWithConfidence(lines, memo)
+    const oldAnchor = memo.anchor
+    memo.anchorConfidence = confidence
+    if (lineIdx >= 0) {
+      // Update anchor to actual position — prevents drift on repeated save cycles
+      const newAnchor = `L${lineIdx + 1}|${computeLineHash(lines[lineIdx])}`
+      // Skip updatedAt bump when only anchor hash refreshed (no semantic change)
+      if (newAnchor !== oldAnchor) {
+        memo.anchor = newAnchor
+      }
+      // Defer insertion to after the enclosing block to preserve formatting
+      const insertAt = findBlockEnd(lines, lineIdx)
+      const existing = memoMap.get(insertAt) || []
+      existing.push(memo)
+      memoMap.set(insertAt, existing)
+    } else {
+      unanchored.push(memo)
+    }
+  }
+
+  // Build response marker maps
+  const responseOpenAt = new Map<number, string>()
+  const responseCloseAfter = new Map<number, string>()
+  for (const resp of responses) {
+    responseOpenAt.set(resp.bodyStartIdx, `<!-- REVIEW_RESPONSE to="${resp.to}" -->`)
+    if (resp.bodyEndIdx >= 0) {
+      responseCloseAfter.set(resp.bodyEndIdx, '<!-- /REVIEW_RESPONSE -->')
+    }
+  }
+
+  // Single pass: interleave body lines, memos, and response markers
+  const result: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    // Response opening marker before this line
+    if (responseOpenAt.has(i)) result.push(responseOpenAt.get(i)!)
+
+    result.push(lines[i])
+
+    // Memos anchored to this line (sorted by ID for stable git output)
+    const memosHere = memoMap.get(i)
+    if (memosHere) {
+      memosHere.sort((a, b) => a.id.localeCompare(b.id))
+      for (const m of memosHere) {
+        result.push(serializeMemoV2(m))
+      }
+    }
+
+    // Response closing marker after this line (and its memos)
+    if (responseCloseAfter.has(i)) result.push(responseCloseAfter.get(i)!)
+  }
+
+  // Append unanchored memos at the end (sorted by ID for stable git output)
+  unanchored.sort((a, b) => a.id.localeCompare(b.id))
+  for (const m of unanchored) {
+    result.push(serializeMemoV2(m))
+  }
+
+  return result.join('\n')
+}
+
+/** Find the best line index for a memo with confidence level */
+export function findMemoAnchorLineWithConfidence(lines: string[], memo: MemoV2): { lineIdx: number; confidence: AnchorConfidence } {
+  // Try anchor hash first: "L42|a3f8c2d1" or "L42:L45|a3f8c2d1"
+  if (memo.anchor) {
+    const anchorMatch = memo.anchor.match(/^L(\d+)(?::L\d+)?\|(.+)$/)
+    if (anchorMatch) {
+      const lineNum = parseInt(anchorMatch[1], 10) - 1 // 0-indexed
+      const expectedHash = anchorMatch[2]
+
+      // Exact line match
+      if (lineNum >= 0 && lineNum < lines.length && computeLineHash(lines[lineNum]) === expectedHash) {
+        return { lineIdx: lineNum, confidence: 'exact' }
+      }
+
+      // Search nearby for hash match to tolerate local edits around anchors
+      for (let delta = 1; delta <= ANCHOR_HASH_SEARCH_RADIUS; delta++) {
+        for (const d of [lineNum - delta, lineNum + delta]) {
+          if (d >= 0 && d < lines.length && computeLineHash(lines[d]) === expectedHash) {
+            return { lineIdx: d, confidence: 'nearby' }
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: search by anchorText content match (with markdown-stripped fuzzy matching)
+  if (memo.anchorText) {
+    const needle = memo.anchorText.trim()
+
+    // Skip text fallback for too-short anchors — they match too many lines
+    if (needle.length >= MIN_ANCHOR_TEXT_LENGTH) {
+      const strippedNeedle = stripMarkdownFormatting(needle)
+      const matches: number[] = []
+      for (let i = 0; i < lines.length; i++) {
+        if (isCommentLine(lines[i])) continue // skip metadata comment lines
+        if (lines[i].includes(needle) || stripMarkdownFormatting(lines[i]).includes(strippedNeedle)) matches.push(i)
+      }
+
+      // Too many matches → ambiguous anchor, skip to line-number fallback
+      if (matches.length >= 1 && matches.length <= MAX_TEXT_MATCHES_CONFIDENT) {
+        if (matches.length === 1) return { lineIdx: matches[0], confidence: 'text' }
+        // If line number is available, keep the closest matching occurrence.
+        const lineMatch = memo.anchor.match(/^L(\d+)/)
+        if (lineMatch) {
+          const lineNum = parseInt(lineMatch[1], 10) - 1
+          let best = matches[0]
+          let bestDist = Math.abs(matches[0] - lineNum)
+          for (const idx of matches.slice(1)) {
+            const dist = Math.abs(idx - lineNum)
+            if (dist < bestDist) {
+              best = idx
+              bestDist = dist
+            }
+          }
+          return { lineIdx: best, confidence: 'text' }
+        }
+        return { lineIdx: matches[0], confidence: 'text' }
+      }
+      // matches.length > MAX_TEXT_MATCHES_CONFIDENT → fall through to line-number fallback
+    }
+    // needle.length < MIN_ANCHOR_TEXT_LENGTH → fall through to line-number fallback
+  }
+
+  // Last resort: line-number-only fallback (clamped to valid range)
+  if (memo.anchor) {
+    const lineMatch = memo.anchor.match(/^L(\d+)/)
+    if (lineMatch) {
+      const lineNum = parseInt(lineMatch[1], 10) - 1
+      return { lineIdx: Math.max(0, Math.min(lineNum, lines.length - 1)), confidence: 'line_number' }
+    }
+  }
+
+  // Final fallback: orphaned memos go to end of document (not start)
+  // so they don't disrupt the beginning of the document content
+  if (lines.length > 0) return { lineIdx: lines.length - 1, confidence: 'fallback' }
+  return { lineIdx: -1, confidence: 'fallback' }
+}
+
+/** Find the best line index for a memo based on its anchor */
+export function findMemoAnchorLine(lines: string[], memo: MemoV2): number {
+  return findMemoAnchorLineWithConfidence(lines, memo).lineIdx
+}
+
+// ─── Helper utilities ───
+
+/** Find the nearest non-empty line content above bodyLines */
+function findAnchorAbove(bodyLines: string[]): string | null {
+  for (let j = bodyLines.length - 1; j >= 0; j--) {
+    if (bodyLines[j].trim()) return bodyLines[j].trim()
+  }
+  return null
+}
+
+/** Find the nearest non-empty line index above bodyLines */
+function findAnchorLineIdx(bodyLines: string[]): number {
+  for (let j = bodyLines.length - 1; j >= 0; j--) {
+    if (bodyLines[j].trim()) return j
+  }
+  return -1
+}
+
+/** Generate body hash (djb2, 8 hex chars) for Plan Cursor */
+export function generateBodyHash(body: string): string {
+  return computeLineHash(body)
+}
+
+// ─── Comment integrity validation ───
+
+/** Validate that HTML comments in markdown are properly nested and closed.
+ *  Skips fenced code blocks (``` ... ```).
+ *  Returns { valid, errors[] } where errors include line numbers. */
+export function validateCommentIntegrity(markdown: string): { valid: boolean; errors: string[] } {
+  const lines = markdown.split('\n')
+  const errors: string[] = []
+  let inComment = false
+  let commentStartLine = -1
+  let inFencedBlock = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+
+    // Toggle fenced code block state
+    if (trimmed.startsWith('```')) {
+      inFencedBlock = !inFencedBlock
+      continue
+    }
+
+    // Skip content inside fenced code blocks
+    if (inFencedBlock) continue
+
+    // Scan for comment open/close tokens within the line
+    let pos = 0
+    const line = lines[i]
+    while (pos < line.length) {
+      if (!inComment) {
+        const openIdx = line.indexOf('<!--', pos)
+        if (openIdx === -1) break
+        // Check if the comment closes on the same line
+        const closeIdx = line.indexOf('-->', openIdx + 4)
+        if (closeIdx !== -1) {
+          // Self-contained comment on one line — skip past it
+          pos = closeIdx + 3
+          continue
+        }
+        // Multi-line comment opened
+        inComment = true
+        commentStartLine = i + 1
+        pos = openIdx + 4
+      } else {
+        // Inside a comment — look for nested open or close
+        const nestedOpenIdx = line.indexOf('<!--', pos)
+        const closeIdx = line.indexOf('-->', pos)
+
+        if (closeIdx !== -1 && (nestedOpenIdx === -1 || closeIdx < nestedOpenIdx)) {
+          // Comment closed
+          inComment = false
+          pos = closeIdx + 3
+        } else if (nestedOpenIdx !== -1) {
+          // Nested comment open detected
+          errors.push(`Nested comment at line ${i + 1} (outer comment opened at line ${commentStartLine})`)
+          pos = nestedOpenIdx + 4
+        } else {
+          break
+        }
+      }
+    }
+  }
+
+  if (inComment) {
+    errors.push(`Unclosed comment opened at line ${commentStartLine}`)
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/** Attempt to repair nested comments by extracting inner USER_MEMO blocks
+ *  outside the enclosing comment. Returns repaired markdown or null if unfixable. */
+export function repairNestedComments(markdown: string): string | null {
+  const lines = markdown.split('\n')
+  const result: string[] = []
+  const extracted: string[] = []
+  let inComment = false
+  let inFencedBlock = false
+  let nestedMemoLines: string[] = []
+  let collectingNested = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+
+    if (trimmed.startsWith('```')) {
+      inFencedBlock = !inFencedBlock
+      result.push(lines[i])
+      continue
+    }
+
+    if (inFencedBlock) {
+      result.push(lines[i])
+      continue
+    }
+
+    if (!inComment) {
+      const openIdx = lines[i].indexOf('<!--')
+      if (openIdx !== -1 && lines[i].indexOf('-->', openIdx + 4) === -1) {
+        inComment = true
+      }
+      result.push(lines[i])
+    } else {
+      // Inside a comment
+      if (trimmed.startsWith('<!-- USER_MEMO')) {
+        // Nested memo detected — extract it
+        collectingNested = true
+        nestedMemoLines = [lines[i]]
+      } else if (collectingNested) {
+        nestedMemoLines.push(lines[i])
+        if (trimmed === '-->') {
+          // End of nested memo — but we need to check if this is the nested memo's end
+          // or the outer comment's end. Since nested memo's --> is inside outer comment,
+          // this closes the outer comment in the original broken markup.
+          // Extract the memo and close the outer comment instead.
+          extracted.push(...nestedMemoLines)
+          collectingNested = false
+          nestedMemoLines = []
+          inComment = false
+        }
+      } else if (trimmed.includes('-->')) {
+        inComment = false
+        result.push(lines[i])
+      } else {
+        result.push(lines[i])
+      }
+    }
+  }
+
+  if (extracted.length === 0) return null // nothing to repair
+
+  // Append extracted memos after the body
+  const repaired = [...result, ...extracted].join('\n')
+
+  // Re-validate — if still broken, return null
+  const check = validateCommentIntegrity(repaired)
+  if (!check.valid) return null
+
+  return repaired
+}
+
+function decodeHighlightAttr(s: string): string {
+  return unescAttrValue(s)
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function normalizeMemoColorFromHighlight(rawColor: string): MemoColor | null {
+  const c = rawColor.toLowerCase()
+  if (c === 'red' || c === 'blue' || c === 'yellow') return c
+  const normalized = HEX_TO_COLOR_NAME[c]
+  if (normalized === 'red' || normalized === 'blue' || normalized === 'yellow') return normalized
+  return null
+}

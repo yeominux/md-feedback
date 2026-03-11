@@ -1,0 +1,46 @@
+{
+  "name": "md-feedback-monorepo",
+  "private": true,
+  "version": "1.5.5",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:shared:name": "pnpm --filter @md-feedback/shared exec vitest run -t",
+    "test:mcp:name": "pnpm --filter md-feedback exec vitest run -t",
+    "test:vscode:name": "pnpm --filter md-feedback-vscode exec vitest run -t",
+    "package": "pnpm --filter md-feedback-vscode package",
+    "clean": "pnpm -r exec rm -rf dist",
+    "check-sync": "node scripts/check-sync.mjs",
+    "check:changelog": "node scripts/check-changelog-user-facing.mjs",
+    "check:docs": "node scripts/check-public-docs.mjs",
+    "check:release-state": "node scripts/check-release-state.mjs",
+    "check:release-gates": "pnpm --filter @md-feedback/shared test && pnpm --filter md-feedback test && pnpm --filter md-feedback build && pnpm --filter md-feedback-vscode test && pnpm --filter md-feedback-vscode build:ext",
+    "check:commits": "node scripts/check-commit-messages.mjs",
+    "check:pr-surface": "node scripts/check-pr-surface.mjs",
+    "check:release-body": "node scripts/check-release-body.mjs --file RELEASE_NOTES.md",
+    "check:private-gates": "node scripts/request-private-gates.mjs",
+    "policy:encode": "node scripts/encode-policy-patterns.mjs",
+    "private-gates:setup": "node scripts/setup-private-gates-secrets.mjs",
+    "check:user-facing": "pnpm check-sync && pnpm check:docs && pnpm check:changelog",
+    "guard:public-surface": "node scripts/guard-public-surface.mjs",
+    "release:preflight": "pnpm check:user-facing && pnpm check:release-gates",
+    "release:ready": "pnpm release:preflight && pnpm check:release-state",
+    "sync:agents": "node scripts/sync-agent-instructions.mjs",
+    "sync-version": "node scripts/sync-version.mjs",
+    "verify-release": "node scripts/verify-release.mjs",
+    "release:notes": "node scripts/release-notes.mjs",
+    "release:prep": "node scripts/release-prep.mjs",
+    "release": "node scripts/release.mjs",
+    "publish:npm": "cd apps/mcp-server && npm publish",
+    "publish:vsce": "node scripts/publish-vsce.mjs",
+    "publish:ovsx": "node scripts/publish-ovsx.mjs",
+    "publish:marketplaces": "pnpm publish:vsce && pnpm publish:ovsx"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

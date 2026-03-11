@@ -1,0 +1,70 @@
+/* Highlight.js theme using design tokens */
+
+/* ── Light theme (GitHub Light inspired) ── */
+:root .hljs,
+[data-theme="light"] .hljs {
+  color: var(--mf-code-text);
+  background: var(--mf-code-bg);
+}
+
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-quote { color: #6a737d; font-style: italic; }
+
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag { color: #d73a49; }
+
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-addition { color: #032f62; }
+
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal { color: #005cc5; }
+
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-type { color: #6f42c1; }
+
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-section { color: #6f42c1; font-weight: 600; }
+
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-attribute { color: #005cc5; }
+
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-template-variable { color: #e36209; }
+
+[data-theme="light"] .hljs-deletion { color: #b31d28; background: #ffeef0; }
+
+[data-theme="light"] .hljs-meta { color: #735c0f; }
+
+/* ── Dark theme (GitHub Dark inspired) ── */
+[data-theme="dark"] .hljs {
+  color: var(--mf-code-text);
+  background: var(--mf-code-bg);
+}
+
+[data-theme="dark"] .hljs-comment,
+[data-theme="dark"] .hljs-quote { color: #8b949e; font-style: italic; }
+
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-selector-tag { color: #ff7b72; }
+
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-addition { color: #a5d6ff; }
+
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-literal { color: #79c0ff; }
+
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-type { color: #d2a8ff; }
+
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-section { color: #d2a8ff; font-weight: 600; }
+
+[data-theme="dark"] .hljs-attr,
+[data-theme="dark"] .hljs-attribute { color: #79c0ff; }
+
+[data-theme="dark"] .hljs-variable,
+[data-theme="dark"] .hljs-template-variable { color: #ffa657; }
+
+[data-theme="dark"] .hljs-deletion { color: #ffdcd7; background: #67060c; }
+
+[data-theme="dark"] .hljs-meta { color: #d29922; }

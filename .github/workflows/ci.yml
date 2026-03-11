@@ -1,0 +1,40 @@
+name: CI
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PRIVATE_GATES_ENFORCED: ${{ secrets.PRIVATE_GATES_ENFORCED }}
+      PRIVATE_GATES_ENDPOINT: ${{ secrets.PRIVATE_GATES_ENDPOINT }}
+      PRIVATE_GATES_TOKEN: ${{ secrets.PRIVATE_GATES_TOKEN }}
+      GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: 9
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:commits
+      - run: pnpm check:pr-surface
+      - run: pnpm check:user-facing
+      - run: pnpm guard:public-surface
+      - run: pnpm check:private-gates
+        env:
+          GUARD_PATTERNS: ${{ secrets.GUARD_PATTERNS }}
+      - run: pnpm check:release-gates
+      - name: Verify npm package contents
+        run: cd apps/mcp-server && npm pack --dry-run 2>&1 | grep -q "LICENSE" || (echo "LICENSE missing from npm package" && exit 1)
+

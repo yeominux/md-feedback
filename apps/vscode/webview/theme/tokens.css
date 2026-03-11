@@ -1,0 +1,154 @@
+:root, [data-theme="light"] {
+  --mf-bg: #f7f7f5;
+  --mf-surface: #ffffff;
+  --mf-text: #37352f;
+  --mf-text-muted: #787774;
+  --mf-text-faint: #8a8a86;
+  --mf-border: rgba(55, 53, 47, 0.09);
+  --mf-border-subtle: rgba(55, 53, 47, 0.04);
+  --mf-accent-fix: #dc2626;
+  --mf-accent-question: #2563eb;
+  --mf-accent-highlight: #facc15;
+  --mf-code-bg: #f7f6f3;
+  --mf-code-text: #eb5757;
+  --mf-code-inline: #eb5757;
+  --mf-code-inline-bg: rgba(135, 131, 120, 0.15);
+  --mf-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --mf-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --mf-hover: #f1f1ef;
+  --mf-radius: 4px;
+  --mf-radius-md: 8px;
+  --mf-radius-lg: 12px;
+  --mf-selection: #2383e233;
+  --mf-link: #2383e2;
+  --mf-blockquote-bg: #f6f6f4;
+  --mf-blockquote-border: #e0ddd8;
+  --mf-blockquote-text: #55534e;
+  --mf-table-header-bg: #f7f6f3;
+  --mf-table-border: #e3e2e0;
+  --mf-scrollbar: #d3d1cb;
+  --mf-scrollbar-hover: #adadad;
+  /* Callout tokens */
+  --mf-callout-note-bg: #eff6ff;
+  --mf-callout-note-border: #3b82f6;
+  --mf-callout-tip-bg: #f0fdf4;
+  --mf-callout-tip-border: #22c55e;
+  --mf-callout-important-bg: #faf5ff;
+  --mf-callout-important-border: #a855f7;
+  --mf-callout-warning-bg: #fffbeb;
+  --mf-callout-warning-border: #f59e0b;
+  --mf-callout-caution-bg: #fef2f2;
+  --mf-callout-caution-border: #ef4444;
+  /* Status badge tokens */
+  --mf-status-open-text: #b45309;
+  --mf-status-open-bg: #fffbeb;
+  --mf-status-in-progress-text: #2563eb;
+  --mf-status-in-progress-bg: #eff6ff;
+  --mf-status-answered-text: #0369a1;
+  --mf-status-answered-bg: #f0f9ff;
+  --mf-status-done-text: #047857;
+  --mf-status-done-bg: #ecfdf5;
+  --mf-status-needs-review-text: #6366f1;
+  --mf-status-needs-review-bg: #eef2ff;
+  --mf-status-failed-text: #e11d48;
+  --mf-status-failed-bg: #fff1f2;
+  /* Progress bar */
+  --mf-progress-track: rgba(55, 53, 47, 0.06);
+  --mf-progress-fill: #059669;
+  /* Memo label tokens */
+  --mf-memo-highlight-label: #b45309;
+  --mf-memo-fix-label: #dc2626;
+  --mf-memo-question-label: #2563eb;
+  /* Danger subtle */
+  --mf-danger-subtle-bg: #fff1f2;
+  /* AI Response tokens */
+  --mf-ai-response-accent: #10b981;
+  --mf-ai-response-label: #047857;
+  --mf-ai-response-bg: rgba(16, 185, 129, 0.04);
+  /* Diff tokens */
+  --mf-diff-before-bg: #fef2f2;
+  --mf-diff-before-text: #dc2626;
+  --mf-diff-after-bg: #ecfdf5;
+  --mf-diff-after-text: #059669;
+  /* Shadow scale */
+  --mf-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] {
+  --mf-bg: #1e1e1e;
+  --mf-surface: #252525;
+  --mf-text: #e0e0e0;
+  --mf-text-muted: #a0a0a0;
+  --mf-text-faint: #8a8a8a;
+  --mf-border: #333;
+  --mf-border-subtle: #2a2a2a;
+  --mf-accent-fix: #dc2626;
+  --mf-accent-question: #2563eb;
+  --mf-accent-highlight: #facc15;
+  --mf-hover: #2d2d2d;
+  --mf-code-bg: #2d2d2d;
+  --mf-code-text: #d4d4d4;
+  --mf-code-inline: #d4d4d4;
+  --mf-code-inline-bg: #333;
+  --mf-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --mf-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --mf-radius: 4px;
+  --mf-radius-md: 8px;
+  --mf-radius-lg: 12px;
+  --mf-selection: #2383e244;
+  --mf-link: #6ea8fe;
+  --mf-blockquote-bg: #2a2a2a;
+  --mf-blockquote-border: #444;
+  --mf-blockquote-text: #b0b0b0;
+  --mf-table-header-bg: #2a2a2a;
+  --mf-table-border: #333;
+  --mf-scrollbar: #444;
+  --mf-scrollbar-hover: #555;
+  /* Callout tokens — dark versions */
+  --mf-callout-note-bg: #1a2332;
+  --mf-callout-note-border: #2563eb;
+  --mf-callout-tip-bg: #1a2e1a;
+  --mf-callout-tip-border: #22c55e;
+  --mf-callout-important-bg: #261a33;
+  --mf-callout-important-border: #a855f7;
+  --mf-callout-warning-bg: #332a1a;
+  --mf-callout-warning-border: #f59e0b;
+  --mf-callout-caution-bg: #331a1a;
+  --mf-callout-caution-border: #ef4444;
+  /* Status badge tokens */
+  --mf-status-open-text: #fbbf24;
+  --mf-status-open-bg: #332a00;
+  --mf-status-in-progress-text: #60a5fa;
+  --mf-status-in-progress-bg: #1a2333;
+  --mf-status-answered-text: #38bdf8;
+  --mf-status-answered-bg: #0c2d48;
+  --mf-status-done-text: #34d399;
+  --mf-status-done-bg: #1a332a;
+  --mf-status-needs-review-text: #a5b4fc;
+  --mf-status-needs-review-bg: #252248;
+  --mf-status-failed-text: #fb7185;
+  --mf-status-failed-bg: #33141e;
+  /* Progress bar */
+  --mf-progress-track: rgba(255, 255, 255, 0.06);
+  --mf-progress-fill: #34d399;
+  /* Memo label tokens */
+  --mf-memo-highlight-label: #fbbf24;
+  --mf-memo-fix-label: #f87171;
+  --mf-memo-question-label: #60a5fa;
+  /* Danger subtle */
+  --mf-danger-subtle-bg: #331a1a;
+  /* Accent overrides (brighter for dark) */
+  --mf-accent-fix: #f87171;
+  --mf-accent-question: #60a5fa;
+  /* AI Response tokens */
+  --mf-ai-response-accent: #34d399;
+  --mf-ai-response-label: #6ee7b7;
+  --mf-ai-response-bg: rgba(52, 211, 153, 0.06);
+  /* Diff tokens */
+  --mf-diff-before-bg: #331a1a;
+  --mf-diff-before-text: #f87171;
+  --mf-diff-after-bg: #1a332a;
+  --mf-diff-after-text: #34d399;
+  /* Shadow scale */
+  --mf-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
