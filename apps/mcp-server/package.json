@@ -11,6 +11,7 @@
   },
   "files": [
     "dist/mcp-server.js",
+    "dist/webview",
     "bin/md-feedback.cjs",
     "README.md",
     "LICENSE"

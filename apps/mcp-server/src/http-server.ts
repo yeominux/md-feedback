@@ -102,6 +102,8 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
       if (!filename.toLowerCase().endsWith('.md')) return
       broadcast({ type: 'file:changed', path: filename.replace(/\\/g, '/') })
     })
+    // Absorb async permission errors (e.g. restricted subdirs in workspace)
+    watcher.on('error', () => { /* non-fatal */ })
     watchers.push(watcher)
   } catch {
     log('web UI: file watcher unavailable')

@@ -1,10 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { registerTools } from './tools'
 import { listWorkspaceDocuments, resolveWorkspaceFrom } from './workspace'
 import { startHttpServer } from './http-server'
 
 declare const __VERSION__: string
+// Injected by esbuild; value is './webview' — relative to dist/mcp-server.js
+declare const __WEBVIEW_DIR__: string
 
 export function log(msg: string): void {
   process.stderr.write(`[md-feedback] ${msg}\n`)
@@ -37,15 +41,28 @@ async function main() {
   const hostArg = process.argv.find(a => a.startsWith('--host='))
   const host = hostArg ? hostArg.slice('--host='.length) : '127.0.0.1'
 
+  // Resolve the webview static directory next to this bundle (dist/webview/).
+  // __dirname is the CJS module directory (dist/) at runtime.
+  const staticDir = join(__dirname, __WEBVIEW_DIR__)
+  const hasUi = existsSync(join(staticDir, 'index.html'))
+
   // Start HTTP + WebSocket server
   try {
-    const handle = await startHttpServer({ workspace: wsLabel, host })
+    const handle = await startHttpServer({
+      workspace: wsLabel,
+      host,
+      staticDir: hasUi ? staticDir : undefined,
+    })
     if (handle) {
-      log(`web UI ready at http://${host}:${handle.port}`)
+      if (hasUi) {
+        log(`web UI ready at http://${host}:${handle.port}`)
+      } else {
+        log(`web UI API ready at http://${host}:${handle.port} (no UI assets — run build first)`)
+      }
 
-      // Open browser unless --no-ui flag is present
+      // Open browser unless --no-ui flag is present or UI assets are missing
       const noUi = process.argv.includes('--no-ui')
-      if (!noUi) {
+      if (!noUi && hasUi) {
         try {
           const open = (await import('open')).default
           await open(`http://${host}:${handle.port}`)
