@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.6] - 2026-03-22
+
+### Build
+- Added `mcpName` field to `package.json` for MCP Registry submission.
+
 ## [1.5.5] - 2026-03-07
 
 ### Fixed
