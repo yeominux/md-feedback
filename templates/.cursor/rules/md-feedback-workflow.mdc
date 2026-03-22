@@ -1,0 +1,47 @@
+---
+description: md-feedback plan review workflow — check annotations before implementing plans
+alwaysApply: true
+---
+
+# Plan Review Workflow
+
+This project uses **md-feedback** for structured human review of implementation plans.
+
+## Before implementing any plan
+
+For any plan file (*.md, *.plan.md) that describes implementation steps:
+
+1. **Check for annotations:**
+   ```
+   evaluate_gates({ document: "<path-to-plan-file>" })
+   ```
+
+2. **If gates fail** (open Fix annotations):
+   - `list_annotations({ document: "<file>", type: "fix", status: "open" })`
+   - Surface blocking annotations to the human — do NOT implement until `passed: true`
+
+3. **If gates pass:**
+   - Check questions: `list_annotations({ document: "<file>", type: "question" })`
+   - Clarify open questions, then implement
+
+4. **During implementation:**
+   - `update_memo_status({ id: "<id>", status: "resolved" })` as you complete items
+   - `create_checkpoint({ document: "<file>", note: "..." })` at milestones
+
+5. **After implementation:**
+   - `evaluate_gates(...)` — confirm all resolved
+   - `generate_handoff(...)` — preserve context
+
+## Annotation types
+
+- `highlight` — attention flag, non-blocking
+- `fix` — **BLOCKING** — do not implement until resolved
+- `question` — clarify before proceeding
+
+## Setup
+
+```bash
+npx md-feedback
+```
+
+Docs: https://github.com/yeominux/md-feedback

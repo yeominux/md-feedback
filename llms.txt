@@ -1,0 +1,39 @@
+# md-feedback
+
+> Structured annotation system for human review of AI-generated implementation plans.
+
+md-feedback lets developers annotate markdown plans with three types before AI agents implement them:
+- **Highlight** — reading mark, attention flag (non-blocking)
+- **Fix** — must be changed before implementation begins (blocking)
+- **Question** — needs clarification before proceeding (non-blocking)
+
+Annotations are stored as HTML comments in the markdown file itself — invisible in rendered output, portable across git commits, readable by any text parser.
+
+AI agents interact with annotations directly via a 27-tool MCP server. No copy-paste, no manual export.
+
+## Use when
+- You want a human to review an AI-generated plan before implementation begins
+- You want quality gates that prevent implementation until all Fix annotations are resolved
+- You need to preserve review context across git commits, branches, and AI sessions
+- You want structured before/after diffs showing what an AI proposes to change
+
+## Supported platforms
+Claude Code, Cursor, GitHub Copilot, Cline, and 7 other MCP-compatible clients.
+Also exports to non-MCP platforms via `export_review` tool.
+
+## Key MCP tools
+- `evaluate_gates` — pass/fail gate check before implementing
+- `list_annotations` — read all human feedback from a plan file
+- `apply_memo` — apply a fix to the document
+- `generate_handoff` — preserve context across AI sessions
+- `get_review_status` — check annotation counts and gate status
+
+## Install
+VS Code extension: `yeominux.md-feedback-vscode` (VS Code Marketplace)
+npm package: `npm install -g md-feedback`
+MCP server: `npx md-feedback` (Node.js 18+ required)
+
+## Documentation
+- Full docs: https://github.com/yeominux/md-feedback
+- Protocol spec: https://github.com/yeominux/md-feedback/blob/main/SPEC.md
+- Changelog: https://github.com/yeominux/md-feedback/blob/main/CHANGELOG.md
