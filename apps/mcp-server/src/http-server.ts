@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { readFileSync, writeFileSync, watch } from 'node:fs'
-import { join, resolve, relative } from 'node:path'
+import { join, resolve, relative, basename } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { listWorkspaceDocuments } from './workspace'
 import { log } from './server'
@@ -78,10 +78,67 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
   const wss = new WebSocketServer({ server })
   const clients = new Set<WebSocket>()
 
+  /** Send the first .md file in workspace as document.load, or document.empty */
+  function sendInitialDocument(ws: WebSocket) {
+    const files = listWorkspaceDocuments(workspace, { annotatedOnly: false, maxFiles: 500 })
+    if (files.length === 0) {
+      try { ws.send(JSON.stringify({ type: 'document.empty' })) } catch { /* closed */ }
+      return
+    }
+    const rel = files[0]
+    const abs = join(workspace, rel)
+    try {
+      const content = readFileSync(abs, 'utf-8')
+      try {
+        ws.send(JSON.stringify({
+          type: 'document.load',
+          content,
+          cleanContent: content,
+          highlightMarks: [],
+          filePath: rel,
+          impls: [],
+        }))
+      } catch { /* ws closed between read and send */ }
+    } catch {
+      try { ws.send(JSON.stringify({ type: 'document.empty' })) } catch { /* closed */ }
+    }
+  }
+
   wss.on('connection', (ws: WebSocket) => {
     clients.add(ws)
     ws.on('close', () => clients.delete(ws))
     ws.on('error', () => clients.delete(ws))
+
+    // Send initial document when client connects or signals ready
+    sendInitialDocument(ws)
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString()) as { type?: string; path?: string }
+        // Re-send document when webview signals it is ready (e.g. after hot reload)
+        if (msg.type === 'webview.ready') {
+          sendInitialDocument(ws)
+          return
+        }
+        // Client requests a specific file
+        if (msg.type === 'document.open' && msg.path) {
+          const abs = join(workspace, msg.path)
+          if (abs.startsWith(workspace + '/') || abs === workspace) {
+            try {
+              const content = readFileSync(abs, 'utf-8')
+              ws.send(JSON.stringify({
+                type: 'document.load',
+                content,
+                cleanContent: content,
+                highlightMarks: [],
+                filePath: msg.path,
+                impls: [],
+              }))
+            } catch { /* file not found */ }
+          }
+        }
+      } catch { /* ignore non-JSON */ }
+    })
   })
 
   function broadcast(msg: unknown) {
