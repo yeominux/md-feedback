@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { readFileSync, writeFileSync, watch } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { listWorkspaceDocuments, SKIP_DIRS } from './workspace'
 import { log } from './logger'
@@ -85,6 +85,8 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
   // WebSocket server on same HTTP server
   const wss = new WebSocketServer({ server })
   const clients = new Set<WebSocket>()
+  /** Tracks the currently-loaded file path per WebSocket connection (for document.edit routing) */
+  const activeFile = new Map<WebSocket, string>()
 
   /** Send the first .md file in workspace as document.load, or document.empty */
   function sendInitialDocument(ws: WebSocket) {
@@ -106,6 +108,7 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
           filePath: rel,
           impls: [],
         }))
+        activeFile.set(ws, rel)
       } catch { /* ws closed between read and send */ }
     } catch {
       try { ws.send(JSON.stringify({ type: 'document.empty', workspace })) } catch { /* closed */ }
@@ -114,8 +117,8 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
 
   wss.on('connection', (ws: WebSocket) => {
     clients.add(ws)
-    ws.on('close', () => clients.delete(ws))
-    ws.on('error', () => clients.delete(ws))
+    ws.on('close', () => { clients.delete(ws); activeFile.delete(ws) })
+    ws.on('error', () => { clients.delete(ws); activeFile.delete(ws) })
 
     // Send initial document when client connects or signals ready
     sendInitialDocument(ws)
@@ -131,7 +134,7 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
         // Client requests a specific file
         if (msg.type === 'document.open' && msg.path) {
           const abs = join(workspace, msg.path)
-          if (abs.startsWith(workspace + '/') || abs === workspace) {
+          if (abs === workspace || abs.startsWith(workspace + sep)) {
             try {
               const content = readFileSync(abs, 'utf-8')
               ws.send(JSON.stringify({
@@ -142,7 +145,21 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
                 filePath: msg.path,
                 impls: [],
               }))
+              activeFile.set(ws, msg.path)
             } catch { /* file not found */ }
+          }
+        }
+        // Persist edits from the browser webview
+        if (msg.type === 'document.edit') {
+          const m = msg as { type: string; content?: string }
+          if (typeof m.content === 'string') {
+            const file = activeFile.get(ws)
+            if (file) {
+              const absEdit = join(workspace, file)
+              if (absEdit === workspace || absEdit.startsWith(workspace + sep)) {
+                try { writeFileSync(absEdit, m.content, 'utf-8') } catch { /* non-fatal */ }
+              }
+            }
           }
         }
       } catch { /* ignore non-JSON */ }
@@ -198,10 +215,11 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
 
     // API: GET /api/files/*
     if (method === 'GET' && urlPath.startsWith('/api/files/')) {
-      const rel = decodeURIComponent(urlPath.slice('/api/files/'.length))
+      let rel: string
+      try { rel = decodeURIComponent(urlPath.slice('/api/files/'.length)) } catch { sendJson(res, 400, { error: 'Bad path encoding' }); return }
       const abs = join(workspace, rel)
       // Safety: must stay inside workspace
-      if (!abs.startsWith(workspace + '/') && abs !== workspace) {
+      if (abs !== workspace && !abs.startsWith(workspace + sep)) {
         sendJson(res, 403, { error: 'Forbidden' })
         return
       }
@@ -216,9 +234,10 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
 
     // API: POST /api/files/*
     if (method === 'POST' && urlPath.startsWith('/api/files/')) {
-      const rel = decodeURIComponent(urlPath.slice('/api/files/'.length))
+      let rel: string
+      try { rel = decodeURIComponent(urlPath.slice('/api/files/'.length)) } catch { sendJson(res, 400, { error: 'Bad path encoding' }); return }
       const abs = join(workspace, rel)
-      if (!abs.startsWith(workspace + '/') && abs !== workspace) {
+      if (abs !== workspace && !abs.startsWith(workspace + sep)) {
         sendJson(res, 403, { error: 'Forbidden' })
         return
       }
@@ -244,7 +263,7 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
       // Safety: stay inside staticDir
       const safeStatic = resolve(opts.staticDir)
       const safeAbs = resolve(abs)
-      if (!safeAbs.startsWith(safeStatic)) {
+      if (safeAbs !== safeStatic && !safeAbs.startsWith(safeStatic + sep)) {
         res.writeHead(403)
         res.end('Forbidden')
         return

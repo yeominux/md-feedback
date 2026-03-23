@@ -4,13 +4,16 @@
  * - Path traversal protection
  * - Port increment when default port is busy
  * - document.empty includes workspace path when no .md files found
+ * - document.edit persists via WebSocket
+ * - Malformed percent-encoding returns 400
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, createWriteStream } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir, networkInterfaces } from 'node:os'
+import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
+import { WebSocket } from 'ws'
 import { startHttpServer, type HttpServerHandle } from './http-server'
 
 const SAFE_TMPDIR = (() => {
@@ -172,6 +175,58 @@ describe('startHttpServer', () => {
       } finally {
         await new Promise<void>((res) => blocker.close(() => res()))
       }
+    })
+  })
+
+  describe('malformed percent-encoding', () => {
+    it('returns 400 for GET with malformed percent-encoding', async () => {
+      handle = await startHttpServer({ workspace })
+      const { status } = await get(handle!.port, '/api/files/%E0%A4%A')
+      expect(status).toBe(400)
+    })
+
+    it('returns 400 for POST with malformed percent-encoding', async () => {
+      handle = await startHttpServer({ workspace })
+      const { status } = await post(handle!.port, '/api/files/%E0%A4%A', JSON.stringify({ content: 'x' }))
+      expect(status).toBe(400)
+    })
+  })
+
+  describe('document.edit via WebSocket', () => {
+    /** Connect and receive the first message atomically to avoid a race where
+     *  the server sends immediately on connect before a message listener is ready. */
+    function connectAndFirstMsg(port: number): Promise<{ ws: WebSocket; first: unknown }> {
+      return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}`)
+        ws.once('message', (data) => resolve({ ws, first: JSON.parse(data.toString()) }))
+        ws.once('error', reject)
+      })
+    }
+
+    it('persists edits to the active file via WebSocket', async () => {
+      writeFileSync(join(workspace, 'notes.md'), '# Original')
+      handle = await startHttpServer({ workspace })
+      const { ws, first } = await connectAndFirstMsg(handle!.port)
+      const load = first as { type: string; filePath: string }
+      expect(load.type).toBe('document.load')
+      expect(load.filePath).toBe('notes.md')
+      // Send document.edit — should write to notes.md
+      ws.send(JSON.stringify({ type: 'document.edit', content: '# Updated' }))
+      // Give the server a tick to write
+      await new Promise<void>((res) => setTimeout(res, 50))
+      ws.close()
+      const saved = readFileSync(join(workspace, 'notes.md'), 'utf-8')
+      expect(saved).toBe('# Updated')
+    })
+
+    it('ignores document.edit when no active file is set', async () => {
+      handle = await startHttpServer({ workspace })
+      // Empty workspace → server sends document.empty
+      const { ws } = await connectAndFirstMsg(handle!.port)
+      // Send document.edit — nothing to write, should not throw
+      ws.send(JSON.stringify({ type: 'document.edit', content: '# Ghost' }))
+      await new Promise<void>((res) => setTimeout(res, 50))
+      ws.close()
     })
   })
 })
