@@ -14,7 +14,7 @@ Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?it
 
 ![MD Feedback Demo: annotating a markdown plan with Fix, Question, and Highlight in the VS Code sidebar, then reviewing AI-applied changes](https://raw.githubusercontent.com/yeominux/md-feedback/main/assets/demo.gif)
 
-> Latest (v1.5.6): VS Code sidebar blank panel fixed — restored webview bundle in packaged VSIX.
+> Latest (v1.5.7): Web UI for `npx md-feedback` — open your markdown workspace in any browser.
 
 ## How It Works
 

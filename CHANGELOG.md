@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.7] - 2026-03-23
+
+### Added
+- **Web UI for `npx md-feedback`**: Running `npx md-feedback` now starts a local HTTP/WebSocket server (port 4711–4720) and opens a browser-based viewer for your markdown workspace. Documents update live as files change on disk.
+- Standalone webview bundle is included in the npm package distribution (`dist/webview/`), built with Vite.
+- `--host=` flag to bind the web UI to a specific interface (default: `127.0.0.1`).
+- `--no-ui` flag to suppress the automatic browser launch.
+
+### Fixed
+- WebSocket `document.edit` messages now persist to disk using per-connection file tracking (edits were silently dropped in previous HTTP server builds).
+- Path containment checks use `path.sep` for cross-platform correctness (Windows paths were incorrectly rejected as forbidden).
+- Malformed percent-encoded paths in the file API return `400` instead of crashing the server.
+- Static file boundary check hardened against directory-prefix bypass.
+
 ## [1.5.6] - 2026-03-22
 
 ### Build
