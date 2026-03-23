@@ -16,7 +16,7 @@ export interface ListWorkspaceDocumentsOptions {
   maxFiles?: number
 }
 
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.md-feedback', 'dist', 'build'])
+export const SKIP_DIRS = new Set(['.git', 'node_modules', '.md-feedback', 'dist', 'build'])
 
 export function listWorkspaceDocuments(
   workspaceRoot: string,

@@ -1,11 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { readFileSync, writeFileSync, watch } from 'node:fs'
-import { join, resolve, relative, basename } from 'node:path'
+import { join, resolve } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { listWorkspaceDocuments } from './workspace'
-import { log } from './server'
+import { listWorkspaceDocuments, SKIP_DIRS } from './workspace'
+import { log } from './logger'
 
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.md-feedback', 'dist', 'build'])
 const PORT_START = 4711
 const PORT_MAX = 4720
 
@@ -13,8 +12,12 @@ function tryBindPort(port: number, host: string): Promise<ReturnType<typeof crea
   return new Promise((resolve) => {
     const srv = createServer()
     srv.once('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') resolve(null)
-      else resolve(null)
+      if (err.code === 'EADDRINUSE') {
+        resolve(null)
+      } else {
+        log(`web UI: port ${port} error: ${err.code ?? err.message}`)
+        resolve(null)
+      }
     })
     srv.once('listening', () => resolve(srv))
     srv.listen(port, host)
@@ -24,7 +27,12 @@ function tryBindPort(port: number, host: string): Promise<ReturnType<typeof crea
 async function findAvailablePort(host: string): Promise<{ server: ReturnType<typeof createServer>; port: number } | null> {
   for (let port = PORT_START; port <= PORT_MAX; port++) {
     const server = await tryBindPort(port, host)
-    if (server) return { server, port }
+    if (server) {
+      if (port !== PORT_START) {
+        log(`web UI: port ${PORT_START} in use → using ${port}`)
+      }
+      return { server, port }
+    }
   }
   return null
 }
@@ -59,7 +67,7 @@ export interface HttpServerOptions {
 
 export interface HttpServerHandle {
   port: number
-  close(): void
+  close(): Promise<void>
 }
 
 export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServerHandle | null> {
@@ -82,7 +90,7 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
   function sendInitialDocument(ws: WebSocket) {
     const files = listWorkspaceDocuments(workspace, { annotatedOnly: false, maxFiles: 500 })
     if (files.length === 0) {
-      try { ws.send(JSON.stringify({ type: 'document.empty' })) } catch { /* closed */ }
+      try { ws.send(JSON.stringify({ type: 'document.empty', workspace })) } catch { /* closed */ }
       return
     }
     const rel = files[0]
@@ -100,7 +108,7 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
         }))
       } catch { /* ws closed between read and send */ }
     } catch {
-      try { ws.send(JSON.stringify({ type: 'document.empty' })) } catch { /* closed */ }
+      try { ws.send(JSON.stringify({ type: 'document.empty', workspace })) } catch { /* closed */ }
     }
   }
 
@@ -217,6 +225,10 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
       try {
         const body = await getBody(req)
         const { content } = JSON.parse(body) as { content: string }
+        if (typeof content !== 'string') {
+          sendJson(res, 400, { error: 'content must be a string' })
+          return
+        }
         writeFileSync(abs, content, 'utf-8')
         sendJson(res, 200, { ok: true })
       } catch (err) {
@@ -274,10 +286,11 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<HttpServ
 
   return {
     port,
-    close() {
+    close(): Promise<void> {
       for (const w of watchers) { try { w.close() } catch { /* ignore */ } }
       wss.close()
-      server.close()
+      server.closeAllConnections()
+      return new Promise<void>(resolve => server.close(() => resolve()))
     },
   }
 }

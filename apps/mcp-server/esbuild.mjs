@@ -45,7 +45,7 @@ await esbuild.build({
   platform: 'node',
   target: 'node18',
   banner: { js: '#!/usr/bin/env node' },
-  external: [],
+  external: ['ws', 'open'],
   nodePaths: [pnpmNodeModules, rootNodeModules],
   alias: {
     '@md-feedback/shared': sharedEntry,

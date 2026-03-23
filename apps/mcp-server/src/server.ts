@@ -5,14 +5,13 @@ import { existsSync } from 'node:fs'
 import { registerTools } from './tools'
 import { listWorkspaceDocuments, resolveWorkspaceFrom } from './workspace'
 import { startHttpServer } from './http-server'
+import { log } from './logger'
+
+export { log }
 
 declare const __VERSION__: string
 // Injected by esbuild; value is './webview' — relative to dist/mcp-server.js
 declare const __WEBVIEW_DIR__: string
-
-export function log(msg: string): void {
-  process.stderr.write(`[md-feedback] ${msg}\n`)
-}
 
 function resolveWorkspace(): string | undefined {
   return resolveWorkspaceFrom(process.argv, process.env)
@@ -63,11 +62,19 @@ async function main() {
       // Open browser unless --no-ui flag is present or UI assets are missing
       const noUi = process.argv.includes('--no-ui')
       if (!noUi && hasUi) {
+        // In WSL, browser auto-open usually fails — print the URL explicitly first
+        // so the user can open it manually in their Windows browser.
+        const isWSL = !!process.env.WSL_DISTRO_NAME
+        if (isWSL) {
+          log(`WSL detected — open in your Windows browser: http://${host}:${handle.port}`)
+        }
         try {
           const open = (await import('open')).default
           await open(`http://${host}:${handle.port}`)
         } catch {
-          log('warning: could not open browser (headless environment?)')
+          if (!isWSL) {
+            log('warning: could not open browser (headless environment?)')
+          }
         }
       }
     }

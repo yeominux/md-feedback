@@ -22,6 +22,7 @@ export default function App() {
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [lastCheckpointTime, setLastCheckpointTime] = useState<string | null>(null)
   const [docEmpty, setDocEmpty] = useState(false)
+  const [emptyWorkspace, setEmptyWorkspace] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
   const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(null)
   const [mcpSetupDone, setMcpSetupDone] = useState(true) // default true to avoid flash
@@ -81,6 +82,7 @@ export default function App() {
           setDocLoaded(false)
           setDocEmpty(true)
           setHasAnnotations(false)
+          setEmptyWorkspace((msg.workspace as string | undefined) ?? null)
           break
 
         case 'onboarding.state':
@@ -468,7 +470,18 @@ export default function App() {
         {docEmpty && !docLoaded && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
             <FileText size={48} strokeWidth={1.5} style={{ color: 'var(--mf-text-faint)' }} />
-            <p style={{ fontSize: 14, color: 'var(--mf-text-faint)' }}>Open a .md file to start reviewing</p>
+            {emptyWorkspace ? (
+              <>
+                <p style={{ fontSize: 14, color: 'var(--mf-text-faint)' }}>
+                  No .md files found in <code style={{ fontFamily: 'monospace' }}>{emptyWorkspace}</code>
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--mf-text-faint)' }}>
+                  Try restarting with <code style={{ fontFamily: 'monospace' }}>--workspace=/your/project</code>
+                </p>
+              </>
+            ) : (
+              <p style={{ fontSize: 14, color: 'var(--mf-text-faint)' }}>Open a .md file to start reviewing</p>
+            )}
           </div>
         )}
 
